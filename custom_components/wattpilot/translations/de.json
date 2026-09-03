@@ -1,0 +1,183 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Verbindung zum Wattpilot im lokalen Netzwerk herstellen. Das Passwort ist dasselbe wie in der Wattpilot.Solar-App.",
+        "data": {"host": "Host", "password": "Passwort"}
+      },
+      "reauth_confirm": {
+        "description": "Das Ladegerät hat das gespeicherte Passwort abgelehnt. Aktuelles Passwort eingeben.",
+        "data": {"password": "Passwort"}
+      },
+      "reconfigure": {
+        "description": "Netzwerkadresse des Ladegeräts aktualisieren.",
+        "data": {"host": "Host", "password": "Passwort"}
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zum Ladegerät nicht möglich",
+      "invalid_auth": "Ungültiges Passwort",
+      "wrong_device": "Das Ladegerät unter dieser Adresse hat eine andere Seriennummer"
+    },
+    "abort": {
+      "already_configured": "Dieses Ladegerät ist bereits konfiguriert",
+      "reauth_successful": "Passwort aktualisiert",
+      "reconfigure_successful": "Konfiguration aktualisiert"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "update_interval": "Aktualisierungsintervall (Sekunden)"
+        },
+        "data_description": {
+          "update_interval": "Fasst Aktualisierungen des Ladegeräts zusammen: höchstens eine je Entität pro Intervall. 0 leitet jede Änderung sofort weiter."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "cloud_not_supported": {
+      "message": "Cloud-Verbindungen werden noch nicht unterstützt. Den Eintrag mit der lokalen Adresse des Ladegeräts neu konfigurieren."
+    },
+    "duplicate_device": {
+      "message": "Ladegerät {serial} ist bereits durch einen anderen Eintrag konfiguriert."
+    },
+    "invalid_device": {
+      "message": "Gerät {device_id} ist kein aktives Wattpilot-Ladegerät."
+    },
+    "wrong_charger": {
+      "message": "Dieser Eintrag gehört zu Ladegerät {expected}, das Gerät unter dieser Adresse meldet aber die Seriennummer {found}. Wurde das Ladegerät ersetzt, diesen Eintrag löschen und das neue hinzufügen."
+    }
+  },
+  "issues": {
+    "migration_collision": {
+      "title": "Einige Entitäten konnten nicht migriert werden",
+      "description": "Diese Entitäten einer früher installierten Wattpilot-Integration behalten ihre alte Kennung, weil bereits eine Entität mit der neuen existiert: {entities}.\n\nEs wurde nichts gelöscht. Jede von ihnen trägt weiterhin ihre Historie, Entitäts-ID und Anpassungen, gehört aber zu keiner geladenen Integration mehr und erscheint deshalb als nicht verfügbar. Geladen ist jeweils die Entität, die bereits vorhanden war.\n\nEntscheide je Entität, welche bleiben soll: die nicht verfügbare löschen, wenn dir ihre Historie egal ist — oder die geladene löschen und Home Assistant neu starten, damit die alte an ihre Stelle tritt."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "access_state": {"name": "Zugriffsstatus"},
+      "car_connected": {"name": "Fahrzeugverbindung"},
+      "id_chip": {"name": "ID-Chip {index} Energie"},
+      "car_state": {"name": "Fahrzeugstatus"},
+      "inverter": {"name": "Wechselrichter"},
+      "wifi_connection": {"name": "WLAN-Verbindung"},
+      "cable_unlock": {"name": "Kabelentriegelungsstatus"},
+      "internal_error": {"name": "Interner Fehler"},
+      "total_energy": {"name": "Gesamtenergie"},
+      "lock_feedback": {"name": "Verriegelungsrückmeldung"},
+      "effective_lock_setting": {"name": "Wirksame Verriegelungseinstellung"},
+      "local_time": {"name": "Lokale Zeit"},
+      "charging_reason": {"name": "Ladegrund"},
+      "charging_power": {"name": "Ladeleistung"},
+      "webserver_queue": {"name": "Webserver-Warteschlange"},
+      "reboot_counter": {"name": "Neustartzähler"},
+      "reboot_timer": {"name": "Laufzeit"},
+      "wifi_signal": {"name": "WLAN-Signal"},
+      "charger_temp": {"name": "Ladegerätetemperatur"},
+      "id_chip_current": {"name": "Aktiver ID-Chip"},
+      "http_clients": {"name": "HTTP-Clients"},
+      "websocket_clients": {"name": "WebSocket-Clients"},
+      "session_energy": {"name": "Sitzungsenergie"},
+      "wifi_state": {"name": "WLAN-Status"},
+      "session_energy_solar": {"name": "Sitzungsenergie aus Solar"},
+      "session_energy_battery": {"name": "Sitzungsenergie aus Batterie"},
+      "session_energy_grid": {"name": "Sitzungsenergie aus Netz"},
+      "session_energy_other": {"name": "Sitzungsenergie aus sonstigen Quellen"},
+      "phases_in_use": {"name": "Genutzte Phasen"},
+      "charging_allowed": {"name": "Laden freigegeben"},
+      "allowed_current": {"name": "Freigegebener Ladestrom"},
+      "average_charging_power": {"name": "Mittlere Ladeleistung"},
+      "grid_frequency": {"name": "Netzfrequenz"}
+    },
+    "switch": {
+      "lock_level_selection": {"name": "Sperre für Stromänderung per Taste"},
+      "boost": {"name": "Batterie-Boost"},
+      "charge_pause": {"name": "Ladepause erlauben"},
+      "remain_in_eco_mode": {"name": "Im Eco-Modus bleiben"},
+      "lumina_strom_awattar": {"name": "Lumina Strom/aWattar verwenden"},
+      "pv_surplus": {"name": "PV-Überschussladen"},
+      "load_balancing": {"name": "Lastmanagement"},
+      "led_energy_saving": {"name": "LED-Energiesparen"},
+      "ground_check": {"name": "Erdungsprüfung"},
+      "discharge_pv_battery": {"name": "PV-Batterie entladen"},
+      "simulate_unplugging": {"name": "Abstecken simulieren"},
+      "network_time_protocol": {"name": "Netzwerkzeit (NTP)"},
+      "unlock_power_outage": {"name": "Bei Stromausfall entriegeln"},
+      "auto_disable_hotspot": {"name": "Hotspot automatisch deaktivieren"}
+    },
+    "number": {
+      "max_charging_current": {"name": "Maximaler Ladestrom"},
+      "max_price": {"name": "Maximaler Preis"},
+      "boost_discharges_until": {"name": "Boost entlädt Batterie bis"},
+      "pv_battery_threshold": {"name": "PV-Batterie-Schwellenwert"},
+      "min_charging_time": {"name": "Mindestladezeit"},
+      "ohmpilot_threshold": {"name": "Ohmpilot-Temperaturschwelle"},
+      "start_charging_at": {"name": "PV-Überschuss-Startleistung"},
+      "next_trip_charging": {"name": "Energie für nächste Fahrt"},
+      "phase_switch_delay": {"name": "Phasenumschaltverzögerung"},
+      "phase_switch_interval": {"name": "Phasenumschaltintervall"},
+      "pv_battery_discharges_until": {"name": "PV-Überschuss entlädt Batterie bis"},
+      "three_phase_power_level": {"name": "Dreiphasen-Leistungsstufe"}
+    },
+    "select": {
+      "access_control": {"name": "Zugriffskontrolle"},
+      "awattar_country": {"name": "Lumina Strom/aWattar-Land"},
+      "lock_level_selection": {"name": "Sperre für Stromänderung per Taste"},
+      "boost_type": {"name": "Batterie-Boost-Typ"},
+      "charging_mode": {"name": "Lademodus"},
+      "phase_switch": {"name": "Phasenumschaltung"},
+      "daylight_saving": {"name": "Sommerzeit"},
+      "cable_unlock_select": {"name": "Kabelverriegelungsverhalten"},
+      "car_profile": {"name": "Fahrzeugprofil"}
+    },
+    "button": {
+      "start_charging": {"name": "Laden starten"},
+      "stop_charging": {"name": "Laden stoppen"},
+      "start_charging_force": {"name": "Laden erzwingen"},
+      "restart": {"name": "Ladegerät neu starten"},
+      "authenticate": {"name": "Ohne Karte authentifizieren"}
+    },
+    "time": {
+      "next_trip_time": {"name": "Abfahrtszeit nächste Fahrt"}
+    },
+    "update": {
+      "firmware_update": {"name": "Firmware"}
+    }
+  },
+  "services": {
+    "set_next_trip": {
+      "name": "Nächste Fahrt festlegen",
+      "description": "Legt die Abfahrtszeit für den Lademodus „Nächste Fahrt“ fest.",
+      "fields": {
+        "device_id": {"name": "Ladegerät", "description": "Das Wattpilot-Gerät."},
+        "trigger_time": {"name": "Abfahrtszeit", "description": "Uhrzeit der nächsten Abfahrt."}
+      }
+    },
+    "set_goe_cloud": {
+      "name": "go-e Cloud-API festlegen",
+      "description": "Aktiviert oder deaktiviert die go-e Cloud-HTTP-API des Ladegeräts.",
+      "fields": {
+        "device_id": {"name": "Ladegerät", "description": "Das Wattpilot-Gerät."},
+        "cloud_api": {"name": "Cloud-API", "description": "Schaltet die go-e Cloud-API ein oder aus."}
+      }
+    },
+    "disconnect_charger": {
+      "name": "Ladegerät trennen",
+      "description": "Schließt die Verbindung zum Ladegerät; Entitäten werden nicht mehr verfügbar.",
+      "fields": {
+        "device_id": {"name": "Ladegerät", "description": "Das Wattpilot-Gerät."}
+      }
+    },
+    "reconnect_charger": {
+      "name": "Ladegerät erneut verbinden",
+      "description": "Stellt die Verbindung zum Ladegerät wieder her.",
+      "fields": {
+        "device_id": {"name": "Ladegerät", "description": "Das Wattpilot-Gerät."}
+      }
+    }
+  }
+}

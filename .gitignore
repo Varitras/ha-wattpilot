@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.mutmut-cache
+mutants/
+htmlcov/
+.coverage
+*.egg-info/
+custom_components/wattpilot_dev/

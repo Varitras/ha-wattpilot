@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install dependencies
+        run: pip install --group dev
+      - name: Run all gates (same script as local)
+        run: bash scripts/check.sh
+
+  # The `check` job above runs whatever Home Assistant is newest. That says
+  # nothing about the oldest one we let HACS install on, and the difference is
+  # not academic: DeviceEntry only gained `config_entry_id` in 2026.8.0, so
+  # every action raised AttributeError on the version hacs.json used to
+  # declare -- with a fully green suite. Keep this pin equal to hacs.json's
+  # "homeassistant" (tests/test_guards.py enforces that). The
+  # pytest-homeassistant-custom-component release pins one HA version each,
+  # so a mismatched pair fails here in pip rather than silently in a user's
+  # install.
+  minimum-home-assistant:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install the declared minimum Home Assistant
+        run: |
+          pip install --group dev \
+            "homeassistant==2026.8.0" \
+            "pytest-homeassistant-custom-component==0.13.354"
+      - name: Run the test suite against it
+        run: python3 -m pytest
+
+  hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hacs/action@main
+        with:
+          category: integration

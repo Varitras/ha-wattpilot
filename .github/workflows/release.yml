@@ -1,0 +1,30 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install dependencies
+        run: pip install --group dev
+      - name: Full gates including mutation run
+        run: bash scripts/check.sh --release
+      - name: Verify tag matches manifest version
+        run: |
+          VERSION=$(python3 -c "import json;print(json.load(open('custom_components/wattpilot/manifest.json'))['version'])")
+          [ "v$VERSION" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME != manifest v$VERSION"; exit 1; }
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          generate_release_notes: true

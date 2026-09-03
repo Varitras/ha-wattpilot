@@ -1,0 +1,108 @@
+[project]
+name = "ha-wattpilot"
+# Kept equal to custom_components/wattpilot/manifest.json, which is the
+# version Home Assistant and HACS actually read; a guard enforces it. This
+# file is tooling config, but two version numbers with no rule between them
+# drift, and the release gate only ever compared the tag to the manifest
+# (audit VA-17).
+version = "0.1.0"
+description = "Home Assistant integration for Fronius Wattpilot EV chargers"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.14"
+
+[dependency-groups]
+dev = [
+    "wattpilot-api==1.4.0",
+    "pytest>=9.0.0",
+    "pytest-homeassistant-custom-component",
+    "ruff>=0.15.0",
+    "mypy>=1.16.0",
+    "radon>=6.0.0",
+    "mutmut>=3.0.0",
+    "pytest-timeout>=2.3.0",
+    "PyYAML>=6.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = ["-q"]
+# The marker names what the test is, and `-m e2e` still selects it. It is no
+# longer deselected by default: it drives a full HA setup against the fake
+# charger, not real hardware, and costs 3.3 s -- cheap enough that hiding it
+# behind a release-only gate only meant finding those regressions late
+# (audit VA-16).
+markers = [
+    "e2e: drives a complete Home Assistant setup (fake charger, not hardware)",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D203", "D212",          # docstring style conflicts (HA uses D211/D212 family)
+    "COM812",                # formatter handles trailing commas
+    "TRY003", "EM101", "EM102",  # plain exception messages are fine
+    "CPY001",                # no per-file copyright headers; LICENSE covers the repo
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S106", "PLR2004", "D", "ANN", "SLF001"]
+"scripts/**" = ["T201", "S603", "S607"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+packages = ["custom_components.wattpilot"]
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+# PyYAML ships no inline types and its stub package is not part of the test
+# environment; Home Assistant provides the library itself. Only the missing
+# stubs are waived -- our use of it is still checked.
+module = "yaml"
+ignore_missing_imports = true
+
+[tool.mutmut]
+source_paths = [
+    "custom_components/wattpilot/hub.py",
+    "custom_components/wattpilot/sensor.py",
+    "custom_components/wattpilot/__init__.py",
+]
+# Sibling modules (const.py, entity.py, ...) are imported by the mutated
+# files and by the test suite but must stay unmutated -- copy the whole
+# package verbatim so the sandbox has a complete import graph. scripts/ is
+# needed too: test_make_dev_copy.py imports make_dev_copy.py from there.
+also_copy = ["custom_components", "scripts"]
+pytest_add_cli_args_test_selection = ["tests"]
+# These test files statically introspect the package source (ast.parse /
+# rglob over PACKAGE) rather than calling into it, so they never exercise
+# a trampoline and can never kill a mutant. Against mutmut's instrumented
+# copy of __init__.py -- one real function turned into many synthetic
+# mutant variants in the same file -- that same static scan finds every
+# variant's literals at once and fails for reasons unrelated to mutant
+# quality. Exclude them from mutation runs; check.sh still runs them
+# normally against the real source on every other gate.
+# api/client.py is measured, not guessed, and still out: with the client at
+# 86 % coverage the run kills 910 of 1284 checkable mutants (71 %), leaving
+# 374 survivors. They sit where tests are expensive and cheap to fake --
+# the reconnect loop's timings (60), every default in __init__ (57), the
+# firmware install's wait loop (37). Listing 374 names as "allowed" would
+# turn the gate into a rubber stamp; the honest state is a score, recorded
+# here. Revisit if that score becomes something we act on.
+# test_make_dev_copy joins them for a different reason: it builds a dev copy
+# from custom_components/ and imports it in a subprocess. Inside the sandbox
+# that source is mutmut's instrumented copy, so the child pulls mutmut in and
+# dies looking for a config in its own working directory -- taking the stats
+# collection, and with it the whole run, down before a single mutant is
+# checked. Measured the hard way: 45 minutes of a run that verified nothing.
+pytest_add_cli_args = [
+    "--ignore=tests/test_guards.py",
+    "--ignore=tests/test_translations.py",
+    "--ignore=tests/test_make_dev_copy.py",
+]

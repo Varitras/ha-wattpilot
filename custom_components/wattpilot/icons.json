@@ -1,0 +1,26 @@
+{
+  "entity": {
+    "sensor": {
+      "session_energy_solar": {"default": "mdi:solar-power"},
+      "session_energy_battery": {"default": "mdi:battery-charging"},
+      "session_energy_grid": {"default": "mdi:transmission-tower"},
+      "session_energy_other": {"default": "mdi:flash"},
+      "charging_reason": {"default": "mdi:information-outline"},
+      "id_chip": {"default": "mdi:credit-card-wireless"},
+      "id_chip_current": {"default": "mdi:credit-card-wireless-outline"}
+    },
+    "button": {
+      "start_charging": {"default": "mdi:play"},
+      "stop_charging": {"default": "mdi:stop"},
+      "start_charging_force": {"default": "mdi:fast-forward"},
+      "authenticate": {"default": "mdi:card-account-details"}
+    },
+    "time": {"next_trip_time": {"default": "mdi:clock-start"}}
+  },
+  "services": {
+    "set_next_trip": {"service": "mdi:clock-start"},
+    "set_goe_cloud": {"service": "mdi:cloud-key"},
+    "disconnect_charger": {"service": "mdi:lan-disconnect"},
+    "reconnect_charger": {"service": "mdi:lan-connect"}
+  }
+}

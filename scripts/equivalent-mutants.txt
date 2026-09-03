@@ -1,0 +1,38 @@
+# Mutants that survive because they change no behavior at all -- no test can
+# kill them, in this or any suite. The mutation gate in check.sh compares the
+# survivor list against this file exactly: a new survivor fails the build, and
+# so does an entry here that stops surviving (delete it then).
+#
+# Nothing goes in here to make the build pass. An entry needs an argument for
+# why the mutated code is *semantically identical*, not merely untested.
+
+# Removed 2026-08-16: self._last_available = None -> "" used to be equivalent
+# because the value was only ever compared against a bool and then
+# overwritten. Routing connect/disconnect/timer through _update_availability
+# made `_last_available is None` decide whether a connect is announced as a
+# recovery, so the mutant now changes observable behaviour and is killed by
+# test_first_connect_is_not_announced_as_a_recovery. It kept surviving after
+# that change purely for want of a test -- which is the one reason this file
+# does not accept.
+
+# entry.data.get(CONF_CONNECTION_TYPE, CONNECTION_LOCAL)  ->  default None
+# ...and the same call with the default dropped entirely. The result is only
+# ever compared against CONNECTION_CLOUD. A missing key yields "local" or None,
+# and neither is CONNECTION_CLOUD, so the branch decides identically.
+custom_components.wattpilot.x_async_setup_entry__mutmut_2
+custom_components.wattpilot.x_async_setup_entry__mutmut_4
+
+# available=False -> available=None in the shutdown announcement. Equivalent
+# since VA-04: entities read hub.available, which is False for a torn-down
+# hub whatever the dispatcher carried, and the callback ignores its argument.
+# What the value still decides is the wording of the next connect's log line
+# ("connected" vs "back online") -- not worth a test that asserts prose.
+custom_components.wattpilot.hub.xǁWattpilotHubǁasync_shutdown__mutmut_10
+
+# self._torn_down = False -> None, in the constructor and in async_connect.
+# Both places only ever feed `not self._torn_down`, and None is as falsy as
+# False, so no caller can tell the difference. The third mutant of that line
+# (-> True) is NOT equivalent and is killed by
+# test_a_fresh_hub_does_not_claim_to_be_torn_down.
+custom_components.wattpilot.hub.xǁWattpilotHubǁ__init____mutmut_10
+custom_components.wattpilot.hub.xǁWattpilotHubǁasync_connect__mutmut_1

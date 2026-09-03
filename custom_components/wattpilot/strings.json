@@ -1,0 +1,183 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Connect to the Wattpilot on your local network. The password is the one used in the Wattpilot.Solar app.",
+        "data": {"host": "Host", "password": "Password"}
+      },
+      "reauth_confirm": {
+        "description": "The charger rejected the stored password. Enter the current one.",
+        "data": {"password": "Password"}
+      },
+      "reconfigure": {
+        "description": "Update the charger's network address.",
+        "data": {"host": "Host", "password": "Password"}
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the charger",
+      "invalid_auth": "Invalid password",
+      "wrong_device": "The charger at this address has a different serial number"
+    },
+    "abort": {
+      "already_configured": "This charger is already configured",
+      "reauth_successful": "Password updated",
+      "reconfigure_successful": "Configuration updated"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "update_interval": "Update interval (seconds)"
+        },
+        "data_description": {
+          "update_interval": "Coalesce charger updates: at most one update per entity per interval. 0 forwards every change immediately."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "cloud_not_supported": {
+      "message": "Cloud connections are not supported yet. Reconfigure the entry with the charger's local address."
+    },
+    "duplicate_device": {
+      "message": "Charger {serial} is already configured by another entry."
+    },
+    "invalid_device": {
+      "message": "Device {device_id} is not a loaded Wattpilot charger."
+    },
+    "wrong_charger": {
+      "message": "This entry belongs to charger {expected}, but the charger at this address reports serial {found}. If you replaced the charger, delete this entry and add the new one."
+    }
+  },
+  "issues": {
+    "migration_collision": {
+      "title": "Some entities could not be migrated",
+      "description": "These entities from a previously installed Wattpilot integration keep their old identifier, because an entity with the new one already exists: {entities}.\n\nNothing was deleted. Each of them still holds its history, entity ID and customisations, but no longer belongs to a loaded integration, so it shows as unavailable. The entity that is loaded is the one that was already there.\n\nDecide per entity which one to keep: delete the unavailable one if its history does not matter to you, or delete the loaded one and restart Home Assistant, so the old one is adopted in its place."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "access_state": {"name": "Access state"},
+      "car_connected": {"name": "Car connection"},
+      "id_chip": {"name": "ID chip {index} energy"},
+      "car_state": {"name": "Car state"},
+      "inverter": {"name": "Inverter"},
+      "wifi_connection": {"name": "Wi-Fi connection"},
+      "cable_unlock": {"name": "Cable unlock status"},
+      "internal_error": {"name": "Internal error"},
+      "total_energy": {"name": "Total energy"},
+      "lock_feedback": {"name": "Lock feedback"},
+      "effective_lock_setting": {"name": "Effective lock setting"},
+      "local_time": {"name": "Local time"},
+      "charging_reason": {"name": "Charging reason"},
+      "charging_power": {"name": "Charging power"},
+      "webserver_queue": {"name": "Webserver queue"},
+      "reboot_counter": {"name": "Reboot counter"},
+      "reboot_timer": {"name": "Uptime"},
+      "wifi_signal": {"name": "Wi-Fi signal"},
+      "charger_temp": {"name": "Charger temperature"},
+      "id_chip_current": {"name": "Active ID chip"},
+      "http_clients": {"name": "HTTP clients"},
+      "websocket_clients": {"name": "WebSocket clients"},
+      "session_energy": {"name": "Session energy"},
+      "wifi_state": {"name": "Wi-Fi state"},
+      "session_energy_solar": {"name": "Session energy from solar"},
+      "session_energy_battery": {"name": "Session energy from battery"},
+      "session_energy_grid": {"name": "Session energy from grid"},
+      "session_energy_other": {"name": "Session energy from other sources"},
+      "phases_in_use": {"name": "Phases in use"},
+      "charging_allowed": {"name": "Charging allowed"},
+      "allowed_current": {"name": "Allowed charging current"},
+      "average_charging_power": {"name": "Average charging power"},
+      "grid_frequency": {"name": "Grid frequency"}
+    },
+    "switch": {
+      "lock_level_selection": {"name": "Button current change lock"},
+      "boost": {"name": "Battery boost"},
+      "charge_pause": {"name": "Allow charge pause"},
+      "remain_in_eco_mode": {"name": "Remain in Eco mode"},
+      "lumina_strom_awattar": {"name": "Use Lumina Strom/aWattar"},
+      "pv_surplus": {"name": "PV surplus charging"},
+      "load_balancing": {"name": "Load balancing"},
+      "led_energy_saving": {"name": "LED energy saving"},
+      "ground_check": {"name": "Ground check"},
+      "discharge_pv_battery": {"name": "Discharge PV battery"},
+      "simulate_unplugging": {"name": "Simulate unplugging"},
+      "network_time_protocol": {"name": "Network time (NTP)"},
+      "unlock_power_outage": {"name": "Unlock on power outage"},
+      "auto_disable_hotspot": {"name": "Auto-disable hotspot"}
+    },
+    "number": {
+      "max_charging_current": {"name": "Maximum charging current"},
+      "max_price": {"name": "Maximum price"},
+      "boost_discharges_until": {"name": "Boost discharges battery until"},
+      "pv_battery_threshold": {"name": "PV battery threshold"},
+      "min_charging_time": {"name": "Minimum charging time"},
+      "ohmpilot_threshold": {"name": "Ohmpilot temperature threshold"},
+      "start_charging_at": {"name": "PV surplus start power"},
+      "next_trip_charging": {"name": "Next trip energy"},
+      "phase_switch_delay": {"name": "Phase switch delay"},
+      "phase_switch_interval": {"name": "Phase switch interval"},
+      "pv_battery_discharges_until": {"name": "PV surplus discharges battery until"},
+      "three_phase_power_level": {"name": "Three-phase power level"}
+    },
+    "select": {
+      "access_control": {"name": "Access control"},
+      "awattar_country": {"name": "Lumina Strom/aWattar country"},
+      "lock_level_selection": {"name": "Button current change lock"},
+      "boost_type": {"name": "Battery boost type"},
+      "charging_mode": {"name": "Charging mode"},
+      "phase_switch": {"name": "Phase switching"},
+      "daylight_saving": {"name": "Daylight saving"},
+      "cable_unlock_select": {"name": "Cable lock behavior"},
+      "car_profile": {"name": "Car profile"}
+    },
+    "button": {
+      "start_charging": {"name": "Start charging"},
+      "stop_charging": {"name": "Stop charging"},
+      "start_charging_force": {"name": "Force start charging"},
+      "restart": {"name": "Restart charger"},
+      "authenticate": {"name": "Authenticate without card"}
+    },
+    "time": {
+      "next_trip_time": {"name": "Next trip departure"}
+    },
+    "update": {
+      "firmware_update": {"name": "Firmware"}
+    }
+  },
+  "services": {
+    "set_next_trip": {
+      "name": "Set next trip",
+      "description": "Sets the departure time for Next Trip charging mode.",
+      "fields": {
+        "device_id": {"name": "Charger", "description": "The Wattpilot device."},
+        "trigger_time": {"name": "Departure time", "description": "Time of the next departure."}
+      }
+    },
+    "set_goe_cloud": {
+      "name": "Set go-e cloud API",
+      "description": "Enables or disables the go-e cloud HTTP API of the charger.",
+      "fields": {
+        "device_id": {"name": "Charger", "description": "The Wattpilot device."},
+        "cloud_api": {"name": "Cloud API", "description": "Turn the go-e cloud API on or off."}
+      }
+    },
+    "disconnect_charger": {
+      "name": "Disconnect charger",
+      "description": "Closes the connection to the charger; entities become unavailable.",
+      "fields": {
+        "device_id": {"name": "Charger", "description": "The Wattpilot device."}
+      }
+    },
+    "reconnect_charger": {
+      "name": "Reconnect charger",
+      "description": "Re-establishes the connection to the charger.",
+      "fields": {
+        "device_id": {"name": "Charger", "description": "The Wattpilot device."}
+      }
+    }
+  }
+}

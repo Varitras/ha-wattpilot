@@ -1,0 +1,841 @@
+{
+  "sensor": [
+    {
+      "uid": "access_state",
+      "charger_key": "access_state",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "car_connected",
+      "charger_key": "car_connected",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "cards_0",
+      "charger_key": "cards",
+      "unit": "Wh",
+      "device_class": "energy",
+      "state_class": "total",
+      "entity_category": null,
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "cards_1",
+      "charger_key": "cards",
+      "unit": "Wh",
+      "device_class": "energy",
+      "state_class": "total",
+      "entity_category": null,
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "cards_2",
+      "charger_key": "cards",
+      "unit": "Wh",
+      "device_class": "energy",
+      "state_class": "total",
+      "entity_category": null,
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "cards_3",
+      "charger_key": "cards",
+      "unit": "Wh",
+      "device_class": "energy",
+      "state_class": "total",
+      "entity_category": null,
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "cards_4",
+      "charger_key": "cards",
+      "unit": "Wh",
+      "device_class": "energy",
+      "state_class": "total",
+      "entity_category": null,
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "cards_5",
+      "charger_key": "cards",
+      "unit": "Wh",
+      "device_class": "energy",
+      "state_class": "total",
+      "entity_category": null,
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "cards_6",
+      "charger_key": "cards",
+      "unit": "Wh",
+      "device_class": "energy",
+      "state_class": "total",
+      "entity_category": null,
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "cards_7",
+      "charger_key": "cards",
+      "unit": "Wh",
+      "device_class": "energy",
+      "state_class": "total",
+      "entity_category": null,
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "cards_8",
+      "charger_key": "cards",
+      "unit": "Wh",
+      "device_class": "energy",
+      "state_class": "total",
+      "entity_category": null,
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "cards_9",
+      "charger_key": "cards",
+      "unit": "Wh",
+      "device_class": "energy",
+      "state_class": "total",
+      "entity_category": null,
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "car",
+      "charger_key": "car",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "cci",
+      "charger_key": "cci",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "ccw",
+      "charger_key": "ccw",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "cus",
+      "charger_key": "cus",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "err",
+      "charger_key": "err",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "eto",
+      "charger_key": "eto",
+      "unit": "Wh",
+      "device_class": "energy",
+      "state_class": "total_increasing",
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "ffb",
+      "charger_key": "ffb",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "lck",
+      "charger_key": "lck",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "loc",
+      "charger_key": "loc",
+      "unit": null,
+      "device_class": "timestamp",
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "modelStatus",
+      "charger_key": "modelStatus",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "nrg",
+      "charger_key": "nrg",
+      "unit": "W",
+      "device_class": "power",
+      "state_class": "measurement",
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "qsw",
+      "charger_key": "qsw",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": false,
+      "firmware": "<=40.7",
+      "variant": null
+    },
+    {
+      "uid": "rbc",
+      "charger_key": "rbc",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "rbt",
+      "charger_key": "rbt",
+      "unit": "ms",
+      "device_class": "duration",
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "rssi",
+      "charger_key": "rssi",
+      "unit": "dBm",
+      "device_class": "signal_strength",
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "tma",
+      "charger_key": "tma",
+      "unit": "\u00b0C",
+      "device_class": "temperature",
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "trx",
+      "charger_key": "trx",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "wcch",
+      "charger_key": "wcch",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": false,
+      "firmware": "<=40.7",
+      "variant": null
+    },
+    {
+      "uid": "wccw",
+      "charger_key": "wccw",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": false,
+      "firmware": "<=40.7",
+      "variant": null
+    },
+    {
+      "uid": "wh",
+      "charger_key": "wh",
+      "unit": "Wh",
+      "device_class": "energy",
+      "state_class": "total_increasing",
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "wst",
+      "charger_key": "wst",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    }
+  ],
+  "switch": [
+    {
+      "uid": "bac",
+      "charger_key": "bac",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": "<38.5",
+      "variant": null
+    },
+    {
+      "uid": "ebe",
+      "charger_key": "ebe",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": ">=41.7",
+      "variant": null
+    },
+    {
+      "uid": "fap",
+      "charger_key": "fap",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "fre",
+      "charger_key": "fre",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "ful",
+      "charger_key": "ful",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "fup",
+      "charger_key": "fup",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "loe",
+      "charger_key": "loe",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "lse",
+      "charger_key": "lse",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "nmo",
+      "charger_key": "nmo",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "pdte",
+      "charger_key": "pdte",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": false,
+      "firmware": ">=41.7",
+      "variant": null
+    },
+    {
+      "uid": "su",
+      "charger_key": "su",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "tse",
+      "charger_key": "tse",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "upo",
+      "charger_key": "upo",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "wda",
+      "charger_key": "wda",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    }
+  ],
+  "number": [
+    {
+      "uid": "amp",
+      "charger_key": "amp",
+      "unit": "A",
+      "device_class": "current",
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": "11"
+    },
+    {
+      "uid": "amp_22kw",
+      "charger_key": "amp",
+      "unit": "A",
+      "device_class": "current",
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": "22"
+    },
+    {
+      "uid": "awp",
+      "charger_key": "awp",
+      "unit": "EUR",
+      "device_class": "monetary",
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "ebt",
+      "charger_key": "ebt",
+      "unit": "%",
+      "device_class": "battery",
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": ">=41.7",
+      "variant": null
+    },
+    {
+      "uid": "fam",
+      "charger_key": "fam",
+      "unit": "%",
+      "device_class": "battery",
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "fmt",
+      "charger_key": "fmt",
+      "unit": "ms",
+      "device_class": "duration",
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "fot",
+      "charger_key": "fot",
+      "unit": "\u00b0C",
+      "device_class": "temperature",
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "fst",
+      "charger_key": "fst",
+      "unit": "W",
+      "device_class": "power",
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "fte",
+      "charger_key": "fte",
+      "unit": "Wh",
+      "device_class": "energy",
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "mpwst",
+      "charger_key": "mpwst",
+      "unit": "ms",
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "mptwt",
+      "charger_key": "mptwt",
+      "unit": "ms",
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "pdt",
+      "charger_key": "pdt",
+      "unit": "%",
+      "device_class": "battery",
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": false,
+      "firmware": ">=41.7",
+      "variant": null
+    },
+    {
+      "uid": "spl3",
+      "charger_key": "spl3",
+      "unit": "W",
+      "device_class": "power",
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    }
+  ],
+  "select": [
+    {
+      "uid": "acs",
+      "charger_key": "acs",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "awc",
+      "charger_key": "awc",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "bac",
+      "charger_key": "bac",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": ">=38.5",
+      "variant": null
+    },
+    {
+      "uid": "ebo",
+      "charger_key": "ebo",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": ">=41.7",
+      "variant": null
+    },
+    {
+      "uid": "lmo",
+      "charger_key": "lmo",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "psm",
+      "charger_key": "psm",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "tds",
+      "charger_key": "tds",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "ust",
+      "charger_key": "ust",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": "config",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    }
+  ],
+  "button": [
+    {
+      "uid": "frc0",
+      "charger_key": "frc",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "frc1",
+      "charger_key": "frc",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "frc2",
+      "charger_key": "frc",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "rst",
+      "charger_key": "rst",
+      "unit": null,
+      "device_class": "restart",
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    },
+    {
+      "uid": "trx",
+      "charger_key": "trx",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": false,
+      "firmware": null,
+      "variant": null
+    }
+  ],
+  "update": [
+    {
+      "uid": "onv",
+      "charger_key": "onv",
+      "unit": null,
+      "device_class": "firmware",
+      "state_class": null,
+      "entity_category": "diagnostic",
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    }
+  ],
+  "time": [
+    {
+      "uid": "ftt",
+      "charger_key": "ftt",
+      "unit": null,
+      "device_class": null,
+      "state_class": null,
+      "entity_category": null,
+      "enabled_default": true,
+      "firmware": null,
+      "variant": null
+    }
+  ]
+}

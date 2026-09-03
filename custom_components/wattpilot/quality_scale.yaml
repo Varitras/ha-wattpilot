@@ -1,0 +1,128 @@
+# Home Assistant integration quality scale, self-assessed.
+# Every rule of every tier is listed with its real status -- "todo" where the
+# work is genuinely not done. The claimed tier is the highest one whose rules
+# are all done or exempt.
+tier: bronze
+
+rules:
+  # --- Bronze ---
+  action-setup: done
+  appropriate-polling:
+    status: exempt
+    comment: |
+      Push-based (local_push). The charger sends property updates over its
+      WebSocket; nothing is polled. Availability is derived from the client's
+      connection state, not from a poll.
+  brands:
+    status: exempt
+    comment: |
+      The rule asks for a logo in home-assistant/brands, which serves
+      integrations shipped with Home Assistant. This one is installed as a
+      custom repository, and its owner decided against submitting one. A
+      deliberate exemption, not a pending task.
+  common-modules: done
+  config-flow: done
+  config-flow-test-coverage: done
+  dependency-transparency: done
+  docs-actions: done
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  entity-event-setup: done
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure: done
+  test-before-setup: done
+  unique-config-entry:
+    status: done
+    comment: |
+      Keyed on the charger serial, which is only readable after connecting --
+      so the duplicate check runs in async_setup_entry, not in the flow alone.
+
+  # --- Silver ---
+  action-exceptions: done
+  config-entry-unloading: done
+  docs-configuration-parameters:
+    status: done
+    comment: |
+      The options flow's one parameter (update interval) is documented in the
+      README's Configuration section. It was exempt while there was no options
+      flow -- adding one made the exemption wrong (audit VA-09).
+  docs-installation-parameters: done
+  docs-triggers:
+    status: exempt
+    comment: |
+      The integration provides no triggers. The rule was missing from this
+      file while it claimed to list every rule (audit VA-09).
+  docs-conditions:
+    status: exempt
+    comment: The integration provides no conditions. Added with docs-triggers.
+  entity-unavailable: done
+  integration-owner: done
+  log-when-unavailable:
+    status: done
+    comment: Logged once per state change, not once per update.
+  parallel-updates: done
+  reauthentication-flow: done
+  test-coverage: done
+
+  # --- Gold ---
+  devices: done
+  diagnostics: done
+  discovery:
+    status: todo
+    comment: |
+      The charger advertises itself over mDNS and the client library ships a
+      discovery module, but no HA discovery step is implemented yet.
+  discovery-update-info:
+    status: todo
+    comment: Depends on discovery.
+  docs-data-update: done
+  docs-examples: done
+  docs-known-limitations: done
+  docs-supported-devices: done
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases: done
+  dynamic-devices:
+    status: exempt
+    comment: One config entry is exactly one charger; no devices appear later.
+  entity-category: done
+  entity-device-class: done
+  entity-disabled-by-default:
+    status: done
+    comment: |
+      Noisy diagnostics and the reverse-engineered energy-split sensors are
+      registry-disabled by default.
+  entity-translations: done
+  exception-translations: done
+  icon-translations: done
+  reconfiguration-flow: done
+  repair-issues:
+    status: done
+    comment: |
+      One issue exists: entities a migration had to skip because the target
+      unique id was already taken. It is not fixable from the UI on purpose
+      -- which of the two entities to keep is the owner's call, and the
+      issue explains both ways out. The other candidate, a cloud-configured
+      entry migrated from the fork, still fails setup with a translated
+      error rather than offering a repair.
+  stale-devices:
+    status: exempt
+    comment: One config entry is exactly one charger; removing it removes it.
+
+  # --- Platinum ---
+  async-dependency:
+    status: done
+    comment: |
+      The client reads its API definition while connecting, in a thread, so
+      no write ever pays for it on the event loop. It used to be read lazily
+      on the first write, which the integration worked around by warming the
+      cache itself; that workaround is gone with the cause.
+  inject-websession:
+    status: exempt
+    comment: |
+      The client speaks raw WebSocket via the websockets package, not aiohttp
+      or httpx, so there is no session to inject.
+  strict-typing: done

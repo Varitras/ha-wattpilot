@@ -1,0 +1,40 @@
+set_next_trip:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: wattpilot
+    trigger_time:
+      required: true
+      example: "06:30:00"
+      selector:
+        time:
+
+set_goe_cloud:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: wattpilot
+    cloud_api:
+      required: true
+      selector:
+        boolean:
+
+disconnect_charger:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: wattpilot
+
+reconnect_charger:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: wattpilot

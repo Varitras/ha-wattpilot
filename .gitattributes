@@ -1,0 +1,5 @@
+# Every text file is stored and checked out with LF. This is the native
+# means for the problem a hand-written guard used to watch: a generator run
+# on Windows would otherwise rewrite whole files to CRLF and bury the real
+# change in the diff (audit VA-11 / ledger L-006).
+* text=auto eol=lf
