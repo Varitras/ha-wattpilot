@@ -30,6 +30,21 @@ _CHARGER_KEY_EXCEPTIONS: dict[str, str] = {
 # A deliberate, documented deviation from the fork; see the awp description.
 _UNIT_EXCEPTIONS: dict[str, str] = {"awp": "ct"}
 
+# Six entities the fork ships disabled and this project ships enabled, on the
+# owner's decision: the three PV/phase-switch knobs are what you reach for
+# when tuning surplus charging, and the three switches are ordinary settings
+# rather than diagnostics. Nothing about the entities themselves differs --
+# only whether Home Assistant creates them without being asked. A deliberate
+# deviation, listed here so parity still guards everything else.
+_ENABLED_BY_DEFAULT_EXCEPTIONS: dict[str, bool] = {
+    "fap": True,
+    "pdte": True,
+    "su": True,
+    "mpwst": True,
+    "mptwt": True,
+    "pdt": True,
+}
+
 # Same entity, same reason: the fork declares NumberDeviceClass.MONETARY,
 # which Home Assistant documents as requiring an ISO 4217 currency code. "ct"
 # is not one, and the currency is not fixed anyway (awc selects the market),
@@ -86,7 +101,7 @@ def assert_platform_parity(
             ),
             "enabled_default": (
                 description.entity_registry_enabled_default,
-                fork["enabled_default"],
+                _ENABLED_BY_DEFAULT_EXCEPTIONS.get(uid, fork["enabled_default"]),
             ),
             "firmware": (description.firmware, fork["firmware"]),
             "variant": (description.variant, fork["variant"]),

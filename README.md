@@ -69,15 +69,16 @@ firmware and power variant.
 | `update` | Firmware version, with install |
 
 Diagnostic and noisy entities are registry-disabled by default; enable the ones
-you want in the entity settings.
+you want in the entity settings. Settings you would actually reach for are not
+among them: the PV-surplus and phase-switch knobs and the everyday switches
+ship enabled, even where the fork left them off.
 
 ### New: session energy split
 
 Four extra sensors break the current charging session down by energy source —
 **solar**, **battery**, **grid** and **other** (`whs`, `whb`, `whg`, `who`).
-These are reverse-engineered from firmware 42.5 and are **disabled by
-default**; enable them if you want per-source tracking. They are additions on
-top of the fork's entity set, not replacements.
+These are reverse-engineered from firmware 42.5 and are additions on top of
+the fork's entity set, not replacements.
 
 The fifth addition is the **car profile** select (`ct`), which
 `mk-maddin/wattpilot-HA` had and `ruaan-deysel/ha-wattpilot` did not.

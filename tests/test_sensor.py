@@ -55,9 +55,12 @@ def test_sensor_parity_with_fork() -> None:
     assert_platform_parity("sensor", SENSOR_DESCRIPTIONS, EXTRA_SENSOR_UIDS)
 
 
-def test_energy_split_sensors_are_opt_in() -> None:
+def test_energy_split_sensors_are_created_without_being_asked() -> None:
+    """They started opt-in, as reverse-engineered extras. They are the answer
+    to "how much of this session came from the sun", which is the question
+    this integration exists for, so they ship enabled."""
     for uid in ENERGY_SPLIT_UIDS:
-        assert by_uid(uid).entity_registry_enabled_default is False
+        assert by_uid(uid).entity_registry_enabled_default is True
 
 
 def test_firmware_filter_drops_legacy_sensors(

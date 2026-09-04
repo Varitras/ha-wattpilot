@@ -300,7 +300,6 @@ def _energy_split_sensor(
         native_unit_of_measurement="Wh",
         suggested_unit_of_measurement="kWh",
         suggested_display_precision=2,
-        entity_registry_enabled_default=False,
         clamp_non_negative=True,
     )
 
@@ -629,7 +628,6 @@ SWITCH_DESCRIPTIONS: tuple[WattpilotSwitchEntityDescription, ...] = (
         key="charge_pause",
         charger_key="fap",
         translation_key="charge_pause",
-        entity_registry_enabled_default=False,
         entity_category=EntityCategory.CONFIG,
     ),
     WattpilotSwitchEntityDescription(
@@ -675,7 +673,6 @@ SWITCH_DESCRIPTIONS: tuple[WattpilotSwitchEntityDescription, ...] = (
         key="discharge_pv_battery",
         charger_key="pdte",
         translation_key="discharge_pv_battery",
-        entity_registry_enabled_default=False,
         entity_category=EntityCategory.CONFIG,
         firmware=">=41.7",
     ),
@@ -683,7 +680,6 @@ SWITCH_DESCRIPTIONS: tuple[WattpilotSwitchEntityDescription, ...] = (
         key="simulate_unplugging",
         charger_key="su",
         translation_key="simulate_unplugging",
-        entity_registry_enabled_default=False,
         entity_category=EntityCategory.CONFIG,
     ),
     WattpilotSwitchEntityDescription(
@@ -857,7 +853,6 @@ NUMBER_DESCRIPTIONS: tuple[WattpilotNumberEntityDescription, ...] = (
         native_min_value=0,
         native_max_value=99999999,
         native_unit_of_measurement="ms",
-        entity_registry_enabled_default=False,
         entity_category=EntityCategory.CONFIG,
     ),
     WattpilotNumberEntityDescription(
@@ -868,7 +863,6 @@ NUMBER_DESCRIPTIONS: tuple[WattpilotNumberEntityDescription, ...] = (
         native_min_value=0,
         native_max_value=99999999,
         native_unit_of_measurement="ms",
-        entity_registry_enabled_default=False,
         entity_category=EntityCategory.CONFIG,
     ),
     WattpilotNumberEntityDescription(
@@ -880,7 +874,6 @@ NUMBER_DESCRIPTIONS: tuple[WattpilotNumberEntityDescription, ...] = (
         native_max_value=100,
         native_step=1,
         device_class=NumberDeviceClass.BATTERY,
-        entity_registry_enabled_default=False,
         native_unit_of_measurement="%",
         firmware=">=41.7",
         entity_category=EntityCategory.CONFIG,

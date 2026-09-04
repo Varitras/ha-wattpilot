@@ -43,6 +43,11 @@ from building the integration.
 
 ### Changed
 
+- Ten entities ship enabled that were off before: the four session-energy
+  sources, the phase-switch delay and interval, the PV-battery discharge
+  floor, and the switches for charge pause, PV-battery discharge and
+  simulated unplugging. They are settings and readings people look for, not
+  diagnostics -- six of them are enabled here where the fork disables them.
 - The aWATTar price limit drops its monetary device class. It is stored in
   cent, and Home Assistant expects an ISO 4217 currency code there.
 - The full-setup test runs on every change instead of only at release.
@@ -60,8 +65,7 @@ from building the integration.
 - One-time entity-registry migration for `mk-maddin/wattpilot-HA` installs,
   which keyed unique IDs on the friendly name or IP address instead of the
   serial.
-- Session energy split sensors (solar, battery, grid, other), disabled by
-  default.
+- Session energy split sensors (solar, battery, grid, other).
 - "Phases in use" sensor, reporting the phase count the charger has switched
   to (`pnp`). Created only on chargers that report the property.
 - "Charging allowed" (`alw`) and "Allowed charging current" (`acu`): what the
