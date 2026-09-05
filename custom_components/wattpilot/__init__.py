@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import callback
 from homeassistant.exceptions import ConfigEntryError
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .const import (
@@ -35,6 +36,12 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 ENTRY_VERSION = 2
+
+# async_setup exists only to register the actions, and there is nothing to
+# configure in YAML. Saying so explicitly is what hassfest asks of every
+# integration that implements async_setup, and it makes a `wattpilot:` block
+# in configuration.yaml an error instead of a silently ignored line.
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
