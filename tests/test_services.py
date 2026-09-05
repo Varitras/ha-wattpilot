@@ -36,7 +36,11 @@ async def setup_with_device(
         unique_id="123456",
     )
     assert await setup_entry(hass, entry, charger)
-    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, "123456")})
+    # async_get_device_by_identifier since HA 2026.9: identifiers are no
+    # longer unique across config entries, so the lookup takes the entry.
+    device = dr.async_get(hass).async_get_device_by_identifier(
+        (DOMAIN, "123456"), entry.entry_id
+    )
     assert device is not None
     return entry, device.id
 
