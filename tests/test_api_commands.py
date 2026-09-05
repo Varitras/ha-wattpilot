@@ -48,14 +48,14 @@ class RecordingSocket:
 @pytest.fixture
 def client() -> Wattpilot:
     instance = Wattpilot("192.0.2.10", "secret")
-    instance._ws = RecordingSocket(lambda: instance)  # type: ignore[assignment]
-    instance._connected = True
+    instance._connection.socket = RecordingSocket(lambda: instance)  # type: ignore[assignment]
+    instance._connection.mark_authenticated()
     instance._device.secured = 0
     return instance
 
 
 def sent_values(client: Wattpilot) -> list[tuple[str, Any]]:
-    socket: Any = client._ws
+    socket: Any = client._connection.socket
     return [(m["key"], m["value"]) for m in socket.sent]
 
 

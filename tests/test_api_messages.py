@@ -85,14 +85,14 @@ async def test_an_auth_error_is_remembered_for_connect(client: Wattpilot) -> Non
     """The message loop cannot raise at the caller, so connect() picks the
     error up afterwards -- losing it here would hang the connect instead."""
     await send(client, {"type": "authError", "message": "wrong password"})
-    assert isinstance(client._fatal_error, AuthenticationError)
-    assert "wrong password" in str(client._fatal_error)
+    assert isinstance(client._connection.fatal_error, AuthenticationError)
+    assert "wrong password" in str(client._connection.fatal_error)
 
 
 async def test_auth_success_opens_the_connection_gate(client: Wattpilot) -> None:
     await send(client, {"type": "authSuccess"})
     assert client.connected
-    assert client._connected_event.is_set()
+    assert client._connection._authenticated_event.is_set()
 
 
 async def test_an_unknown_frame_is_logged_and_ignored(

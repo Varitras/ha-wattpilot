@@ -93,10 +93,10 @@ async def test_connect_gives_up_when_authentication_never_answers(
         return SilentSocket()
 
     monkeypatch.setattr(
-        "custom_components.wattpilot.api.client.websockets.asyncio.client.connect",
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
         fake_connect,
     )
-    client._connect_timeout = 0.01
+    client._connection.connect_timeout = 0.01
 
     with pytest.raises(WattpilotConnectionError, match="Timeout waiting for auth"):
         await client.connect()
@@ -108,8 +108,8 @@ async def test_connect_on_an_already_connected_client_waits_for_its_state(
 ) -> None:
     """Reconnecting an established client must not open a second socket; it
     waits for the initialisation it may still be missing."""
-    client._connected = True
-    client._init_timeout = 0.01
+    client._connection.mark_authenticated()
+    client._connection.init_timeout = 0.01
 
     with pytest.raises(WattpilotConnectionError, match="property initialization"):
         await client.connect()
@@ -152,10 +152,10 @@ async def test_a_malformed_frame_does_not_kill_the_message_loop(
     connected, and nothing would ever update again. The predecessor of this
     test called the handler twice and never the loop, so it proved nothing
     about the claim in its own name (audit A11-06)."""
-    client._ws = FakeSocket(  # type: ignore[assignment]
+    client._connection.socket = FakeSocket(  # type: ignore[assignment]
         ["{not json", json.dumps({"type": "deltaStatus", "status": {"amp": 6}})]
     )
-    task = asyncio.create_task(client._message_loop())
+    task = asyncio.create_task(client._connection._message_loop())
     try:
         await _settle(lambda: client.amp == 6)
         assert client.amp == 6
@@ -172,14 +172,14 @@ async def test_disconnect_closes_the_socket_after_the_loop_failed(
     """Whatever ended the message loop, the socket still has to be closed --
     re-raising the loop's exception first left it open (audit A11-06)."""
     socket = FakeSocket([])
-    client._ws = socket  # type: ignore[assignment]
+    client._connection.socket = socket  # type: ignore[assignment]
 
     async def failing_loop() -> None:
         msg = "loop died"
         raise RuntimeError(msg)
 
-    client._message_loop_task = asyncio.create_task(failing_loop())
-    await _settle(client._message_loop_task.done)
+    client._connection.message_loop_task = asyncio.create_task(failing_loop())
+    await _settle(client._connection.message_loop_task.done)
 
     await client.disconnect()
 
@@ -199,18 +199,18 @@ async def test_a_cancelled_connect_leaves_nothing_running(
         return socket
 
     monkeypatch.setattr(
-        "custom_components.wattpilot.api.client.websockets.asyncio.client.connect",
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
         fake_connect,
     )
 
     task = asyncio.create_task(client.connect())
-    await _settle(lambda: client._message_loop_task is not None)
+    await _settle(lambda: client._connection.message_loop_task is not None)
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
 
     assert socket.closed
-    assert client._message_loop_task is None
+    assert client._connection.message_loop_task is None
 
 
 async def test_message_subscribers_see_every_frame(client: Wattpilot) -> None:
@@ -238,7 +238,7 @@ async def test_a_firmware_install_without_a_version_needs_an_offer(
 def test_the_string_form_says_whether_it_is_connected(client: Wattpilot) -> None:
     assert str(client) == "Not connected"
 
-    client._connected = True
+    client._connection.mark_authenticated()
     client._update_property("nrg", [230.0] * 11 + [4230])
     client._update_property("amp", 16)
     client._update_property("car", 2)
@@ -260,16 +260,16 @@ async def test_a_reconnect_to_a_different_charger_is_refused(
             json.dumps({"type": "deltaStatus", "status": {"amp": 14}}),
         ]
     )
-    client._ws = socket  # type: ignore[assignment]
+    client._connection.socket = socket  # type: ignore[assignment]
 
-    task = asyncio.create_task(client._message_loop())
+    task = asyncio.create_task(client._connection._message_loop())
     try:
         await _settle(task.done)
         assert socket.closed
         assert client.serial == "111111"
         assert client.amp is None, "state from the wrong charger reached the cache"
         assert not client.connected
-        assert isinstance(client._fatal_error, DeviceIdentityError)
+        assert isinstance(client._connection.fatal_error, DeviceIdentityError)
     finally:
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -282,7 +282,7 @@ async def test_an_explicit_reconnect_waits_for_the_new_snapshot(
     """The explicit path carried _all_props_initialized over from the previous
     connection, so the first partial replay satisfied readiness and connect()
     returned before the new snapshot arrived (audit A11-07)."""
-    client._all_props_initialized = True
+    client._connection.mark_initialized()
     socket = FakeSocket(
         [
             json.dumps({"type": "authSuccess"}),
@@ -294,10 +294,10 @@ async def test_an_explicit_reconnect_waits_for_the_new_snapshot(
         return socket
 
     monkeypatch.setattr(
-        "custom_components.wattpilot.api.client.websockets.asyncio.client.connect",
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
         fake_connect,
     )
-    client._init_timeout = 0.05
+    client._connection.init_timeout = 0.05
 
     with pytest.raises(WattpilotConnectionError, match="property initialization"):
         await client.connect()
@@ -318,10 +318,10 @@ async def test_an_explicit_reconnect_to_a_different_charger_is_refused(
         return socket
 
     monkeypatch.setattr(
-        "custom_components.wattpilot.api.client.websockets.asyncio.client.connect",
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
         fake_connect,
     )
-    client._connect_timeout = 0.5
+    client._connection.connect_timeout = 0.5
 
     with pytest.raises(DeviceIdentityError, match="222222"):
         await client.connect()

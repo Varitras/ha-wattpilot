@@ -41,8 +41,8 @@ class FakeSocket:
 
 def make_client(socket: FakeSocket) -> Wattpilot:
     client = Wattpilot("192.0.2.10", "secret")
-    client._ws = socket  # type: ignore[assignment]
-    client._connected = True
+    client._connection.socket = socket  # type: ignore[assignment]
+    client._connection.mark_authenticated()
     client._device.secured = 0
     return client
 
@@ -164,11 +164,11 @@ async def test_disconnect_stops_a_running_message_loop() -> None:
         started.set()
         await asyncio.Event().wait()
 
-    client._message_loop_task = asyncio.ensure_future(never_ends())
+    client._connection.message_loop_task = asyncio.ensure_future(never_ends())
     await started.wait()
 
     await client.disconnect()
-    assert client._message_loop_task is None
+    assert client._connection.message_loop_task is None
     assert socket.closed
 
 

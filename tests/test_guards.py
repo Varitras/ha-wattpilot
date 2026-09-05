@@ -193,12 +193,11 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # The charger protocol in one class: connection lifecycle, message
     # dispatch, property table and the typed write paths. Adopted at 1220
     # lines; splitting it is a separate decision, not a side effect of taking
-    # it over. Raised three times for the 2026-09-05 audit: connection
-    # lifecycle, then the wire-shape normalization (measured: 1363). Three
-    # raises in one round is the ratchet's own criterion for a clustering
-    # file -- splitting the connection lifecycle out is an owner decision on
-    # the ledger, not something to slip into the next fix.
-    "client.py": 1370,
+    # it over. Three raises in the 2026-09-05 audit round triggered the
+    # ratchet's own clustering criterion, and the owner decided to split
+    # (ledger L-016): the connection lifecycle moved to connection.py and
+    # this budget came back down with it (measured: 1192).
+    "client.py": 1220,
 }
 SHRINK_SLACK = 0.85  # an entry >=15% below budget must be ratcheted down
 
@@ -361,7 +360,7 @@ def test_complexity_ratchet() -> None:
         "client.py::Wattpilot._on_hello": 6,
         "client.py::Wattpilot.install_firmware_update": 7,
         "client.py::Wattpilot._coerce_to_json_type": 17,
-        "client.py::Wattpilot._message_loop": 7,
+        "connection.py::Connection._message_loop": 7,
         "client.py::Wattpilot._handle_message": 11,
         "client.py::Wattpilot._on_response": 7,
         "client.py::Wattpilot._update_property": 24,
