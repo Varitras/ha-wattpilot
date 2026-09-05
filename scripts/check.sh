@@ -32,6 +32,20 @@ mutation_gate() {
     # reported the identical 104 survivors until this directory was removed.
     rm -rf mutants
     mutmut run || return $?
+
+    # Re-test the accepted survivors on their own before judging. In a full
+    # run mutmut reported two of them as killed on CI while they provably
+    # survived locally and, run singly, survived on CI too -- and mutmut maps
+    # pytest's exit 3 (an internal error) to "killed" just like exit 1, so a
+    # kill out of a full run is not evidence that a test caught anything.
+    # A single-mutant run has agreed across machines every time it was
+    # checked, so that is the measurement the gate trusts for these few.
+    accepted=$(grep -v -e '^#' -e '^$' scripts/equivalent-mutants.txt)
+    if [[ -n "$accepted" ]]; then
+        # shellcheck disable=SC2086 -- one argument per mutant name, on purpose
+        mutmut run $accepted >/dev/null 2>&1
+    fi
+
     # --all: plain `mutmut results` prints only the mutants that were not
     # killed, so a perfect run looks exactly like a run that checked
     # nothing. Measured on a real run: 5 lines without it, 410 with.
