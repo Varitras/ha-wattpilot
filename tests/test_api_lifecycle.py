@@ -302,3 +302,28 @@ async def test_an_explicit_reconnect_waits_for_the_new_snapshot(
     with pytest.raises(WattpilotConnectionError, match="property initialization"):
         await client.connect()
     assert socket.closed
+
+
+async def test_an_explicit_reconnect_to_a_different_charger_is_refused(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The service-driven path has to refuse the same way the automatic one
+    does -- the check sits in the frame both of them send, so this is the
+    counter-question to the automatic case rather than a second mechanism
+    (audit A11-02)."""
+    client._device.serial = "111111"
+    socket = FakeSocket([json.dumps({"type": "hello", "serial": "222222"})])
+
+    async def fake_connect(_url: str) -> FakeSocket:
+        return socket
+
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.client.websockets.asyncio.client.connect",
+        fake_connect,
+    )
+    client._connect_timeout = 0.5
+
+    with pytest.raises(DeviceIdentityError, match="222222"):
+        await client.connect()
+    assert socket.closed
+    assert client.serial == "111111"
