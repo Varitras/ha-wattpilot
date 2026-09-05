@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import json
+import time
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -72,7 +73,7 @@ async def test_next_trip_energy_sets_the_unit_first(client: Wattpilot) -> None:
     """The charger interprets the number according to a separate unit flag,
     so writing the value without the flag can mean something else entirely."""
     await client.set_next_trip_energy(20)
-    assert sent_values(client) == [("esk", True), ("fte", 20)]  # noqa: FBT003 -- written values
+    assert sent_values(client) == [("esk", True), ("fte", 20)]
 
 
 async def test_next_trip_is_sent_as_seconds_since_midnight(
@@ -87,38 +88,35 @@ async def test_a_dst_aware_charger_gets_the_hour_added(
     client: Wattpilot, scheme: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """With `tds` 1 or 2 the charger expects standard time, so a departure
-    during daylight saving has to be shifted -- otherwise the car leaves an
-    hour late twice a year."""
+    during daylight saving has to be shifted.
+
+    Asked through time.localtime(), not through an aware datetime: an
+    astimezone() result carries a *fixed offset*, and a fixed offset's dst()
+    is None -- which is why this adjustment never ran (audit A11-04). The
+    direction of the shift is the charger's documented contract and is not
+    verified against hardware here.
+    """
     client._all_props["tds"] = scheme
-
-    class DaylightSaving(datetime.tzinfo):
-        """A zone that is currently one hour ahead of its standard time."""
-
-        def utcoffset(self, _dt: datetime.datetime | None) -> datetime.timedelta:
-            return datetime.timedelta(hours=2)
-
-        def dst(self, _dt: datetime.datetime | None) -> datetime.timedelta:
-            return datetime.timedelta(hours=1)
-
-        def tzname(self, _dt: datetime.datetime | None) -> str:
-            return "CEST"
-
-    class SummerTime(datetime.datetime):
-        @classmethod
-        def now(cls, tz: Any = None) -> Any:
-            return cls(2026, 7, 1, 12, tzinfo=DaylightSaving())
-
-        def astimezone(self, tz: Any = None) -> Any:
-            # The code under test calls .astimezone() to reach the machine's
-            # local zone. Returning self keeps the test's zone instead of the
-            # one this test happens to run in.
-            return self
-
     monkeypatch.setattr(
-        "custom_components.wattpilot.api.client.datetime.datetime", SummerTime
+        "custom_components.wattpilot.api.client.time.localtime",
+        lambda: time.struct_time((2026, 7, 1, 12, 0, 0, 2, 182, 1)),
     )
+
     await client.set_next_trip(datetime.time(7, 30))
     assert sent_values(client) == [("ftt", 7 * 3600 + 30 * 60 + 3600)]
+
+
+async def test_outside_daylight_saving_the_departure_is_unshifted(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client._all_props["tds"] = 1
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.client.time.localtime",
+        lambda: time.struct_time((2026, 1, 1, 12, 0, 0, 3, 1, 0)),
+    )
+
+    await client.set_next_trip(datetime.time(7, 30))
+    assert sent_values(client) == [("ftt", 7 * 3600 + 30 * 60)]
 
 
 async def test_disable_cloud_api_writes_the_flag(client: Wattpilot) -> None:
@@ -132,7 +130,7 @@ async def test_enable_cloud_api_returns_the_key_the_charger_reports(
     async def answer_with_key() -> None:
         await asyncio.sleep(0)
         client._update_property("cak", "SECRET")
-        client._update_property("cae", True)
+        client._update_property("cae", True)  # noqa: FBT003 -- a device value
 
     task = asyncio.ensure_future(answer_with_key())
     info = await client.enable_cloud_api(timeout=5)

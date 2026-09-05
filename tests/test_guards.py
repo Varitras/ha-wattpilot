@@ -115,12 +115,9 @@ def test_manifest_is_consistent() -> None:
     assert manifest["codeowners"] == ["@Varitras"]
     assert manifest["integration_type"] == "device"
     assert manifest["loggers"] == ["custom_components.wattpilot"]
+    assert manifest["documentation"] == "https://github.com/Varitras/ha-wattpilot"
     assert (
-        manifest["documentation"] == "https://github.com/Varitras/ha-wattpilot"
-    )
-    assert (
-        manifest["issue_tracker"]
-        == "https://github.com/Varitras/ha-wattpilot/issues"
+        manifest["issue_tracker"] == "https://github.com/Varitras/ha-wattpilot/issues"
     )
 
 
@@ -330,7 +327,6 @@ def test_complexity_ratchet() -> None:
         # without someone saying so in a diff.
         "auth.py::_bcryptjs_base64_encode": 6,
         "client.py::Wattpilot.connect": 7,
-        "client.py::Wattpilot.set_next_trip": 6,
         "client.py::Wattpilot.install_firmware_update": 7,
         "client.py::Wattpilot._coerce_to_json_type": 17,
         "client.py::Wattpilot._message_loop": 9,

@@ -8,6 +8,7 @@ import datetime
 import inspect
 import json
 import logging
+import time
 from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any, Self
@@ -700,10 +701,12 @@ class Wattpilot:
         )
 
         tds = self._all_props.get("tds")
-        if tds is not None and int(tds) in (1, 2):
-            local_now = datetime.datetime.now().astimezone()
-            if local_now.dst() and local_now.dst() != datetime.timedelta(0):
-                timestamp += 3600
+        # wattpilot: asked through time.localtime(), because the previous
+        # datetime.now().astimezone() carries a *fixed offset* and a fixed
+        # offset's dst() is always None -- the adjustment could never run
+        # (audit A11-04). tm_isdst reflects the system zone's actual state.
+        if tds is not None and int(tds) in (1, 2) and time.localtime().tm_isdst > 0:
+            timestamp += 3600
 
         await self.set_property("ftt", timestamp)
 
