@@ -1,0 +1,20 @@
+# Secret scanning configuration, used by `gitleaks git .` before a push.
+#
+# The default ruleset applies in full. The single allowlist below records one
+# measured false positive so that a real finding is never the third line of a
+# report nobody reads any more.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+The bundled protocol definition lists, in a comment, which APIs each property
+exists in: "available for: wattpilot, go-eCharger-API-v1, go-eCharger-API-v2".
+The generic-api-key rule reads the token after that colon as a key. Verified
+by reading the line: it is documentation in a vendored YAML file, not a
+credential. Scoped to that file and that exact token, so any other match in
+the same file is still reported.
+"""
+paths = ['''resources/wattpilot\.yaml$''']
+regexes = ['''go-eCharger-API-v[12]''']
