@@ -42,25 +42,6 @@ jobs:
       - name: Run the test suite against it
         run: python3 -m pytest
 
-  # TEMPORARY (2026-09-05): the release gate reports two mutants as killed
-  # here that provably survive locally -- and mutmut maps pytest's exit 3
-  # (internal error) to "killed", so a kill is not proof a test caught them.
-  # This job runs those two the way mutmut does but keeps pytest's exit code.
-  # Delete it once the cause is known.
-  mutant-diagnosis:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
-      - name: Install dependencies
-        run: pip install --group dev
-      - name: Build the mutation sandbox
-        run: mutmut run || true
-      - name: Run the two mutants and keep the exit code
-        run: bash scripts/mutant_diag.sh
-
   hassfest:
     runs-on: ubuntu-latest
     steps:

@@ -52,7 +52,10 @@ async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: WattpilotConfigEntry) -> bool:
     """Connect the charger and set up platforms."""
-    if entry.data.get(CONF_CONNECTION_TYPE, CONNECTION_LOCAL) == CONNECTION_CLOUD:
+    # No default: the question is only whether this entry is a cloud one,
+    # and a missing key is not. Spelling out a default that cannot change
+    # the answer invited two mutants nobody could ever kill.
+    if entry.data.get(CONF_CONNECTION_TYPE) == CONNECTION_CLOUD:
         raise ConfigEntryError(
             translation_domain=DOMAIN, translation_key="cloud_not_supported"
         )

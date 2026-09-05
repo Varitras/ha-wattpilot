@@ -344,6 +344,34 @@ async def test_availability_is_not_delayed_by_the_update_interval(
     assert events == [False]
 
 
+async def test_shutdown_announces_unavailable_as_a_boolean(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The availability signal carries a bool, and shutdown carries False.
+
+    Not decoration: the value is also what decides whether the *next* connect
+    counts as a recovery. Sending None instead would leave the hub having
+    claimed nothing, so a reconnect would be announced as a first connect.
+    The mutation that does exactly that survived every test until this one
+    (see scripts/equivalent-mutants.txt for the entry this replaced).
+    """
+    hub = make_hub(hass, fake_charger, timedelta(seconds=5))
+    await hub.async_connect()
+    hub.start_dispatch()
+    events: list[object] = []
+
+    @callback
+    def _collect(available: object) -> None:
+        events.append(available)
+
+    async_dispatcher_connect(hass, signal_availability(ENTRY_ID), _collect)
+    await hub.async_shutdown()
+    await hass.async_block_till_done()
+
+    assert events == [False]
+    assert events[0] is False, "the signal must carry a bool, not a falsy stand-in"
+
+
 async def test_shutdown_drops_buffered_values(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:

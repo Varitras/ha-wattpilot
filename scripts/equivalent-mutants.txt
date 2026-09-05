@@ -15,19 +15,28 @@
 # that change purely for want of a test -- which is the one reason this file
 # does not accept.
 
-# entry.data.get(CONF_CONNECTION_TYPE, CONNECTION_LOCAL)  ->  default None
-# ...and the same call with the default dropped entirely. The result is only
-# ever compared against CONNECTION_CLOUD. A missing key yields "local" or None,
-# and neither is CONNECTION_CLOUD, so the branch decides identically.
-custom_components.wattpilot.x_async_setup_entry__mutmut_2
-custom_components.wattpilot.x_async_setup_entry__mutmut_4
-
-# available=False -> available=None in the shutdown announcement. Equivalent
-# since VA-04: entities read hub.available, which is False for a torn-down
-# hub whatever the dispatcher carried, and the callback ignores its argument.
-# What the value still decides is the wording of the next connect's log line
-# ("connected" vs "back online") -- not worth a test that asserts prose.
-custom_components.wattpilot.hub.xǁWattpilotHubǁasync_shutdown__mutmut_10
+# Removed 2026-09-05, both of them, and the reason is worth keeping.
+#
+# The two entries were:
+#   x_async_setup_entry__mutmut_2 / _4  (the default of
+#     entry.data.get(CONF_CONNECTION_TYPE, CONNECTION_LOCAL)), and
+#   hub…async_shutdown__mutmut_10      (available=False -> None).
+#
+# The release job in CI reported both as killed while they provably survived
+# locally: the mutation applied by hand left the whole suite green in both
+# environments, and running each mutant on its own under MUTANT_UNDER_TEST
+# exited 0 (survived) in CI too. Only inside a full `mutmut run` did CI call
+# them killed -- and mutmut maps pytest's exit 3, an internal error, to
+# "killed" (mutmut/__main__.py), so a kill is not proof that a test caught
+# anything. Rather than argue with a list about two values that decide
+# nothing, both places lost their ambiguity:
+#   - the .get() default is gone; the expression only asks whether the entry
+#     is a cloud one, and a missing key is not. Three mutants disappeared
+#     with it.
+#   - the shutdown announcement is now asserted by
+#     test_shutdown_announces_unavailable_as_a_boolean: the availability
+#     signal carries False, which is also what decides whether the next
+#     connect counts as a recovery. That mutant is killed, not accepted.
 
 # self._torn_down = False -> None, in the constructor and in async_connect.
 # Both places only ever feed `not self._torn_down`, and None is as falsy as
