@@ -11,6 +11,8 @@ One line per guard; deleting a guard must show up here in the diff.
 | test_domain_literal_only_in_const | domain literal only in const.py among Python files (dev-copy safety) |
 | test_domain_literal_confined_to_known_carriers | domain literal never gains a fourth carrier beyond const.py/manifest.json/services.yaml |
 | test_manifest_is_consistent | manifest domain/iot_class/requirements/config_flow frozen |
+| test_every_third_party_import_is_declared | nothing imported that a user's install would not have |
+| test_no_manifest_requirement_is_unused | no dependency installed for nothing |
 | test_device_fixture_is_anonymized | committed device snapshot carries no owner identifiers |
 | test_diagnostics_covers_every_drop_key | redaction.sanitize_snapshot drops every credential/token key from diagnostics output |
 | test_full_parity | every fork unique_id preserved; only whs/whb/whg/who added |

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import ast
 import json
+import re
+import sys
 from pathlib import Path
 
 import yaml
@@ -96,6 +98,84 @@ def test_domain_literal_confined_to_known_carriers() -> None:
         if "wattpilot" in _strip_vendor_spellings(path.read_text(encoding="utf-8")):
             offenders.append(str(path.relative_to(PACKAGE)))
     assert not offenders, f"'wattpilot' literal outside known carriers: {offenders}"
+
+
+# Third-party modules the integration may import without declaring them,
+# because Home Assistant itself depends on them and ships them to every
+# installation. Anything else has to appear in manifest.json: an undeclared
+# import is a module that simply is not there on a user's system.
+PROVIDED_BY_HOME_ASSISTANT = {
+    "voluptuous": "config-flow and action schemas; a core HA dependency",
+    "yaml": "PyYAML, used to read the bundled API definition; core HA dependency",
+}
+
+
+def _third_party_imports() -> dict[str, set[str]]:
+    """Every non-stdlib, non-local module the integration imports, by module."""
+    local = {"custom_components", "homeassistant"}
+    found: dict[str, set[str]] = {}
+    for path in iter_python_files():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                names = [node.module]
+            else:
+                continue
+            for name in names:
+                top = name.split(".")[0]
+                if top and top not in sys.stdlib_module_names and top not in local:
+                    found.setdefault(top, set()).add(path.name)
+    return found
+
+
+def _declared_distributions() -> set[str]:
+    """The distribution names manifest.json declares, lowercased."""
+    manifest = json.loads((PACKAGE / "manifest.json").read_text(encoding="utf-8"))
+    return {
+        re.split(r"[<>=!~\[]", spec, maxsplit=1)[0].strip().lower()
+        for spec in manifest["requirements"]
+    }
+
+
+def test_every_third_party_import_is_declared() -> None:
+    """
+    An import the manifest does not declare is missing on a user's system.
+
+    Home Assistant installs exactly what manifest.json asks for. The test
+    environment has far more than that, so the suite stays green while a real
+    installation raises ImportError on the first use -- which is why this is
+    checked by name against the manifest rather than by running the code.
+
+    Fix: add the distribution to manifest.json's requirements, or, if Home
+    Assistant itself ships it, record it in PROVIDED_BY_HOME_ASSISTANT with
+    the reason.
+    """
+    declared = _declared_distributions()
+    undeclared = {
+        module: sorted(files)
+        for module, files in _third_party_imports().items()
+        if module.lower() not in declared and module not in PROVIDED_BY_HOME_ASSISTANT
+    }
+    assert not undeclared, (
+        f"third-party import(s) without a declaration: {undeclared}. "
+        "Home Assistant installs only what the manifest asks for."
+    )
+
+
+def test_no_manifest_requirement_is_unused() -> None:
+    """
+    A requirement nothing imports is a dependency users install for nothing.
+
+    Fix: drop it from manifest.json, or, if it is needed indirectly, say so
+    here -- silence turns into a stale dependency nobody dares remove.
+    """
+    imported = {module.lower() for module in _third_party_imports()}
+    unused = sorted(_declared_distributions() - imported)
+    assert not unused, (
+        f"manifest.json declares requirement(s) nothing imports: {unused}"
+    )
 
 
 def test_manifest_is_consistent() -> None:
@@ -564,6 +644,12 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         "test_domain_literal_only_in_const": "domain string lives in const.py only",
         "test_domain_literal_confined_to_known_carriers": "no fourth domain carrier",
         "test_manifest_is_consistent": "manifest metadata stays as declared",
+        "test_every_third_party_import_is_declared": (
+            "nothing is imported that a user's install would not have"
+        ),
+        "test_no_manifest_requirement_is_unused": (
+            "no dependency is installed for nothing"
+        ),
         "test_the_two_declared_versions_agree": "one release, one number",
         "test_device_fixture_is_anonymized": "snapshot carries no owner identifiers",
         "test_the_client_is_only_imported_by_hub": ("the client keeps one import site"),
