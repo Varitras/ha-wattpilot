@@ -43,11 +43,19 @@ DROP_KEYS = {
     "ocppfu",
     "ocppu",
 }
+# host/hsta/hsts/fwan: hostnames the bundled definition documents as
+# "Wattpilot_<serial>". None of them is populated on firmware 42.5, which is
+# exactly why they had no decision -- the register only knew the fields this
+# one device happened to report (audit A11-03).
 REPLACE: dict[str, Any] = {
     "sse": "123456",
     "fna": "Wattpilot",
     "ffna": "Wattpilot_123456",
     "wan": "Wattpilot_123456",
+    "fwan": "Wattpilot_123456",
+    "host": "Wattpilot_123456",
+    "hsta": "Wattpilot_123456",
+    "hsts": "Wattpilot_123456",
     "wae": True,
     "ct": "default",  # carType free text identifies the owner's specific vehicle model
 }

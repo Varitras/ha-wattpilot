@@ -42,6 +42,28 @@ type PropertyCallback = Callable[[str, Any], Any]
 type MessageCallback = Callable[[dict[str, Any]], Any]
 
 
+def _plain_json(value: Any) -> Any:  # noqa: ANN401 -- recurses over untyped JSON
+    """
+    Turn the wire shape into plain JSON.
+
+    The frame is parsed a second time with an object_hook that builds a
+    SimpleNamespace per nested object, because the message handlers read
+    fields by attribute. Everything downstream -- entities, diagnostics, the
+    redaction that walks dictionaries and lists -- expects plain containers,
+    and a namespace slipped past all of it (audit A11-03).
+    """
+    if isinstance(value, SimpleNamespace):
+        return {key: _plain_json(item) for key, item in vars(value).items()}
+    if isinstance(value, list):
+        return [_plain_json(item) for item in value]
+    return value
+
+
+def _nested_ssid(value: Any) -> str | None:  # noqa: ANN401 -- untyped JSON
+    """Return the SSID inside a `ccw` object, if one was sent at all."""
+    return value.get("ssid") if isinstance(value, dict) else None
+
+
 def _correlation_key(request_id: object) -> str:
     """
     wattpilot: one spelling for a request id, whatever the wire used.
@@ -238,9 +260,7 @@ class Wattpilot:
         # just went away.
         self._fail_pending_commands("Connection closed")
 
-    async def _wait_for(
-        self, what: str, event: asyncio.Event, seconds: float
-    ) -> None:
+    async def _wait_for(self, what: str, event: asyncio.Event, seconds: float) -> None:
         """Wait for a connection milestone, naming it if it never arrives."""
         try:
             await asyncio.wait_for(event.wait(), seconds)
@@ -1201,6 +1221,10 @@ class Wattpilot:
         name: str,
         value: Any,  # noqa: ANN401 -- charger values are dynamically typed
     ) -> None:
+        # wattpilot: every status frame arrives here, from the full replay,
+        # a delta and a command response alike -- so this is the one place
+        # that has to turn the wire shape into plain JSON (audit A11-03).
+        value = _plain_json(value)
         self._all_props[name] = value
 
         match name:
@@ -1254,7 +1278,7 @@ class Wattpilot:
             case "ccw":
                 # Current firmware reports the connected AP here rather than
                 # in ``wss``; the value is an object carrying the SSID.
-                ssid = getattr(value, "ssid", None)
+                ssid = _nested_ssid(value)
                 if ssid:
                     self._wifi_ssid = ssid
 
