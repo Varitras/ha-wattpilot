@@ -68,9 +68,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: WattpilotConfigEntry) ->
     # the entry sits in SETUP_ERROR with the connection still open, and the
     # next retry puts a second hub on the same dispatcher signals (audit
     # VA-02, measured through the config entry manager).
+    #
+    # BaseException, not Exception: Home Assistant cancels a setup that runs
+    # too long, and CancelledError is not an Exception -- the narrower catch
+    # handed nothing back on that path (audit A11-05).
     try:
         await _finish_setup(hass, entry, hub)
-    except Exception:
+    except BaseException:
         await hub.async_shutdown()
         raise
     return True

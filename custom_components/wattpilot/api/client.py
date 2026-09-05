@@ -9,7 +9,7 @@ import inspect
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from types import SimpleNamespace
 from typing import Any, Self
 
@@ -26,8 +26,10 @@ from .definition import ApiDefinition, load_api_definition
 from .exceptions import (
     AuthenticationError,
     CommandError,
+    DeviceIdentityError,
     PropertyError,
     WattpilotConnectionError,
+    WattpilotError,
 )
 from .models import AuthHashType, CloudInfo, DeviceInfo, LoadMode
 
@@ -121,7 +123,10 @@ class Wattpilot:
 
         self._connected_event = asyncio.Event()
         self._initialized_event = asyncio.Event()
-        self._auth_error: AuthenticationError | None = None
+        # wattpilot: one field for every reason this connection cannot be
+        # used -- rejected credentials or the wrong charger answering. A
+        # second flag beside it would be a second place to forget.
+        self._fatal_error: WattpilotError | None = None
 
         # Named property caches
         self._voltage1: float | None = None
@@ -182,66 +187,111 @@ class Wattpilot:
         """Open the WebSocket and authenticate."""
         if self._connected:
             if not self._all_props_initialized:
-                try:
-                    await asyncio.wait_for(
-                        self._initialized_event.wait(), self._init_timeout
+                async with self._cleanup_on_failure():
+                    await self._wait_for(
+                        "property initialization",
+                        self._initialized_event,
+                        self._init_timeout,
                     )
-                except TimeoutError as exc:
-                    await self.disconnect()
-                    msg = "Timeout waiting for property initialization"
-                    raise WattpilotConnectionError(msg) from exc
             return
 
-        self._connected_event.clear()
-        self._initialized_event.clear()
-        self._auth_error = None
+        self._begin_connection()
 
         self._ws = await websockets.asyncio.client.connect(self._url)
         self._message_loop_task = asyncio.create_task(self._message_loop())
 
-        try:
-            await asyncio.wait_for(self._connected_event.wait(), self._connect_timeout)
-        except TimeoutError as exc:
-            await self.disconnect()
-            msg = "Timeout waiting for authentication"
-            raise WattpilotConnectionError(msg) from exc
-
-        if self._auth_error is not None:
-            err = self._auth_error
-            await self.disconnect()
-            raise err
-
-        try:
-            await asyncio.wait_for(self._initialized_event.wait(), self._init_timeout)
-        except TimeoutError as exc:
-            await self.disconnect()
-            msg = "Timeout waiting for property initialization"
-            raise WattpilotConnectionError(msg) from exc
+        async with self._cleanup_on_failure():
+            await self._wait_for(
+                "authentication", self._connected_event, self._connect_timeout
+            )
+            if self._fatal_error is not None:
+                raise self._fatal_error
+            await self._wait_for(
+                "property initialization",
+                self._initialized_event,
+                self._init_timeout,
+            )
 
         await self._load_api_definition()
         _LOGGER.info("Connected to Wattpilot %s", self._device.serial)
 
+    def _begin_connection(self) -> None:
+        """
+        Reset everything that belongs to a single connection.
+
+        Every path that opens a socket comes through here. The explicit path
+        used to clear only the event and carry _all_props_initialized over
+        from the previous connection, so the first partial replay already
+        satisfied readiness and connect() returned before the new snapshot
+        had arrived (audit A11-07).
+
+        The property cache deliberately survives: the charger replays it,
+        and clearing it here would blank every entity for the length of the
+        outage instead of holding the last known values.
+        """
+        self._all_props_initialized = False
+        self._initialized_event.clear()
+        self._connected_event.clear()
+        self._fatal_error = None
+        # An automatic reconnect never passes through disconnect(), so this
+        # is the only place that answers commands sent on the socket that
+        # just went away.
+        self._fail_pending_commands("Connection closed")
+
+    async def _wait_for(
+        self, what: str, event: asyncio.Event, seconds: float
+    ) -> None:
+        """Wait for a connection milestone, naming it if it never arrives."""
+        try:
+            await asyncio.wait_for(event.wait(), seconds)
+        except TimeoutError as exc:
+            msg = f"Timeout waiting for {what}"
+            raise WattpilotConnectionError(msg) from exc
+
+    @contextlib.asynccontextmanager
+    async def _cleanup_on_failure(self) -> AsyncIterator[None]:
+        """
+        Hand back socket and message loop however the block ends badly.
+
+        BaseException, not Exception: Home Assistant cancels a setup that
+        takes too long, and CancelledError is not an Exception -- the
+        narrower catch left both running behind it (audit A11-05).
+        """
+        try:
+            yield
+        except BaseException:
+            await self.disconnect()
+            raise
+
     async def disconnect(self) -> None:
         """Close the WebSocket connection."""
-        if self._message_loop_task is not None:
-            self._message_loop_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._message_loop_task
-            self._message_loop_task = None
-
-        # wattpilot: the state is reset even when close() raises (audit
-        # VA-04). It used to be left standing, so `connected` stayed True
-        # while the message loop above was already cancelled -- a client that
-        # could never update anyone again, claiming it could.
+        task = self._message_loop_task
+        self._message_loop_task = None
         try:
-            if self._ws is not None:
-                await self._ws.close()
+            if task is not None:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    # wattpilot: awaiting a loop that already failed used to
+                    # re-raise here, before the socket was closed (A11-06).
+                    _LOGGER.debug("Message loop ended with an error", exc_info=True)
         finally:
-            self._ws = None
-            self._connected = False
-            self._connected_event.clear()
-            self._initialized_event.clear()
-            self._fail_pending_commands("Connection closed")
+            # wattpilot: the state is reset even when close() raises (audit
+            # VA-04). It used to be left standing, so `connected` stayed True
+            # while the message loop above was already cancelled -- a client
+            # that could never update anyone again, claiming it could.
+            try:
+                if self._ws is not None:
+                    await self._ws.close()
+            finally:
+                self._ws = None
+                self._connected = False
+                self._connected_event.clear()
+                self._initialized_event.clear()
+                self._fail_pending_commands("Connection closed")
 
     def _fail_pending_commands(self, reason: str) -> None:
         """wattpilot: never leave a caller awaiting an answer that cannot come."""
@@ -941,6 +991,21 @@ class Wattpilot:
 
     # ---- Internal: message loop ----
 
+    async def _read_frames(self) -> None:
+        """Dispatch frames until the socket ends the iteration."""
+        if self._ws is None:
+            return
+        async for frame in self._ws:
+            raw = frame.decode("utf-8") if isinstance(frame, bytes) else frame
+            try:
+                await self._handle_message(raw)
+            except ValueError, TypeError, AttributeError, KeyError:
+                # wattpilot: one frame the handlers cannot read used to end
+                # the loop while the socket stayed open, so nothing updated
+                # again (audit A11-06). Errors that mean the connection
+                # itself is wrong are deliberately not caught here.
+                _LOGGER.warning("Ignoring an unreadable frame (%d bytes)", len(raw))
+
     async def _message_loop(self) -> None:
         if self._ws is None:
             msg = "Message loop started without a socket"
@@ -949,11 +1014,7 @@ class Wattpilot:
         try:
             while True:
                 try:
-                    async for frame in self._ws:
-                        raw = (
-                            frame.decode("utf-8") if isinstance(frame, bytes) else frame
-                        )
-                        await self._handle_message(raw)
+                    await self._read_frames()
                 except websockets.exceptions.ConnectionClosed:
                     _LOGGER.info("WebSocket connection closed")
 
@@ -963,20 +1024,16 @@ class Wattpilot:
                 if not self._auto_reconnect:
                     break
 
-                # Stop reconnecting on authentication failure — retrying with the
-                # same rejected credentials would loop forever.
-                if self._auth_error is not None:
-                    _LOGGER.error(
-                        "Not reconnecting after authentication failure: %s",
-                        self._auth_error,
-                    )
+                # Retrying cannot help against rejected credentials or a
+                # charger that is not ours; both would loop forever.
+                if self._fatal_error is not None:
+                    _LOGGER.error("Not reconnecting: %s", self._fatal_error)
                     break
 
                 _LOGGER.info("Reconnecting in %.0fs...", reconnect_delay)
                 await asyncio.sleep(reconnect_delay)
                 try:
-                    self._all_props_initialized = False
-                    self._initialized_event.clear()
+                    self._begin_connection()
                     self._ws = await websockets.asyncio.client.connect(self._url)
                     reconnect_delay = self._reconnect_delay_min
                 except (OSError, websockets.exceptions.WebSocketException) as exc:
@@ -1012,7 +1069,7 @@ class Wattpilot:
 
         match msg_type:
             case "hello":
-                self._on_hello(ns)
+                await self._on_hello(ns)
             case "authRequired":
                 await self._on_auth_required(ns)
             case "authSuccess":
@@ -1030,7 +1087,9 @@ class Wattpilot:
             case _:
                 _LOGGER.debug("Unhandled message type: %s", msg_type)
 
-    def _on_hello(self, msg: SimpleNamespace) -> None:
+    async def _on_hello(self, msg: SimpleNamespace) -> None:
+        if not await self._identity_accepted(msg.serial):
+            return
         _LOGGER.info("Connected to Wattpilot serial %s", msg.serial)
         self._device.serial = msg.serial
         if hasattr(msg, "hostname"):
@@ -1045,6 +1104,29 @@ class Wattpilot:
         self._device.protocol = getattr(msg, "protocol", 0)
         if hasattr(msg, "secured"):
             self._device.secured = msg.secured
+
+    async def _identity_accepted(self, serial: str) -> bool:
+        """
+        Refuse a connection that is not the charger this client already knows.
+
+        Hello is the one frame every connection sends -- the first, an
+        automatic reconnect and an explicit one alike -- so the check belongs
+        here rather than in the setup path that ran once. The address can be
+        reused by DHCP or the hardware replaced, and a reconnect kept the
+        config entry, its entities and their history pointed at whatever
+        answered (audit A11-02). Nothing is applied and no command is
+        accepted afterwards: the socket goes, and the loop above stops
+        reconnecting because a fatal error is set.
+        """
+        known = self._device.serial
+        if not known or known == serial:
+            return True
+        msg = f"Expected charger {known}, but {serial} answered at {self._host}"
+        self._fatal_error = DeviceIdentityError(msg)
+        self._connected_event.set()
+        if self._ws is not None:
+            await self._ws.close()
+        return False
 
     async def _on_auth_required(self, msg: SimpleNamespace) -> None:
         if hasattr(msg, "hash"):
@@ -1069,8 +1151,8 @@ class Wattpilot:
     def _on_auth_error(self, msg: SimpleNamespace) -> None:
         error_msg = getattr(msg, "message", "Unknown auth error")
         _LOGGER.error("Authentication failed: %s", error_msg)
-        self._auth_error = AuthenticationError(error_msg)
-        self._connected_event.set()  # Unblock connect() so it can check _auth_error
+        self._fatal_error = AuthenticationError(error_msg)
+        self._connected_event.set()  # Unblock connect(), which checks _fatal_error
 
     def _on_full_status(self, msg: SimpleNamespace) -> None:
         props = msg.status.__dict__

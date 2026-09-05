@@ -193,8 +193,10 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # The charger protocol in one class: connection lifecycle, message
     # dispatch, property table and the typed write paths. Adopted at 1220
     # lines; splitting it is a separate decision, not a side effect of taking
-    # it over. Raised to 1280 for the audit fixes (measured: 1255).
-    "client.py": 1280,
+    # it over. Raised to 1340 for the connection-lifecycle guards the
+    # 2026-09-05 audit asked for (measured: 1337). Second raise in a row:
+    # the next one splits the connection lifecycle out instead.
+    "client.py": 1340,
 }
 SHRINK_SLACK = 0.85  # an entry >=15% below budget must be ratcheted down
 
@@ -326,10 +328,10 @@ def test_complexity_ratchet() -> None:
         # each. The point of freezing them is that they cannot grow further
         # without someone saying so in a diff.
         "auth.py::_bcryptjs_base64_encode": 6,
-        "client.py::Wattpilot.connect": 7,
+        "client.py::Wattpilot._on_hello": 6,
         "client.py::Wattpilot.install_firmware_update": 7,
         "client.py::Wattpilot._coerce_to_json_type": 17,
-        "client.py::Wattpilot._message_loop": 9,
+        "client.py::Wattpilot._message_loop": 7,
         "client.py::Wattpilot._handle_message": 11,
         "client.py::Wattpilot._on_response": 7,
         "client.py::Wattpilot._update_property": 24,

@@ -8,16 +8,21 @@ running when a frame is bad.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from custom_components.wattpilot.api.client import Wattpilot
 from custom_components.wattpilot.api.exceptions import (
+    DeviceIdentityError,
     PropertyError,
     WattpilotConnectionError,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 @pytest.fixture
@@ -110,18 +115,102 @@ async def test_connect_on_an_already_connected_client_waits_for_its_state(
         await client.connect()
 
 
+class FakeSocket:
+    """Hands out prepared frames, then blocks the way a live socket does."""
+
+    def __init__(self, frames: list[str]) -> None:
+        self._frames = list(frames)
+        self.closed = False
+
+    async def close(self) -> None:
+        self.closed = True
+
+    def __aiter__(self) -> Any:
+        return self
+
+    async def __anext__(self) -> str:
+        if self.closed:
+            raise StopAsyncIteration
+        if self._frames:
+            return self._frames.pop(0)
+        await asyncio.sleep(3600)
+        raise StopAsyncIteration
+
+
+async def _settle(condition: Callable[[], bool]) -> None:
+    """Yield until the loop task has made progress, without a wall-clock wait."""
+    for _ in range(100):
+        if condition():
+            return
+        await asyncio.sleep(0)
+
+
 async def test_a_malformed_frame_does_not_kill_the_message_loop(
     client: Wattpilot,
 ) -> None:
     """One bad frame must not end the loop -- the charger would still be
-    connected, and nothing would ever update again."""
-    with pytest.raises(json.JSONDecodeError):
-        await client._handle_message("{not json")
-
-    await client._handle_message(
-        json.dumps({"type": "deltaStatus", "status": {"amp": 6}})
+    connected, and nothing would ever update again. The predecessor of this
+    test called the handler twice and never the loop, so it proved nothing
+    about the claim in its own name (audit A11-06)."""
+    client._ws = FakeSocket(  # type: ignore[assignment]
+        ["{not json", json.dumps({"type": "deltaStatus", "status": {"amp": 6}})]
     )
-    assert client.amp == 6
+    task = asyncio.create_task(client._message_loop())
+    try:
+        await _settle(lambda: client.amp == 6)
+        assert client.amp == 6
+        assert not task.done()
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+async def test_disconnect_closes_the_socket_after_the_loop_failed(
+    client: Wattpilot,
+) -> None:
+    """Whatever ended the message loop, the socket still has to be closed --
+    re-raising the loop's exception first left it open (audit A11-06)."""
+    socket = FakeSocket([])
+    client._ws = socket  # type: ignore[assignment]
+
+    async def failing_loop() -> None:
+        msg = "loop died"
+        raise RuntimeError(msg)
+
+    client._message_loop_task = asyncio.create_task(failing_loop())
+    await _settle(client._message_loop_task.done)
+
+    await client.disconnect()
+
+    assert socket.closed
+    assert not client.connected
+
+
+async def test_a_cancelled_connect_leaves_nothing_running(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Home Assistant cancels a setup that takes too long. The cleanup used to
+    catch Exception, which CancelledError is not, so socket and message loop
+    survived the cancelled attempt (audit A11-05)."""
+    socket = FakeSocket([])
+
+    async def fake_connect(_url: str) -> FakeSocket:
+        return socket
+
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.client.websockets.asyncio.client.connect",
+        fake_connect,
+    )
+
+    task = asyncio.create_task(client.connect())
+    await _settle(lambda: client._message_loop_task is not None)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert socket.closed
+    assert client._message_loop_task is None
 
 
 async def test_message_subscribers_see_every_frame(client: Wattpilot) -> None:
@@ -156,3 +245,60 @@ def test_the_string_form_says_whether_it_is_connected(client: Wattpilot) -> None
     summary = str(client)
     assert "Serial" in summary
     assert "4.23" in summary
+
+
+async def test_a_reconnect_to_a_different_charger_is_refused(
+    client: Wattpilot,
+) -> None:
+    """Setup checks the serial once, but the address can be reused by DHCP or
+    the hardware replaced. A reconnect kept the config entry, its entities and
+    their history pointed at whatever answered (audit A11-02)."""
+    client._device.serial = "111111"
+    socket = FakeSocket(
+        [
+            json.dumps({"type": "hello", "serial": "222222"}),
+            json.dumps({"type": "deltaStatus", "status": {"amp": 14}}),
+        ]
+    )
+    client._ws = socket  # type: ignore[assignment]
+
+    task = asyncio.create_task(client._message_loop())
+    try:
+        await _settle(task.done)
+        assert socket.closed
+        assert client.serial == "111111"
+        assert client.amp is None, "state from the wrong charger reached the cache"
+        assert not client.connected
+        assert isinstance(client._fatal_error, DeviceIdentityError)
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+async def test_an_explicit_reconnect_waits_for_the_new_snapshot(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The explicit path carried _all_props_initialized over from the previous
+    connection, so the first partial replay satisfied readiness and connect()
+    returned before the new snapshot arrived (audit A11-07)."""
+    client._all_props_initialized = True
+    socket = FakeSocket(
+        [
+            json.dumps({"type": "authSuccess"}),
+            json.dumps({"type": "fullStatus", "partial": True, "status": {"amp": 6}}),
+        ]
+    )
+
+    async def fake_connect(_url: str) -> FakeSocket:
+        return socket
+
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.client.websockets.asyncio.client.connect",
+        fake_connect,
+    )
+    client._init_timeout = 0.05
+
+    with pytest.raises(WattpilotConnectionError, match="property initialization"):
+        await client.connect()
+    assert socket.closed

@@ -25,3 +25,7 @@ class PropertyError(WattpilotError):
 
 class CommandError(WattpilotError):
     """Raised when a command sent to the Wattpilot device fails."""
+
+
+class DeviceIdentityError(WattpilotError):
+    """Raised when the charger that answered is not the one this client knows."""
