@@ -32,7 +32,10 @@ mutation_gate() {
     # reported the identical 104 survivors until this directory was removed.
     rm -rf mutants
     mutmut run || return $?
-    mutmut results >mutants/results.txt || return $?
+    # --all: plain `mutmut results` prints only the mutants that were not
+    # killed, so a perfect run looks exactly like a run that checked
+    # nothing. Measured on a real run: 5 lines without it, 410 with.
+    mutmut results --all true >mutants/results.txt || return $?
     python3 scripts/judge_mutants.py mutants/results.txt scripts/equivalent-mutants.txt
 }
 

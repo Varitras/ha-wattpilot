@@ -66,6 +66,17 @@ def test_an_outcome_the_policy_does_not_know_fails() -> None:
     assert any("unknown mutmut outcome" in c for c in judge(report, ACCEPTED))
 
 
+def test_a_run_that_killed_everything_passes() -> None:
+    """The report is read with `--all`, so every killed mutant is listed.
+    Without it the report holds only the mutants that were not killed, and a
+    perfect run is indistinguishable from a run that checked nothing -- the
+    emptiness check below would then fire on the best possible outcome.
+    Measured on a real run: 5 lines without the flag, 410 with it.
+    """
+    report = _report(*(f"x_hub_py__mutmut_{i}: killed" for i in range(3)))
+    assert judge(report, "") == []
+
+
 def test_an_empty_report_is_not_a_pass() -> None:
     """A run that checked nothing reported nothing, and the old gate read
     that as zero survivors.
