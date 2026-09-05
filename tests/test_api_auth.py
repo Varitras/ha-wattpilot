@@ -9,15 +9,19 @@ shapes.
 from __future__ import annotations
 
 import json
+import threading
+from typing import Any
 
 import pytest
 
+from custom_components.wattpilot.api import client as client_module
 from custom_components.wattpilot.api.auth import (
     compute_auth_response,
     generate_token,
     hash_password,
     sign_secured_message,
 )
+from custom_components.wattpilot.api.client import Wattpilot
 from custom_components.wattpilot.api.models import AuthHashType
 
 SERIAL = "123456"
@@ -87,3 +91,45 @@ def test_a_different_secret_signs_differently() -> None:
         sign_secured_message(message, b"a")["hmac"]
         != sign_secured_message(message, b"b")["hmac"]
     )
+
+
+async def test_authentication_hashes_off_the_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PBKDF2 with 100,000 rounds measured 110-116 ms per handshake. Home
+    Assistant runs this client in its event loop, so every connection stalled
+    it for that long (audit A11-08)."""
+    client = Wattpilot("192.0.2.10", "secret")
+    client._device.serial = "123456"
+
+    hashed_in: list[int] = []
+    real_hash = client_module.hash_password
+
+    def spy(password: str, serial: str, hash_type: object) -> bytes:
+        hashed_in.append(threading.get_ident())
+        return real_hash(password, serial, hash_type)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(client_module, "hash_password", spy)
+
+    sent: list[dict[str, Any]] = []
+
+    async def fake_send(message: dict[str, Any], **_kwargs: object) -> None:
+        sent.append(message)
+
+    monkeypatch.setattr(client, "_send", fake_send)
+
+    await client._handle_message(
+        json.dumps(
+            {
+                "type": "authRequired",
+                "hash": "pbkdf2",
+                "token1": "aaaa",
+                "token2": "bbbb",
+            }
+        )
+    )
+
+    assert hashed_in, "the handshake did not hash at all"
+    assert threading.get_ident() not in hashed_in, "hashing ran on the event loop"
+    assert sent
+    assert sent[0]["type"] == "auth"

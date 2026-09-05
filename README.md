@@ -242,8 +242,8 @@ bash scripts/check.sh
 ```
 
 runs every gate: `ruff format --check`, `ruff check`, `mypy --strict` and the
-test suite. `bash scripts/check.sh --release` adds the end-to-end tests and the
-mutation-testing gate.
+full test suite, end-to-end tests included. `bash scripts/check.sh --release`
+adds the mutation-testing gate on top.
 
 The test suite needs Linux (`pytest-homeassistant-custom-component` does not
 run on Windows); on Windows use WSL2. Python 3.14 is required.

@@ -188,10 +188,6 @@ class Wattpilot:
         self._property_callbacks: list[PropertyCallback] = []
         self._message_callbacks: list[MessageCallback] = []
 
-        # Pre-hash password if serial is already known
-        if serial:
-            self._update_hashed_password()
-
     # ---- Context manager ----
 
     async def __aenter__(self) -> Self:
@@ -1154,7 +1150,7 @@ class Wattpilot:
         elif self._device.device_type == WPFLEX_DEVICE_TYPE:
             self._auth_hash_type = AuthHashType.BCRYPT
 
-        self._update_hashed_password()
+        await self._update_hashed_password()
 
         token3 = generate_token()
         auth_hash = compute_auth_response(
@@ -1292,11 +1288,19 @@ class Wattpilot:
             else:
                 cb(name, value)
 
-    def _update_hashed_password(self) -> None:
+    async def _update_hashed_password(self) -> None:
+        """
+        Hash the password for this device, off the event loop.
+
+        PBKDF2 with 100,000 rounds measured 110-116 ms per handshake, and
+        bcrypt is no cheaper. Home Assistant runs this client in its event
+        loop, so every connection stalled everything else for that long
+        (audit A11-08). The protocol parameters are unchanged.
+        """
         if not self._password or not self._device.serial:
             return
-        self._hashed_password = hash_password(
-            self._password, self._device.serial, self._auth_hash_type
+        self._hashed_password = await asyncio.to_thread(
+            hash_password, self._password, self._device.serial, self._auth_hash_type
         )
 
     async def _send_command(

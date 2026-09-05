@@ -220,6 +220,34 @@ def _imports_of(path: Path) -> set[str]:
     return modules
 
 
+# Password hashing is deliberately expensive; the number below is the
+# measured cost of one PBKDF2 handshake on the development machine.
+EXPENSIVE_HASHES = frozenset({"hash_password", "_hash_pbkdf2", "_hash_bcrypt"})
+
+
+def test_expensive_hashing_never_runs_on_the_event_loop() -> None:
+    """
+    A key-derivation call must be handed to a thread, never called directly.
+
+    It was called directly once, and the handshake stalled Home Assistant's
+    event loop for 110-116 ms on every connection (audit A11-08). Moving the
+    one call site fixes the day; this stops the next one being written.
+
+    Fix: `await asyncio.to_thread(hash_password, ...)` -- pass the function,
+    do not call it.
+    """
+    offenders = [
+        f"{path.name}:{node.lineno}"
+        for path in iter_python_files()
+        if API_DIR in path.parts and path.name != "auth.py"
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in EXPENSIVE_HASHES
+    ]
+    assert not offenders, f"key derivation called on the event loop: {offenders}"
+
+
 def test_the_client_never_names_its_own_install_path() -> None:
     """
     The client must not spell out where it is mounted.
@@ -502,6 +530,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         "test_the_client_is_only_imported_by_hub": ("the client keeps one import site"),
         "test_the_client_stays_independent_of_home_assistant": (
             "the client knows nothing about Home Assistant"
+        ),
+        "test_expensive_hashing_never_runs_on_the_event_loop": (
+            "key derivation is handed to a thread, not called"
         ),
         "test_the_client_never_names_its_own_install_path": (
             "the client does not spell out where it is mounted"

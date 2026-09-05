@@ -93,8 +93,9 @@ rules:
   entity-disabled-by-default:
     status: done
     comment: |
-      Noisy diagnostics and the reverse-engineered energy-split sensors are
-      registry-disabled by default.
+      High-frequency diagnostics are registry-disabled by default. The
+      energy-split sensors ship enabled: they are readings people look for,
+      not diagnostics.
   entity-translations: done
   exception-translations: done
   icon-translations: done
@@ -119,7 +120,10 @@ rules:
       The client reads its API definition while connecting, in a thread, so
       no write ever pays for it on the event loop. It used to be read lazily
       on the first write, which the integration worked around by warming the
-      cache itself; that workaround is gone with the cause.
+      cache itself; that workaround is gone with the cause. The password
+      hashing of the authentication handshake runs in a thread for the same
+      reason: PBKDF2 with 100,000 rounds is 110-116 ms of computation, not
+      I/O, and it happens on every connection.
   inject-websession:
     status: exempt
     comment: |

@@ -21,10 +21,10 @@ run_gate() {
 
 cd "$(dirname "$0")/.."
 
-# `mutmut run` exits 0 no matter how many mutants survive -- it only reports.
-# The gate has to judge the result itself, or a release whose tests kill
-# nothing would sail through silently. Judged by NAME, not by count: a count
-# lets a newly introduced survivor hide behind a fixed one.
+# `mutmut run` exits 0 no matter what it found -- it only reports. The gate
+# has to judge the report itself, and every outcome needs a verdict, not just
+# "survived": see scripts/judge_mutants.py, which is where that policy lives
+# and where it is covered by tests.
 mutation_gate() {
     # Discard the whole sandbox first. mutmut keeps each mutant's verdict there
     # and only retests mutants whose *source* changed -- so after adding tests
@@ -32,14 +32,8 @@ mutation_gate() {
     # reported the identical 104 survivors until this directory was removed.
     rm -rf mutants
     mutmut run || return $?
-    mutmut results | sed -n 's/^ *\(.*\): survived$/\1/p' | sort >mutants/survived
-    grep -v -e '^#' -e '^$' scripts/equivalent-mutants.txt | sort >mutants/allowed
-    if ! diff -u mutants/allowed mutants/survived; then
-        echo "Mutation survivors differ from scripts/equivalent-mutants.txt."
-        echo "  '+' lines survived but are not justified there — write a test."
-        echo "  '-' lines no longer survive — remove them from that file."
-        return 1
-    fi
+    mutmut results >mutants/results.txt || return $?
+    python3 scripts/judge_mutants.py mutants/results.txt scripts/equivalent-mutants.txt
 }
 
 run_gate "ruff format" ruff format --check custom_components tests scripts

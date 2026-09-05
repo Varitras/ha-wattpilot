@@ -40,6 +40,21 @@ from building the integration.
   URL carrying the serial number.
 - `trx` starts at its real value: `null` is that property's "no
   transaction", not the absence of a value.
+- A reconnect checks that the charger which answered is the one the entry
+  belongs to. The address can be reused or the hardware replaced, and the
+  entry, its entities and their history stayed pointed at whatever picked up.
+- Diagnostics redact the nested data too. Addresses, Wi-Fi names and MAC
+  addresses inside `dns`, `wifis` and `scan` reached the download because
+  the client built them in a shape the redaction did not walk. The
+  hostname fields carrying the serial number are replaced as well.
+- A setup Home Assistant cancels hands back its connection instead of
+  leaving a socket and a reader running.
+- One unreadable frame no longer silences the charger: it is logged and
+  skipped rather than ending the connection while it still looks alive.
+- A reconnect waits for the charger's new snapshot instead of accepting the
+  first partial one and reporting itself ready.
+- Connecting no longer blocks Home Assistant for the tenth of a second the
+  password hashing takes.
 
 ### Changed
 
@@ -51,6 +66,9 @@ from building the integration.
 - The aWATTar price limit drops its monetary device class. It is stored in
   cent, and Home Assistant expects an ISO 4217 currency code there.
 - The full-setup test runs on every change instead of only at release.
+- The release's mutation gate judges every result. It read survivors only,
+  so a mutant that was never tested vanished from the comparison instead of
+  failing it.
 
 ## [0.1.0] - unreleased
 
