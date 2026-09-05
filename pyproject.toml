@@ -78,7 +78,10 @@ source_paths = [
 # files and by the test suite but must stay unmutated -- copy the whole
 # package verbatim so the sandbox has a complete import graph. scripts/ is
 # needed too: test_make_dev_copy.py imports make_dev_copy.py from there.
-also_copy = ["custom_components", "scripts"]
+# CHANGELOG.md joins them because test_release_notes.py reads the real file:
+# without it the suite fails inside the sandbox and mutmut collects no stats
+# at all, which looks like a broken run rather than a missing file.
+also_copy = ["custom_components", "scripts", "CHANGELOG.md"]
 pytest_add_cli_args_test_selection = ["tests"]
 # These test files statically introspect the package source (ast.parse /
 # rglob over PACKAGE) rather than calling into it, so they never exercise
