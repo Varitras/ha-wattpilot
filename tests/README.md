@@ -4,26 +4,24 @@ Run: `bash scripts/check.sh` (all gates) — inside WSL2 for the full suite.
 
 ## Guard index
 
-One line per guard; deleting a guard must show up here in the diff.
+The index lives in `tests/test_guards.py::GUARD_INDEX`, one line per guard
+saying what it holds, and `test_every_guard_is_listed_in_the_index` fails
+when a guard is added or deleted without touching it. Deleting a guard can
+therefore not be a green diff.
+
+It used to be repeated as a table here. That copy drifted: by 2026-09-06 it
+named two guards that no longer existed under those names and omitted eight
+that did -- while the enforced index was correct the whole time. A second
+hand-maintained list of the same rule is the bug of tomorrow, so this file
+points at the enforced one instead of restating it.
+
+Guards outside that index, because they live in their own modules:
 
 | Guard | Holds |
 |---|---|
-| test_domain_literal_only_in_const | domain literal only in const.py among Python files (dev-copy safety) |
-| test_domain_literal_confined_to_known_carriers | domain literal never gains a fourth carrier beyond const.py/manifest.json/services.yaml |
-| test_manifest_is_consistent | manifest domain/iot_class/requirements/config_flow frozen |
-| test_every_third_party_import_is_declared | nothing imported that a user's install would not have |
-| test_no_manifest_requirement_is_unused | no dependency installed for nothing |
-| test_device_fixture_is_anonymized | committed device snapshot carries no owner identifiers |
-| test_diagnostics_covers_every_drop_key | redaction.sanitize_snapshot drops every credential/token key from diagnostics output |
-| test_full_parity | every fork unique_id preserved; only whs/whb/whg/who added |
-| test_uid_suffixes_unique_per_platform | no duplicate unique_ids within a platform |
-| test_wattpilot_api_only_imported_by_hub | lib swappable: one import site (hub.py) |
-| test_platform_modules_do_not_import_each_other | platforms independent |
-| test_file_size_budget | size ceiling frozen; shrunk files lose their budget |
-| test_cluster_size_budget | a unit split across files is measured as one, so splitting cannot buy room |
-| test_complexity_ratchet | exact cc ratchet via radon; regenerate via scripts/complexity_snapshot.py |
+| test_parity_capstone.py::test_full_parity | every fork unique_id preserved; only whs/whb/whg/who added |
+| test_parity_capstone.py::test_uid_suffixes_unique_per_platform | no duplicate unique_ids within a platform |
 | mutation run (check.sh --release) | tests are real: mutants in hub/sensor/init must die |
-| test_ci_runs_the_same_gates_as_check_sh | CI executes scripts/check.sh + hassfest + HACS validate |
 
 ## The pre-push hook is not in this repository
 

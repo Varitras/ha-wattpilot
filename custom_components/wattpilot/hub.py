@@ -1,9 +1,8 @@
 """
-Connection hub: owns the wattpilot_api client, dispatches push updates.
+Connection hub: owns the charger client, dispatches push updates.
 
-The ONLY module in this package allowed to import the wattpilot_api
-client library (architecture guard). Everything device-facing funnels
-through here.
+The ONLY module in this package allowed to import the client in api/
+(architecture guard). Everything device-facing funnels through here.
 """
 
 from __future__ import annotations
