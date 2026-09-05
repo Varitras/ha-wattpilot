@@ -201,6 +201,17 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
 }
 SHRINK_SLACK = 0.85  # an entry >=15% below budget must be ratcheted down
 
+# Per-file ceilings alone are escapable: split the file and both halves are
+# under budget while the thing itself kept growing. Memo did exactly that with
+# partials and reached ~15,500 lines past a per-file budget. So a unit that was
+# split stays measured as one cluster.
+CLUSTER_BUDGET = {
+    # The adopted charger client. Split on 2026-09-05 (ledger L-016) into the
+    # protocol and the connection lifecycle; the pair is the unit that must
+    # not grow (measured: 1471).
+    "api client": (("client.py", "connection.py"), 1490),
+}
+
 
 def _imports_of(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -329,6 +340,35 @@ def test_file_size_budget() -> None:
             raise AssertionError(
                 f"{path.name} shrank to {lines} lines — lower its budget "
                 f"entry ({budget}) so the slack cannot be spent again"
+            )
+
+
+def test_cluster_size_budget() -> None:
+    """A unit that was split into several files is still one unit.
+
+    Fix: shrink it, or discuss raising the entry -- but not by splitting
+    again, which is the move this guard exists to catch.
+    """
+    by_name = {path.name: path for path in iter_python_files()}
+    for cluster, (names, budget) in CLUSTER_BUDGET.items():
+        missing = [name for name in names if name not in by_name]
+        assert not missing, (
+            f"cluster {cluster!r} names file(s) that no longer exist: {missing}. "
+            "A renamed or deleted member makes this guard measure less than it "
+            "claims -- update the entry."
+        )
+        total = sum(
+            len(by_name[name].read_text(encoding="utf-8").splitlines())
+            for name in names
+        )
+        assert total <= budget, (
+            f"cluster {cluster!r}: {total} lines across {len(names)} files "
+            f"> budget {budget}"
+        )
+        if total < budget * SHRINK_SLACK:
+            raise AssertionError(
+                f"cluster {cluster!r} shrank to {total} lines — lower its "
+                f"budget entry ({budget}) so the slack cannot be spent again"
             )
 
 
@@ -538,6 +578,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         ),
         "test_platform_modules_do_not_import_each_other": "platforms stay independent",
         "test_file_size_budget": "no module grows past its frozen ceiling",
+        "test_cluster_size_budget": (
+            "a split unit stays measured as one, so splitting cannot buy room"
+        ),
         "test_complexity_ratchet": "cyclomatic complexity only ever goes down",
         "test_ci_runs_the_same_gates_as_check_sh": "CI and check.sh do not drift",
         "test_ci_actually_runs_the_declared_minimum_home_assistant": (

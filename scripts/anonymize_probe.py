@@ -8,8 +8,8 @@ replaced with synthetic ones; log-like and credential keys are dropped.
 The scrubbing logic itself lives in custom_components/wattpilot/redaction.py
 (diagnostics.py uses the same module) -- this script is a thin CLI wrapper
 around it. DROP_KEYS, sanitize_property, sanitize_snapshot and scrub are
-re-exported here (see __all__) because .local/probe_wattpilot.py, outside
-this repo, imports them from this module by name.
+re-exported here (see __all__) because the probe script that produces the
+dump lives outside this repository and imports them from here by name.
 """
 
 from __future__ import annotations
