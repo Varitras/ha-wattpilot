@@ -40,6 +40,17 @@ type PropertyCallback = Callable[[str, Any], Any]
 type MessageCallback = Callable[[dict[str, Any]], Any]
 
 
+def _correlation_key(request_id: object) -> str:
+    """
+    wattpilot: one spelling for a request id, whatever the wire used.
+
+    Commands are sent with an integer; the protocol's own examples answer
+    with a string. Comparing them raw left the caller waiting for an answer
+    that had already arrived (audit A11-01).
+    """
+    return str(request_id)
+
+
 def _message_type(raw: str) -> str:
     """wattpilot: the frame's type, for logging without its payload."""
     try:
@@ -97,9 +108,12 @@ class Wattpilot:
         self._ws: websockets.asyncio.client.ClientConnection | None = None
         self._message_loop_task: asyncio.Task[None] | None = None
         self._request_id = 0
-        # wattpilot: pending setValue commands by requestId (audit VA-03).
+        # wattpilot: pending setValue commands by correlation key (VA-03).
         # Upstream fired and forgot, so a charger's rejection reached nobody.
-        self._pending_commands: dict[int, asyncio.Future[None]] = {}
+        # Keyed by string: commands go out with an integer id, but the
+        # protocol documents responses carrying it as a string, and an
+        # unnormalized lookup missed those answers entirely (audit A11-01).
+        self._pending_commands: dict[str, asyncio.Future[None]] = {}
         self.command_timeout = 10.0
         self._connected = False
         self._all_props: dict[str, Any] = {}
@@ -1081,7 +1095,7 @@ class Wattpilot:
     def _on_response(self, msg: SimpleNamespace) -> None:
         # wattpilot: resolve the waiting command (audit VA-03). An answer
         # without a waiter is still applied and logged, as before.
-        future = self._pending_commands.get(msg.requestId)
+        future = self._pending_commands.get(_correlation_key(msg.requestId))
         if msg.success:
             props = msg.status.__dict__
             for key, value in props.items():
@@ -1190,8 +1204,9 @@ class Wattpilot:
         either is what made a refused write look like a completed one.
         """
         request_id = message["requestId"]
+        key = _correlation_key(request_id)
         future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
-        self._pending_commands[request_id] = future
+        self._pending_commands[key] = future
         try:
             await self._send(message, secure=secure)
             await asyncio.wait_for(future, self.command_timeout)
@@ -1202,7 +1217,7 @@ class Wattpilot:
             )
             raise CommandError(msg) from None
         finally:
-            self._pending_commands.pop(request_id, None)
+            self._pending_commands.pop(key, None)
 
     async def _send(self, message: dict[str, Any], *, secure: bool = False) -> None:
         if self._ws is None:

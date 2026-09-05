@@ -47,7 +47,7 @@ def make_client(socket: FakeSocket) -> Wattpilot:
     return client
 
 
-def respond(client: Wattpilot, request_id: int, *, success: bool) -> None:
+def respond(client: Wattpilot, request_id: int | str, *, success: bool) -> None:
     """Feed the client the device's answer to one command."""
     from types import SimpleNamespace  # noqa: PLC0415 -- test-local shape
 
@@ -247,3 +247,38 @@ async def test_connect_loads_the_api_definition_off_the_event_loop() -> None:
         side_effect=AssertionError("read the file twice"),
     ):
         assert client._get_api_def() is client._api_def_cache
+
+
+@pytest.mark.parametrize("request_id", [1, "1"], ids=["integer", "string"])
+async def test_an_acknowledgement_completes_whichever_id_type_arrives(
+    request_id: int | str,
+) -> None:
+    """Audit A11-01: commands go out with an integer id, but the bundled
+    protocol documents responses carrying it as a string. Looking the waiter
+    up unnormalized meant a string answer applied its properties and left the
+    caller waiting for its full timeout -- a write that worked, reported as a
+    failure, and in multi-command helpers an abort after the first one already
+    took effect."""
+    socket = FakeSocket()
+    client = make_client(socket)
+
+    task = asyncio.ensure_future(client.set_property("amp", 10))
+    await asyncio.sleep(0)
+    assert socket.sent[0]["requestId"] == 1
+
+    respond(client, request_id, success=True)
+    await asyncio.wait_for(task, 1)
+
+
+async def test_a_string_rejection_also_reaches_the_caller() -> None:
+    """The same normalization on the failure path: a refused write must raise
+    rather than time out."""
+    socket = FakeSocket()
+    client = make_client(socket)
+
+    task = asyncio.ensure_future(client.set_property("amp", 10))
+    await asyncio.sleep(0)
+    respond(client, "1", success=False)
+
+    with pytest.raises(CommandError, match="rejected"):
+        await asyncio.wait_for(task, 1)
