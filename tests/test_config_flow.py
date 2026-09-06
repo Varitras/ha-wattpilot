@@ -131,6 +131,37 @@ async def test_reauth_updates_password(
     assert entry.data["password"] == "newpass"  # noqa: S105 -- test value, not a secret
 
 
+async def test_reauth_rejects_a_different_charger(
+    hass: HomeAssistant, device_properties: dict[str, Any]
+) -> None:
+    """Reauth proves a password, and it has to prove it against the right
+    charger. It discarded the serial the probe returned, so credentials
+    accepted by whatever now answers at the address were written into the
+    entry and the flow reported success -- while the setup that followed
+    refused the device, leaving the entry broken with its password already
+    replaced (audit A12-07). Sibling of the setup and reconnect checks.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="999999",  # a different charger than the fake (123456)
+        version=2,
+        data={CONF_CONNECTION_TYPE: CONNECTION_LOCAL, **USER_INPUT},
+    )
+    entry.add_to_hass(hass)
+    original_data = dict(entry.data)
+
+    result = await entry.start_reauth_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    with patch_charger(FakeWattpilot(device_properties)):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"password": "newpass"}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "wrong_device"}
+    assert entry.data == original_data, "the password was replaced anyway"
+
+
 async def test_reconfigure_rejects_wrong_device(
     hass: HomeAssistant, device_properties: dict[str, Any]
 ) -> None:

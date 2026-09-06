@@ -153,9 +153,16 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         entry = self._get_reauth_entry()
         if user_input is not None:
-            errors, _serial, _name = await self._async_validate(
+            errors, serial, _name = await self._async_validate(
                 entry.data["host"], user_input["password"]
             )
+            # The same check reconfigure makes. Reauth threw the serial away,
+            # so a password accepted by whatever answers at the address was
+            # written into the entry and reported as success -- the setup
+            # afterwards then refused the device, and the entry was left
+            # broken with its credentials already replaced (audit A12-07).
+            if not errors and self._is_another_charger(entry, serial):
+                errors = {"base": "wrong_device"}
             if not errors:
                 return self.async_update_reload_and_abort(
                     entry, data_updates={"password": user_input["password"]}

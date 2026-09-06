@@ -51,6 +51,15 @@ async def async_setup_entry(
     )
 
 
+def _describe_shape(value: object) -> str:
+    """Name what a value is without repeating what it says."""
+    if isinstance(value, (list, tuple)):
+        return f"{type(value).__name__} of {len(value)}"
+    if isinstance(value, dict):
+        return f"dict of {len(value)}"
+    return type(value).__name__
+
+
 def _namespace_get(value: Any, field: str) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
     if isinstance(value, dict):
         return value.get(field)
@@ -74,12 +83,7 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
         description = self.entity_description
         try:
             if description.cards_index is not None:
-                card = value[description.cards_index]
-                self._attr_native_value = _namespace_get(card, "energy")
-                self._attr_extra_state_attributes = {
-                    "name": _namespace_get(card, "name"),
-                    "cardId": _namespace_get(card, "cardId"),
-                }
+                self._apply_card(value, description.cards_index)
                 return
             if description.value_index is not None:
                 item = value[description.value_index]
@@ -120,13 +124,39 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
         except (TypeError, ValueError, LookupError) as err:
             # Bounded, purposeful catch: one malformed push must not kill
             # the platform; keep the previous state.
+            # Shape and error type, never the value: this sink is not the
+            # diagnostics download and nothing redacts it, so a card list
+            # logged with %r put holder names into the log (audit A12-05).
+            # The exception's own message can quote the value too, so only
+            # its type is reported.
             _LOGGER.warning(
-                "%s: unexpected value %r for %s: %s",
+                "%s: unexpected %s for %s (%s)",
                 self.entity_id,
-                value,
+                _describe_shape(value),
                 description.charger_key,
-                err,
+                type(err).__name__,
             )
+
+    def _apply_card(self, value: Any, index: int) -> None:  # noqa: ANN401 -- charger payload
+        """
+        Show one ID chip, or nothing when the charger has no such slot.
+
+        Ten of these sensors exist and a charger may report fewer cards. An
+        absent slot is the entity having nothing to show, not a malformed
+        push: indexing past the end raised, and the generic handler then
+        logged the whole card list with %r -- holder names included, in a
+        sink nothing redacts (audit A12-05).
+        """
+        if index >= len(value):
+            self._attr_native_value = None
+            self._attr_extra_state_attributes = {}
+            return
+        card = value[index]
+        self._attr_native_value = _namespace_get(card, "energy")
+        self._attr_extra_state_attributes = {
+            "name": _namespace_get(card, "name"),
+            "cardId": _namespace_get(card, "cardId"),
+        }
 
     def _should_suppress_decrease(
         self, description: WattpilotSensorEntityDescription, value: float

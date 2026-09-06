@@ -333,6 +333,30 @@ async def test_card_sensor_reads_energy_and_name(
     assert sensor.translation_placeholders == {"index": "0"}
 
 
+async def test_a_missing_card_slot_leaks_no_names_into_the_log(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Ten card sensors exist, and a charger may report fewer cards. Indexing
+    past the end raised, and the generic handler logged the whole payload
+    with %r -- card holder names included, in a log the diagnostics redaction
+    never touches (audit A12-05). The absent slot is a normal state, not a
+    fault worth a warning.
+    """
+    fake_charger._properties["cards"] = [
+        {"name": "Alex Example", "cardId": True, "energy": 1.0},
+        {"name": "Sam Sample", "cardId": True, "energy": 2.0},
+    ]
+    with caplog.at_level(logging.DEBUG):
+        sensor = await make_sensor(hass, fake_charger, "cards_9")
+
+    assert sensor.native_value is None
+    assert "Alex Example" not in caplog.text
+    assert "Sam Sample" not in caplog.text
+    assert "WARNING" not in caplog.text, "an absent card slot is not a fault"
+
+
 async def test_non_card_sensor_has_no_index_placeholder(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
@@ -352,14 +376,24 @@ async def test_malformed_value_keeps_previous_state(
         await hass.async_block_till_done()
     assert sensor.native_value == 1
     # The warning is the only trace a dropped push leaves; it has to name
-    # which entity, which value and which charger key, or it cannot be acted on.
+    # which entity, what shape arrived, which charger key and what went wrong.
+    # It deliberately does NOT carry the value, nor the exception's message,
+    # which can quote the value too: nothing redacts this sink, and a card
+    # list logged that way put holder names into it (audit A12-05).
     # Compared whole rather than as a substring: a substring check passes just
     # as happily when the message has grown extra text around it.
     assert any(
-        record.getMessage() == "sensor.test_nrg: unexpected value 'garbage' for nrg: "
-        "string index out of range"
+        record.getMessage() == "sensor.test_nrg: unexpected str for nrg (IndexError)"
         for record in caplog.records
     )
+    # Only our own sink: Home Assistant's dispatcher logs its signal payload
+    # at DEBUG too, and that is not this integration's contract to keep.
+    ours = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "custom_components.wattpilot.sensor"
+    ]
+    assert not any("garbage" in message for message in ours)
 
 
 async def test_charger_temp_array_extracts_index_without_attributes(
