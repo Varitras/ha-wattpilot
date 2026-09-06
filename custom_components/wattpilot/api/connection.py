@@ -71,6 +71,8 @@ class Connection:
         self._initialized = False
         self._authenticated_event = asyncio.Event()
         self._initialized_event = asyncio.Event()
+        self._disconnected_event = asyncio.Event()
+        self._disconnected_event.set()
 
     # ---- What the outside asks ----
 
@@ -88,8 +90,26 @@ class Connection:
 
     def mark_authenticated(self) -> None:
         """Record that the charger accepted the credentials."""
-        self._authenticated = True
-        self._authenticated_event.set()
+        self._set_authenticated(value=True)
+
+    def _set_authenticated(self, *, value: bool) -> None:
+        """
+        Move the authenticated state, and the two events that mirror it.
+
+        One place, because there are three that used to flip the flag and a
+        waiter for the opposite edge now depends on them agreeing.
+        """
+        self._authenticated = value
+        if value:
+            self._disconnected_event.clear()
+            self._authenticated_event.set()
+        else:
+            self._authenticated_event.clear()
+            self._disconnected_event.set()
+
+    async def wait_disconnected(self) -> None:
+        """Wait until the charger is no longer authenticated."""
+        await self._disconnected_event.wait()
 
     def mark_initialized(self) -> None:
         """Record that the complete property snapshot has arrived."""
@@ -199,8 +219,7 @@ class Connection:
                     await self.socket.close()
             finally:
                 self.socket = None
-                self._authenticated = False
-                self._authenticated_event.clear()
+                self._set_authenticated(value=False)
                 self._initialized_event.clear()
                 self._on_reset("Connection closed")
 
@@ -298,8 +317,7 @@ class Connection:
                 except websockets.exceptions.ConnectionClosed:
                     _LOGGER.info("WebSocket connection closed")
 
-                self._authenticated = False
-                self._authenticated_event.clear()
+                self._set_authenticated(value=False)
 
                 if not self._auto_reconnect:
                     break
@@ -325,5 +343,4 @@ class Connection:
                         "Reconnect failed: %s, retrying in %.0fs", exc, reconnect_delay
                     )
         finally:
-            self._authenticated = False
-            self._authenticated_event.clear()
+            self._set_authenticated(value=False)

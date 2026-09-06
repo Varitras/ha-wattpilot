@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import time
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -500,3 +501,28 @@ async def test_a_cancelled_definition_load_hands_the_connection_back(
 
     assert socket.closed, "the socket outlived the cancelled connect"
     assert client._connection.message_loop_task is None
+
+
+async def test_the_firmware_wait_keeps_the_budget_it_was_given(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reconnect loop counted only its own sleeps, so every attempt could
+    burn a full authentication timeout for free -- with the default budget
+    roughly half an hour past the two minutes asked for (audit A12-08).
+    """
+    client._all_props["onv"] = ["42.6"]
+
+    async def slow_and_failing() -> None:
+        await asyncio.sleep(0.2)
+        msg = "still rebooting"
+        raise WattpilotConnectionError(msg)
+
+    monkeypatch.setattr(client, "set_property", lambda *_a, **_k: asyncio.sleep(0))
+    monkeypatch.setattr(client, "connect", slow_and_failing)
+
+    started = time.monotonic()
+    with pytest.raises(WattpilotConnectionError, match="Timeout reconnecting"):
+        await client.install_firmware_update(timeout=0.05)
+    took = time.monotonic() - started
+
+    assert took < 1, f"a 0.05s budget took {took:.2f}s"

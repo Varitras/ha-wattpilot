@@ -33,6 +33,8 @@ from .models import AuthHashType, CloudInfo, DeviceInfo, LoadMode
 _LOGGER = logging.getLogger(__name__)
 
 WPFLEX_DEVICE_TYPE = "wattpilot_flex"
+# Seconds between two attempts to reach a charger that is rebooting.
+_REBOOT_RETRY_PAUSE = 2.0
 CLOUD_API_BASE_URL = "https://app.wattpilot.io/app"
 
 type PropertyCallback = Callable[[str, Any], Any]
@@ -755,23 +757,46 @@ class Wattpilot:
 
         await self.set_property("oct", version)
 
-        elapsed = 0.0
-        while self.connected and elapsed < timeout:
-            await asyncio.sleep(1)
-            elapsed += 1
+        # wattpilot: a monotonic deadline, not a sum of sleeps. The counter
+        # this replaces advanced only by its own sleeps, so the time spent
+        # waiting for each reconnect was free -- under the default budget
+        # roughly sixty attempts of thirty seconds, half an hour past the two
+        # minutes the caller asked for (audit A12-08).
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(self._connection.wait_disconnected(), timeout)
 
         if self.connected:
             msg = "Charger did not disconnect for firmware update"
             raise WattpilotConnectionError(msg)
 
         await self.disconnect()
+        await self._reconnect_before(deadline)
 
-        while elapsed < timeout:
+    async def _reconnect_before(self, deadline: float) -> None:
+        """
+        Keep trying to reach the rebooted charger until the deadline passes.
+
+        Every attempt is bounded by what is left of the budget, and so is the
+        pause between them. Both used to be free: the caller's timeout was a
+        sum of sleeps, and a single attempt could sit in a full
+        authentication wait without spending any of it (audit A12-08).
+        """
+        loop = asyncio.get_running_loop()
+        while True:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                break
             with contextlib.suppress(Exception):
-                await self.connect()
+                async with asyncio.timeout(remaining):
+                    await self.connect()
                 return
-            await asyncio.sleep(2)
-            elapsed += 2
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                break
+            await asyncio.sleep(min(_REBOOT_RETRY_PAUSE, remaining))
 
         msg = "Timeout reconnecting after firmware update"
         raise WattpilotConnectionError(msg)
