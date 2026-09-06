@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import datetime
 import json
-import time
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -83,37 +82,23 @@ async def test_next_trip_is_sent_as_seconds_since_midnight(
     assert sent_values(client) == [("ftt", 7 * 3600 + 30 * 60)]
 
 
-@pytest.mark.parametrize("scheme", [1, 2])
-async def test_a_dst_aware_charger_gets_the_hour_added(
-    client: Wattpilot, scheme: int, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("scheme", [0, 1, 2])
+async def test_the_departure_is_written_unshifted_in_every_zone_mode(
+    client: Wattpilot, scheme: int
 ) -> None:
-    """With `tds` 1 or 2 the charger expects standard time, so a departure
-    during daylight saving has to be shifted.
+    """`ftt` is seconds since local midnight, full stop.
 
-    Asked through time.localtime(), not through an aware datetime: an
-    astimezone() result carries a *fixed offset*, and a fixed offset's dst()
-    is None -- which is why this adjustment never ran (audit A11-04). The
-    direction of the shift is the charger's documented contract and is not
-    verified against hardware here.
+    The adopted client added an hour when `tds` announced a daylight-saving
+    scheme and the process clock was in summer time. Measured on the real
+    charger on 2026-09-06, during summer time and with `tds` = 1: a departure
+    set to 07:30 in the Wattpilot app reads back as 27000, not 30600. The
+    firmware applies no offset, so neither do we (audit A12-06).
+
+    Parametrized over every `tds` value because that announcement is what the
+    old branch keyed on. There is no clock to pin any more: the write is
+    unconditional, and `import time` left the module with the branch.
     """
     client._all_props["tds"] = scheme
-    monkeypatch.setattr(
-        "custom_components.wattpilot.api.client.time.localtime",
-        lambda: time.struct_time((2026, 7, 1, 12, 0, 0, 2, 182, 1)),
-    )
-
-    await client.set_next_trip(datetime.time(7, 30))
-    assert sent_values(client) == [("ftt", 7 * 3600 + 30 * 60 + 3600)]
-
-
-async def test_outside_daylight_saving_the_departure_is_unshifted(
-    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    client._all_props["tds"] = 1
-    monkeypatch.setattr(
-        "custom_components.wattpilot.api.client.time.localtime",
-        lambda: time.struct_time((2026, 1, 1, 12, 0, 0, 3, 1, 0)),
-    )
 
     await client.set_next_trip(datetime.time(7, 30))
     assert sent_values(client) == [("ftt", 7 * 3600 + 30 * 60)]

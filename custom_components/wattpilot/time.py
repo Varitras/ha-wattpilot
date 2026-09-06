@@ -59,5 +59,5 @@ class WattpilotTime(WattpilotEntity, TimeEntity):
         )
 
     async def async_set_value(self, value: dt_time) -> None:
-        """Write via the lib helper (handles the charger's DST quirk)."""
+        """Write through the client, which sends seconds since local midnight."""
         await self._hub.async_set_next_trip(value)

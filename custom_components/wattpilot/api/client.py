@@ -8,7 +8,6 @@ import datetime
 import inspect
 import json
 import logging
-import time
 from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any, Self
@@ -682,14 +681,14 @@ class Wattpilot:
             + departure_time.second
         )
 
-        tds = self._all_props.get("tds")
-        # wattpilot: asked through time.localtime(), because the previous
-        # datetime.now().astimezone() carries a *fixed offset* and a fixed
-        # offset's dst() is always None -- the adjustment could never run
-        # (audit A11-04). tm_isdst reflects the system zone's actual state.
-        if tds is not None and int(tds) in (1, 2) and time.localtime().tm_isdst > 0:
-            timestamp += 3600
-
+        # wattpilot: no daylight-saving correction. The adopted client added
+        # an hour whenever `tds` announced a scheme and the clock was in
+        # summer time. Measured on the real charger on 2026-09-06, in summer
+        # time and with `tds` = 1: a departure set to 07:30 in the app reads
+        # back as 27000, not 30600. The firmware takes plain seconds since
+        # local midnight, exactly as the protocol reference says, and the
+        # entity reads them back the same way -- adding the hour here made
+        # 07:30 come back as 08:30 (audit A12-06).
         await self.set_property("ftt", timestamp)
 
     async def set_next_trip_energy(self, energy_kwh: float) -> None:
