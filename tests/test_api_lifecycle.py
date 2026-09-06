@@ -121,9 +121,11 @@ class FakeSocket:
     def __init__(self, frames: list[str]) -> None:
         self._frames = list(frames)
         self.closed = False
+        self._shut = asyncio.Event()
 
     async def close(self) -> None:
         self.closed = True
+        self._shut.set()
 
     def __aiter__(self) -> Any:
         return self
@@ -133,7 +135,11 @@ class FakeSocket:
             raise StopAsyncIteration
         if self._frames:
             return self._frames.pop(0)
-        await asyncio.sleep(3600)
+        # Waiting on the close, not on a long sleep: a real socket ends a
+        # pending receive when it is closed. A fake that keeps sleeping lets
+        # a test pass that the library would have failed -- which is how the
+        # readiness watchdog looked ineffective at first.
+        await self._shut.wait()
         raise StopAsyncIteration
 
 
@@ -327,3 +333,86 @@ async def test_an_explicit_reconnect_to_a_different_charger_is_refused(
         await client.connect()
     assert socket.closed
     assert client.serial == "111111"
+
+
+class SocketFactory:
+    """Hands out a fresh FakeSocket per connect and remembers every one."""
+
+    def __init__(self) -> None:
+        self.sockets: list[FakeSocket] = []
+
+    async def __call__(self, _url: str) -> FakeSocket:
+        socket = FakeSocket([])
+        self.sockets.append(socket)
+        return socket
+
+    @property
+    def open_sockets(self) -> list[FakeSocket]:
+        return [s for s in self.sockets if not s.closed]
+
+
+async def test_an_explicit_reconnect_during_backoff_leaves_one_reader(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A reconnect action while the client is waiting out its retry backoff
+    must not leave the old reader running. It still owns a socket, and the
+    two then race on the same connection object: measured three sockets and
+    two readers, two of them still open after disconnect (audit A12-01)."""
+    factory = SocketFactory()
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
+        factory,
+    )
+    connection = client._connection
+    connection._reconnect_delay_min = 3600  # park the loop in its backoff
+
+    connection.socket = FakeSocket([])
+    factory.sockets.append(connection.socket)
+    connection.message_loop_task = asyncio.create_task(connection._message_loop())
+    await connection.socket.close()
+    await _settle(lambda: not connection.connected)
+    first_reader = connection.message_loop_task
+
+    connection.connect_timeout = 0.01
+    with contextlib.suppress(WattpilotConnectionError):
+        await connection.open()
+
+    assert first_reader is not connection.message_loop_task
+    assert first_reader.done(), "the reader from the backoff was left running"
+    await connection.close()
+    assert factory.open_sockets == [], "a socket outlived the connection"
+
+
+async def test_a_silent_socket_after_reconnect_is_given_up_on(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The explicit path bounds the handshake; the automatic retry did not.
+    A peer whose socket stays open but never finishes the application
+    handshake held the integration unavailable for good (audit A12-04)."""
+    factory = SocketFactory()
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
+        factory,
+    )
+    connection = client._connection
+    connection._reconnect_delay_min = 0
+    connection.connect_timeout = 0.02
+    connection.init_timeout = 0.02
+
+    connection.socket = FakeSocket([])
+    factory.sockets.append(connection.socket)
+    connection.message_loop_task = asyncio.create_task(connection._message_loop())
+    await connection.socket.close()
+
+    # The retry opens a socket that says nothing at all. Its deadline has to
+    # end it, which shows up as further attempts being made.
+    for _ in range(200):
+        if len(factory.sockets) > 2:
+            break
+        await asyncio.sleep(0.01)
+    await connection.close()
+
+    assert len(factory.sockets) > 2, (
+        "the silent socket was never given up on: "
+        f"{len(factory.sockets)} attempt(s) in total"
+    )

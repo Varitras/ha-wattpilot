@@ -288,8 +288,9 @@ SHRINK_SLACK = 0.85  # an entry >=15% below budget must be ratcheted down
 CLUSTER_BUDGET = {
     # The adopted charger client. Split on 2026-09-05 (ledger L-016) into the
     # protocol and the connection lifecycle; the pair is the unit that must
-    # not grow (measured: 1471).
-    "api client": (("client.py", "connection.py"), 1490),
+    # not grow. Raised once on 2026-09-06 for the connection-ownership and
+    # readiness fixes the audit asked for, A12-01/04 (measured: 1510).
+    "api client": (("client.py", "connection.py"), 1530),
 }
 
 

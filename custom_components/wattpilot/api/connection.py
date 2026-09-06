@@ -61,6 +61,7 @@ class Connection:
 
         self.socket: websockets.asyncio.client.ClientConnection | None = None
         self.message_loop_task: asyncio.Task[None] | None = None
+        self._readiness_guard: asyncio.Task[None] | None = None
         # wattpilot: one field for every reason this connection cannot be
         # used -- rejected credentials or the wrong charger answering. A
         # second flag beside it would be a second place to forget.
@@ -125,6 +126,13 @@ class Connection:
                     )
             return
 
+        # A reader from an earlier attempt may still be sitting out its retry
+        # backoff. It owns a socket, and replacing it without stopping it left
+        # two readers racing on the same connection object -- measured three
+        # sockets and two live readers (audit A12-01).
+        if self.message_loop_task is not None:
+            await self.close()
+
         self.begin()
         self.socket = await websockets.asyncio.client.connect(self._url)
         self.message_loop_task = asyncio.create_task(self._message_loop())
@@ -155,6 +163,7 @@ class Connection:
         client's property cache, and clearing it would blank every entity for
         the length of the outage instead of holding the last known values.
         """
+        self._cancel_readiness_guard()
         self._initialized = False
         self._initialized_event.clear()
         self._authenticated_event.clear()
@@ -166,6 +175,7 @@ class Connection:
 
     async def close(self) -> None:
         """Stop the reader and close the socket, however either of them ended."""
+        self._cancel_readiness_guard()
         task = self.message_loop_task
         self.message_loop_task = None
         try:
@@ -208,6 +218,34 @@ class Connection:
         except TimeoutError as exc:
             msg = f"Timeout waiting for {what}"
             raise WattpilotConnectionError(msg) from exc
+
+    def _cancel_readiness_guard(self) -> None:
+        """Stop watching a connection that is being replaced or torn down."""
+        if self._readiness_guard is not None:
+            self._readiness_guard.cancel()
+            self._readiness_guard = None
+
+    async def _guard_readiness(self) -> None:
+        """
+        Give up on a reconnected socket that never finishes the handshake.
+
+        open() can wait for readiness inline because a separate task does the
+        reading. After an automatic reconnect the reader is this very loop, so
+        the same wait would deadlock -- nothing would read the frames it waits
+        for. Watching from the side instead: a peer whose socket stays up
+        while its application handshake stalls used to hold the integration
+        unavailable for good, with no further retry (audit A12-04). Closing
+        the socket ends the frame iteration, and the loop tries again.
+        """
+        try:
+            await asyncio.wait_for(
+                self._initialized_event.wait(),
+                self.connect_timeout + self.init_timeout,
+            )
+        except TimeoutError:
+            _LOGGER.warning("Reconnected socket never became ready; closing it")
+            if self.socket is not None:
+                await self.socket.close()
 
     @contextlib.asynccontextmanager
     async def _cleanup_on_failure(self) -> AsyncIterator[None]:
@@ -270,6 +308,7 @@ class Connection:
                 try:
                     self.begin()
                     self.socket = await websockets.asyncio.client.connect(self._url)
+                    self._readiness_guard = asyncio.create_task(self._guard_readiness())
                     reconnect_delay = self._reconnect_delay_min
                 except (OSError, websockets.exceptions.WebSocketException) as exc:
                     reconnect_delay = min(
