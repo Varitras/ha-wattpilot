@@ -1,13 +1,21 @@
 {
   "domain": "wattpilot",
   "name": "Fronius Wattpilot",
-  "codeowners": ["@Varitras"],
+  "codeowners": [
+    "@Varitras"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/Varitras/ha-wattpilot",
   "integration_type": "device",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/Varitras/ha-wattpilot/issues",
-  "loggers": ["custom_components.wattpilot"],
-  "requirements": ["packaging>=23.0", "websockets>=14.0", "bcrypt>=4.0"],
-  "version": "0.1.0"
+  "loggers": [
+    "custom_components.wattpilot"
+  ],
+  "requirements": [
+    "packaging>=23.0",
+    "websockets>=14.0",
+    "bcrypt>=4.0"
+  ],
+  "version": "0.1.1"
 }

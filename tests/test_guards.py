@@ -191,7 +191,7 @@ def test_manifest_is_consistent() -> None:
         "bcrypt>=4.0",
     ]
     assert manifest["config_flow"] is True
-    assert manifest["version"] == "0.1.0"
+    assert manifest["version"] == "0.1.1"
     assert manifest["codeowners"] == ["@Varitras"]
     assert manifest["integration_type"] == "device"
     assert manifest["loggers"] == ["custom_components.wattpilot"]

@@ -6,6 +6,37 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-06
+
+A maintenance release. Everything below came out of an independent audit of
+0.1.0; there is no new functionality.
+
+### Fixed
+
+- The departure time for Next Trip is sent unchanged. It was shifted an hour
+  forward during summer time, and read back without that shift -- so a trip
+  set to 07:30 showed up as 08:30. Measured against the charger: it expects
+  plain local time, and applies no daylight-saving correction of its own.
+  **If you set a departure time with 0.1.0 during summer time, check it.**
+- Re-entering the password now verifies which charger answered. If the
+  address had been taken over by another one, the new password was saved and
+  the flow reported success, while the entry itself then refused to start.
+- An ID-chip sensor for a slot the charger does not have shows nothing
+  instead of writing the whole card list, holder names included, into the
+  log. That log is not covered by the redaction that protects diagnostics.
+- Reconnecting by action while the integration was already retrying no longer
+  leaves the earlier attempt running, with two readers on one connection.
+- An automatic reconnect gives up on a charger that accepts the connection
+  and then never finishes talking, instead of waiting on it forever.
+- Nothing from a charger that was refused as the wrong one is applied any
+  more: what its connection had already sent used to be processed after the
+  refusal.
+- A setup that Home Assistant cancels hands the connection back in every
+  phase, including while the client is still reading its protocol
+  description.
+- The firmware update honours its own time limit. The limit counted only the
+  waiting between attempts, so an update could run far past it.
+
 ## [0.1.0] - 2026-09-05
 
 First release. There is no earlier version of this project, so the
@@ -102,5 +133,6 @@ former builds on.
 - `trx` starts at its real value: `null` is that property's "no
   transaction", not the absence of a value.
 
-[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Varitras/ha-wattpilot/releases/tag/v0.1.0

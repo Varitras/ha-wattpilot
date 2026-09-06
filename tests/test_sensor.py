@@ -333,6 +333,14 @@ async def test_card_sensor_reads_energy_and_name(
     assert sensor.translation_placeholders == {"index": "0"}
 
 
+def test_the_log_names_a_shape_without_repeating_the_value() -> None:
+    """What the warning is allowed to say about a payload it cannot use."""
+    assert sensor_platform._describe_shape([1, 2, 3]) == "list of 3"
+    assert sensor_platform._describe_shape((1,)) == "tuple of 1"
+    assert sensor_platform._describe_shape({"a": 1, "b": 2}) == "dict of 2"
+    assert sensor_platform._describe_shape("garbage") == "str"
+
+
 async def test_a_missing_card_slot_leaks_no_names_into_the_log(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
@@ -352,9 +360,35 @@ async def test_a_missing_card_slot_leaks_no_names_into_the_log(
         sensor = await make_sensor(hass, fake_charger, "cards_9")
 
     assert sensor.native_value is None
+    # An empty dict, not None: Home Assistant reads these attributes, and a
+    # None there is not the same thing as "this slot has nothing to show".
+    assert sensor.extra_state_attributes == {}
     assert "Alex Example" not in caplog.text
     assert "Sam Sample" not in caplog.text
     assert "WARNING" not in caplog.text, "an absent card slot is not a fault"
+
+
+async def test_the_first_card_slot_the_charger_lacks_is_already_empty(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The boundary itself: two cards means slot 2 is the first missing one.
+
+    Off by one here and the sensor indexes past the end again, which is the
+    exact path that put holder names into the log (audit A12-05).
+    """
+    fake_charger._properties["cards"] = [
+        {"name": "Alex Example", "cardId": True, "energy": 1.0},
+        {"name": "Sam Sample", "cardId": True, "energy": 2.0},
+    ]
+    with caplog.at_level(logging.DEBUG):
+        sensor = await make_sensor(hass, fake_charger, "cards_2")
+
+    assert sensor.native_value is None
+    assert sensor.extra_state_attributes == {}
+    assert "Sam Sample" not in caplog.text
+    assert "WARNING" not in caplog.text
 
 
 async def test_non_card_sensor_has_no_index_placeholder(
