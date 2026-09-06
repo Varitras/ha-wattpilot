@@ -481,6 +481,7 @@ def test_complexity_ratchet() -> None:
         "client.py::Wattpilot._on_hello": 6,
         "client.py::Wattpilot.install_firmware_update": 7,
         "client.py::Wattpilot._coerce_to_json_type": 17,
+        "connection.py::Connection._read_frames": 6,
         "connection.py::Connection._message_loop": 7,
         "client.py::Wattpilot._handle_message": 11,
         "client.py::Wattpilot._on_response": 7,

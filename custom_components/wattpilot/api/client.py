@@ -194,7 +194,15 @@ class Wattpilot:
     async def connect(self) -> None:
         """Open the WebSocket and authenticate."""
         await self._connection.open()
-        await self._load_api_definition()
+        # The definition load belongs inside the same cleanup scope as the
+        # handshake. Between the two, a cancellation fell outside the
+        # connection's scope and outside the integration's, leaving the
+        # reader and the socket alive (audit A12-03).
+        try:
+            await self._load_api_definition()
+        except BaseException:
+            await self._connection.close()
+            raise
         _LOGGER.info("Connected to Wattpilot %s", self._device.serial)
 
     async def disconnect(self) -> None:

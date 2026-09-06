@@ -416,3 +416,87 @@ async def test_a_silent_socket_after_reconnect_is_given_up_on(
         "the silent socket was never given up on: "
         f"{len(factory.sockets)} attempt(s) in total"
     )
+
+
+class BufferedSocket(FakeSocket):
+    """A socket that still hands over what its receive buffer already holds.
+
+    Real WebSockets do exactly that: closing does not discard frames that
+    already arrived. FakeSocket ends its iteration on close, and that
+    difference hid a defect (audit A12-02).
+    """
+
+    async def __anext__(self) -> str:
+        if self._frames:
+            return self._frames.pop(0)
+        if self.closed:
+            raise StopAsyncIteration
+        await self._shut.wait()
+        raise StopAsyncIteration
+
+
+async def test_no_frame_is_applied_after_the_charger_was_refused(
+    client: Wattpilot,
+) -> None:
+    """Refusing the identity closes the socket, but frames already in the
+    receive buffer still arrive. They were applied: amp=14 from the wrong
+    charger landed in the cache after the rejection (audit A12-02)."""
+    client._device.serial = "111111"
+    socket = BufferedSocket(
+        [
+            json.dumps({"type": "hello", "serial": "222222"}),
+            json.dumps({"type": "deltaStatus", "status": {"amp": 14}}),
+        ]
+    )
+    client._connection.socket = socket  # type: ignore[assignment]
+
+    task = asyncio.create_task(client._connection._message_loop())
+    try:
+        await _settle(task.done)
+        assert client.serial == "111111"
+        assert client.amp is None, "a buffered frame was applied after refusal"
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+async def test_a_cancelled_definition_load_hands_the_connection_back(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """connect() is handshake plus definition load. A cancellation between
+    the two fell outside the transport's cleanup scope and outside the
+    integration's, leaving reader and socket alive (audit A12-03)."""
+    socket = FakeSocket(
+        [
+            json.dumps({"type": "authSuccess"}),
+            json.dumps({"type": "fullStatus", "partial": False, "status": {}}),
+        ]
+    )
+
+    async def fake_connect(_url: str) -> FakeSocket:
+        return socket
+
+    entered = asyncio.Event()
+
+    async def never_returns() -> None:
+        entered.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
+        fake_connect,
+    )
+    monkeypatch.setattr(client, "_load_api_definition", never_returns)
+
+    task = asyncio.create_task(client.connect())
+    # Waiting for the load to be entered, not merely for readiness: cancelling
+    # a moment earlier lands inside open(), whose own cleanup already handles
+    # it, and the test would pass without touching this gap at all.
+    await asyncio.wait_for(entered.wait(), 1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert socket.closed, "the socket outlived the cancelled connect"
+    assert client._connection.message_loop_task is None

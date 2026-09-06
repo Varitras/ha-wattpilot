@@ -269,6 +269,13 @@ class Connection:
         if self.socket is None:
             return
         async for frame in self.socket:
+            if self.fatal_error is not None:
+                # Refusing the charger closes the socket, but frames its
+                # receive buffer already held still arrive -- and were still
+                # applied: amp from the wrong device landed in the cache
+                # after the rejection (audit A12-02). Fail-stop means here.
+                _LOGGER.debug("Dropping a frame that arrived after the refusal")
+                break
             raw = frame.decode("utf-8") if isinstance(frame, bytes) else frame
             try:
                 await self._handle_frame(raw)
