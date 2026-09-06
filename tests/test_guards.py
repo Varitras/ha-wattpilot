@@ -6,6 +6,7 @@ import ast
 import json
 import re
 import sys
+from importlib import metadata
 from pathlib import Path
 
 import yaml
@@ -175,6 +176,30 @@ def test_no_manifest_requirement_is_unused() -> None:
     unused = sorted(_declared_distributions() - imported)
     assert not unused, (
         f"manifest.json declares requirement(s) nothing imports: {unused}"
+    )
+
+
+def test_the_test_environment_installs_what_the_manifest_declares() -> None:
+    """
+    Every declared requirement has to be present where the tests run.
+
+    Home Assistant installs them from the manifest; a test environment does
+    not, unless the dev group asks. They used to arrive by accident, through
+    the library the client was adopted from, and removing that package left
+    a fresh environment without websockets -- which showed up as twenty-eight
+    collection errors in CI rather than as one sentence.
+
+    Fix: add the distribution to the dev group in pyproject.toml.
+    """
+    missing = []
+    for name in sorted(_declared_distributions()):
+        try:
+            metadata.version(name)
+        except metadata.PackageNotFoundError:
+            missing.append(name)
+    assert not missing, (
+        f"manifest.json declares {missing}, which the test environment does "
+        "not install -- add them to the dev dependency group"
     )
 
 
@@ -650,6 +675,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         "test_domain_literal_only_in_const": "domain string lives in const.py only",
         "test_domain_literal_confined_to_known_carriers": "no fourth domain carrier",
         "test_manifest_is_consistent": "manifest metadata stays as declared",
+        "test_the_test_environment_installs_what_the_manifest_declares": (
+            "the tests run with the dependencies the manifest promises"
+        ),
         "test_every_third_party_import_is_declared": (
             "nothing is imported that a user's install would not have"
         ),

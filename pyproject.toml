@@ -13,6 +13,15 @@ requires-python = ">=3.14"
 
 [dependency-groups]
 dev = [
+    # What manifest.json declares. Home Assistant installs these from the
+    # manifest in a real installation; the test environment has to ask for
+    # them itself. They used to arrive transitively through wattpilot-api,
+    # and dropping that package left the suite unable to import websockets
+    # in a fresh environment -- green locally, 28 collection errors in CI.
+    # tests/test_guards.py keeps this list and the manifest in step.
+    "websockets>=14.0",
+    "bcrypt>=4.0",
+    "packaging>=23.0",
     "pytest>=9.0.0",
     "pytest-homeassistant-custom-component",
     "ruff>=0.15.0",
