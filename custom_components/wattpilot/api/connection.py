@@ -298,11 +298,13 @@ class Connection:
             raw = frame.decode("utf-8") if isinstance(frame, bytes) else frame
             try:
                 await self._handle_frame(raw)
-            except ValueError, TypeError, AttributeError, KeyError:
+            except ValueError, TypeError, AttributeError, LookupError:
                 # wattpilot: one frame the handlers cannot read used to end
                 # the loop while the socket stayed open, so nothing updated
-                # again (audit A11-06). Errors that mean the connection
-                # itself is wrong are deliberately not caught here.
+                # again (audit A11-06). LookupError, not KeyError: an empty
+                # `nrg` array is indexed into, and that IndexError slipped
+                # past the first version of this guard. Errors that mean the
+                # connection itself is wrong are deliberately not caught.
                 _LOGGER.warning("Ignoring an unreadable frame (%d bytes)", len(raw))
 
     async def _message_loop(self) -> None:

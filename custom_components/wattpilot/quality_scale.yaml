@@ -73,8 +73,9 @@ rules:
   discovery:
     status: todo
     comment: |
-      The charger advertises itself over mDNS and the client library ships a
-      discovery module, but no HA discovery step is implemented yet.
+      The charger advertises itself over mDNS, but nothing here listens: the
+      adopted client brought no discovery module along, and no HA discovery
+      step is implemented.
   discovery-update-info:
     status: todo
     comment: Depends on discovery.

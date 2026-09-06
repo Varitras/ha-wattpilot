@@ -526,3 +526,25 @@ async def test_the_firmware_wait_keeps_the_budget_it_was_given(
     took = time.monotonic() - started
 
     assert took < 1, f"a 0.05s budget took {took:.2f}s"
+
+
+async def test_an_empty_array_does_not_end_the_reader(client: Wattpilot) -> None:
+    """`nrg` arrives as a list the client indexes into. An empty one raised
+    IndexError, which the frame guard did not catch -- so the reader stopped
+    and the valid frame behind it was never read, while the socket still
+    looked alive (audit 12.4, the remainder of A11-06)."""
+    client._connection.socket = FakeSocket(  # type: ignore[assignment]
+        [
+            json.dumps({"type": "deltaStatus", "status": {"nrg": []}}),
+            json.dumps({"type": "deltaStatus", "status": {"amp": 6}}),
+        ]
+    )
+    task = asyncio.create_task(client._connection._message_loop())
+    try:
+        await _settle(lambda: client.amp == 6)
+        assert client.amp == 6, "the frame behind the malformed one was lost"
+        assert not task.done()
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task

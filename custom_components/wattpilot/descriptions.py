@@ -1173,11 +1173,10 @@ TIME_DESCRIPTIONS: tuple[WattpilotTimeEntityDescription, ...] = (
 
 # Verified against the fork's UPDATE_DESCRIPTIONS at pinned commit 1decee7:
 # the single entry matches on uid/charger_key/device_class/entity_category.
-# Ordering is NOT guaranteed here: our client's `available_firmware_versions`
-# (wattpilot-api==1.4.0, see site-packages/wattpilot_api/client.py) is an
-# unsorted passthrough of the raw "onv" property, and its own
+# Ordering is NOT guaranteed here: `available_firmware_versions` in
+# api/client.py is an unsorted passthrough of the raw "onv" property, and
 # install_firmware_update() picks index 0 when no version is given -- that
-# only proves the vendor's default install matches its own display order,
+# only proves the default install matches that display order,
 # not that the charger emits versions newest-first on the wire. update.py
 # sorts the raw entries with packaging.version.Version before picking
 # "latest" (always keeping the original wire string, never a re-serialized

@@ -22,10 +22,6 @@ _DEVICE_SCHEMA = vol.Schema({vol.Required("device_id"): cv.string})
 _NEXT_TRIP_SCHEMA = _DEVICE_SCHEMA.extend({vol.Required("trigger_time"): cv.time})
 _CLOUD_SCHEMA = _DEVICE_SCHEMA.extend({vol.Required("cloud_api"): cv.boolean})
 
-# Prefix/suffix fragment shown for a logged cloud API key. At or below the
-# threshold the two fragments would jointly cover (or, shorter still,
-# repeat) every character of the key, so nothing of it may be shown at all.
-
 
 def _hub_for_device(hass: HomeAssistant, device_id: str) -> WattpilotHub:
     """
