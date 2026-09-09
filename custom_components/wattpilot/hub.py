@@ -285,7 +285,10 @@ class WattpilotHub:
             # charger going away is the expected outcome, not a fault.
             _LOGGER.debug("Charger %s disconnected", self.serial)
         else:
-            _LOGGER.warning("Charger %s is unavailable", self.serial)
+            # INFO, not WARNING: the quality-scale rule `log-when-unavailable`
+            # reserves WARNING for faults the user can act on, and a charger
+            # that stopped answering is usually one somebody switched off.
+            _LOGGER.info("Charger %s is unavailable", self.serial)
         async_dispatcher_send(
             self._hass, signal_availability(self._entry_id), available
         )

@@ -1,9 +1,14 @@
 name: CI
 
+# Every branch push, so "push the branch, wait for CI, then merge" has a run
+# to wait for; pull_request covers Dependabot, whose own branch pushes are
+# ignored here to avoid testing each bump twice. `branches` and
+# `branches-ignore` must never both appear on one event -- GitHub then rejects
+# the whole file and nothing runs at all, with no failed run to notice.
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches-ignore: ["dependabot/**"]
+  pull_request:
 
 jobs:
   check:

@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- A charger that stops answering is reported once at INFO instead of WARNING,
+  and the reconnect attempts behind it are debug-only. Switching the charger
+  off is not a fault, and it no longer leaves warnings in the log panel for as
+  long as it stays off.
+
 ## [0.1.1] - 2026-09-06
 
 A maintenance release. Everything below came out of an independent audit of

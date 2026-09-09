@@ -415,21 +415,31 @@ async def test_deliberate_shutdown_is_not_logged_as_a_warning(
     assert "Charger 123456 disconnected" in messages
 
 
-async def test_unexpected_disconnect_is_still_warned(
+async def test_an_unannounced_drop_is_reported_at_info(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A drop the device did not announce is a real fault and must warn."""
+    """
+    A charger that stops answering is reported once, at INFO.
+
+    The quality-scale rule `log-when-unavailable` asks for INFO, not WARNING:
+    the usual reason is a charger somebody switched off, which is neither the
+    user's mistake nor something they can act on. At WARNING every such
+    evening puts a red line into the log panel, attributed to this
+    integration.
+    """
     hub = make_hub(hass, fake_charger)
     await hub.async_connect()
     hub.start_dispatch()
     fake_charger.connected = False
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.DEBUG):
         async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
         await hass.async_block_till_done()
-    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
-    assert "Charger 123456 is unavailable" in warnings
+    gone = [
+        r for r in caplog.records if r.getMessage() == "Charger 123456 is unavailable"
+    ]
+    assert [r.levelno for r in gone] == [logging.INFO]
 
 
 async def test_a_failed_disconnect_still_reports_unavailable(
