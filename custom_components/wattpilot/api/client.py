@@ -974,7 +974,7 @@ class Wattpilot:
     async def _on_hello(self, msg: SimpleNamespace) -> None:
         if not await self._identity_accepted(msg.serial):
             return
-        _LOGGER.info("Connected to Wattpilot serial %s", msg.serial)
+        _LOGGER.debug("Connected to Wattpilot serial %s", msg.serial)
         self._device.serial = msg.serial
         if hasattr(msg, "hostname"):
             self._device.name = msg.hostname
@@ -1026,7 +1026,7 @@ class Wattpilot:
 
     def _on_auth_success(self, _msg: SimpleNamespace) -> None:
         self._connection.mark_authenticated()
-        _LOGGER.info("Authentication successful")
+        _LOGGER.debug("Authentication successful")
 
     def _on_auth_error(self, msg: SimpleNamespace) -> None:
         error_msg = getattr(msg, "message", "Unknown auth error")

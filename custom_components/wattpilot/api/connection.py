@@ -317,7 +317,7 @@ class Connection:
                 try:
                     await self._read_frames()
                 except websockets.exceptions.ConnectionClosed:
-                    _LOGGER.info("WebSocket connection closed")
+                    _LOGGER.debug("WebSocket connection closed")
 
                 self._set_authenticated(value=False)
 
@@ -330,7 +330,7 @@ class Connection:
                     _LOGGER.error("Not reconnecting: %s", self.fatal_error)
                     break
 
-                _LOGGER.info("Reconnecting in %.0fs...", reconnect_delay)
+                _LOGGER.debug("Reconnecting in %.0fs...", reconnect_delay)
                 await asyncio.sleep(reconnect_delay)
                 try:
                     self.begin()
@@ -341,7 +341,9 @@ class Connection:
                     reconnect_delay = min(
                         reconnect_delay * 2, self._reconnect_delay_max
                     )
-                    _LOGGER.warning(
+                    # Once per cycle for as long as the charger is away:
+                    # at WARNING this fills the log until it comes back.
+                    _LOGGER.debug(
                         "Reconnect failed: %s, retrying in %.0fs", exc, reconnect_delay
                     )
         finally:
