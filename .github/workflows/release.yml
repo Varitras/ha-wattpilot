@@ -22,6 +22,18 @@ jobs:
         run: |
           VERSION=$(python3 -c "import json;print(json.load(open('custom_components/wattpilot/manifest.json'))['version'])")
           [ "v$VERSION" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME != manifest v$VERSION"; exit 1; }
+      - name: Say whether this tag is a pre-release
+        id: kind
+        # Anything that is not exactly vX.Y.Z is a candidate (v0.1.2b1), and
+        # an unrecognized tag errs towards pre-release rather than towards
+        # handing every HACS user something untried.
+        run: |
+          if [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "prerelease=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "prerelease=true" >>"$GITHUB_OUTPUT"
+          fi
+
       - name: Take the release notes from the changelog
         run: python3 scripts/release_notes.py "${GITHUB_REF_NAME#v}" >release-notes.md
       - name: Create GitHub release
@@ -30,3 +42,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           body_path: release-notes.md
+          # HACS offers a pre-release only to users who asked for beta versions.
+          prerelease: ${{ steps.kind.outputs.prerelease }}

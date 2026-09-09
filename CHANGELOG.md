@@ -6,12 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.2b1] - 2026-09-09
+
+A release candidate. Nothing here changes what the integration does; it
+changes what it writes into your log. Install it if your log panel is full of
+warnings from this integration -- otherwise there is no reason to hurry.
+
 ### Changed
 
-- A charger that stops answering is reported once at INFO instead of WARNING,
-  and the reconnect attempts behind it are debug-only. Switching the charger
-  off is not a fault, and it no longer leaves warnings in the log panel for as
-  long as it stays off.
+- A charger that stops answering is reported once, at INFO instead of WARNING.
+  Switching the charger off is not a fault you can act on, and Home Assistant
+  shows everything from WARNING up in the log panel, attributed to this
+  integration. The reconnect attempts behind it repeated their own warning for
+  as long as the charger stayed away; they are debug-only now.
+
+### Fixed
+
+- An empty `nrg` array no longer stops the reader. It raised an error the
+  frame guard did not catch, and the valid frame behind it was lost while the
+  connection still looked healthy. Not observed on real firmware.
 
 ## [0.1.1] - 2026-09-06
 
