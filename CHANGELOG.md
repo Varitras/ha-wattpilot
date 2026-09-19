@@ -6,6 +6,40 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-19
+
+Everything from the 0.1.2b1 candidate, plus what an independent audit of it
+found. Nothing here adds functionality; it is quieter in the log and holds up
+better at a few edges.
+
+### Changed
+
+- A charger that stops answering is reported once, at INFO instead of WARNING.
+  Switching the charger off is not a fault you can act on, and Home Assistant
+  shows everything from WARNING up in the log panel, attributed to this
+  integration. The reconnect attempts behind it repeated their own warning for
+  as long as the charger stayed away; they are debug-only now.
+
+### Fixed
+
+- Two reconnect actions arriving at the same time no longer leave a stray
+  connection behind. Each opened its own socket, and only the last one was
+  ever closed again.
+- The "enable cloud API" action gives up when its timeout says so. It used
+  to count whole seconds, so a short timeout still waited a full second.
+- A diagnostics download no longer fails on a `cards` value that is not a
+  list, and no longer walks a string there character by character. Not seen
+  from real firmware; the same guard the companion-device field already had.
+- An empty `nrg` array no longer stops the reader. It raised an error the
+  frame guard did not catch, and the valid frame behind it was lost while the
+  connection still looked healthy. Not observed on real firmware.
+
+### Removed
+
+- The unused half of the adopted client: child-property expansion, an MQTT
+  bridge configuration and a discovery configuration that nothing here ever
+  called. No user-visible change.
+
 ## [0.1.2b1] - 2026-09-09
 
 A release candidate. It changes what the integration writes into your log,
@@ -154,7 +188,8 @@ former builds on.
 - `trx` starts at its real value: `null` is that property's "no
   transaction", not the absence of a value.
 
-[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2b1...HEAD
+[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2b1...v0.1.2
 [0.1.2b1]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.1...v0.1.2b1
 [0.1.1]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Varitras/ha-wattpilot/releases/tag/v0.1.0
