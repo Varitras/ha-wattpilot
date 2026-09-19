@@ -77,6 +77,7 @@ module = "yaml"
 ignore_missing_imports = true
 
 [tool.mutmut]
+debug = true
 source_paths = [
     "custom_components/wattpilot/hub.py",
     "custom_components/wattpilot/sensor.py",
