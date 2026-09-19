@@ -1,14 +1,16 @@
 name: CI
 
-# Every branch push, so "push the branch, wait for CI, then merge" has a run
-# to wait for; pull_request covers Dependabot, whose own branch pushes are
-# ignored here to avoid testing each bump twice. `branches` and
-# `branches-ignore` must never both appear on one event -- GitHub then rejects
-# the whole file and nothing runs at all, with no failed run to notice.
+# A pull request is what gets a branch tested: it names the ref under review
+# and is the one run to wait for before the merge. Pushes to main cover the
+# merge commit itself, and workflow_call lets the release workflow demand
+# these same jobs for the tagged commit -- a tag push alone never triggers a
+# branch filter. `branches` and `branches-ignore` must never both appear on
+# one event: GitHub then rejects the whole file and nothing runs at all.
 on:
-  push:
-    branches-ignore: ["dependabot/**"]
   pull_request:
+  push:
+    branches: [main]
+  workflow_call:
 
 jobs:
   check:
