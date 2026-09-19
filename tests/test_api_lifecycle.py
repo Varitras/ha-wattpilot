@@ -343,6 +343,9 @@ class SocketFactory:
         self.sockets: list[FakeSocket] = []
 
     async def __call__(self, _url: str) -> FakeSocket:
+        # A real connect suspends on the network; a fake that never yields
+        # lets two callers run one after the other and hides the overlap.
+        await asyncio.sleep(0)
         socket = FakeSocket([])
         self.sockets.append(socket)
         return socket
@@ -382,6 +385,30 @@ async def test_an_explicit_reconnect_during_backoff_leaves_one_reader(
     assert first_reader.done(), "the reader from the backoff was left running"
     await connection.close()
     assert factory.open_sockets == [], "a socket outlived the connection"
+
+
+async def test_two_explicit_opens_leave_no_socket_behind(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two reconnect actions arriving together: each passed the "already
+    connected" check, each opened a socket, and the second overwrote the
+    references to the first. close() then reached only the last pair, and
+    the first socket and its reader lived on unowned (audit A13-01)."""
+    factory = SocketFactory()
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
+        factory,
+    )
+    connection = client._connection
+    connection.connect_timeout = 0.01
+
+    outcomes = await asyncio.gather(
+        connection.open(), connection.open(), return_exceptions=True
+    )
+
+    assert all(isinstance(o, WattpilotConnectionError) for o in outcomes)
+    await connection.close()
+    assert factory.open_sockets == [], "a socket outlived both attempts"
 
 
 async def test_a_silent_socket_after_reconnect_is_given_up_on(

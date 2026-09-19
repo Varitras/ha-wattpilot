@@ -73,6 +73,10 @@ class Connection:
         self._initialized_event = asyncio.Event()
         self._disconnected_event = asyncio.Event()
         self._disconnected_event.set()
+        # Two open() calls arriving together each passed the checks below
+        # and each opened a socket; the second overwrote the references to
+        # the first, and close() never reached it again (audit A13-01).
+        self._open_lock = asyncio.Lock()
 
     # ---- What the outside asks ----
 
@@ -136,6 +140,10 @@ class Connection:
 
     async def open(self) -> None:
         """Open the socket, start the reader, and wait for a usable state."""
+        async with self._open_lock:
+            await self._open()
+
+    async def _open(self) -> None:
         if self.connected:
             if not self._initialized:
                 async with self._cleanup_on_failure():
