@@ -8,9 +8,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.1.2b1] - 2026-09-09
 
-A release candidate. Nothing here changes what the integration does; it
-changes what it writes into your log. Install it if your log panel is full of
-warnings from this integration -- otherwise there is no reason to hurry.
+A release candidate. It changes what the integration writes into your log,
+and hardens the reader against one malformed frame nobody has seen a charger
+send. Install it if your log panel is full of warnings from this integration
+-- otherwise there is no reason to hurry.
 
 ### Changed
 
@@ -153,6 +154,7 @@ former builds on.
 - `trx` starts at its real value: `null` is that property's "no
   transaction", not the absence of a value.
 
-[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2b1...HEAD
+[0.1.2b1]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.1...v0.1.2b1
 [0.1.1]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Varitras/ha-wattpilot/releases/tag/v0.1.0

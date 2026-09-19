@@ -662,15 +662,10 @@ class Wattpilot:
         departure_time: datetime.time | datetime.datetime,
     ) -> None:
         """
-        Schedule the next trip departure time.
+        Schedule the next trip departure time, as plain local wall-clock time.
 
-        Handles timestamp conversion and DST adjustment automatically
-        based on the charger's ``tds`` (daylight-saving) property.
-
-        The ``tds`` property indicates which DST *scheme* is configured
-        (``1`` = European Summer Time, ``2`` = US Daylight Time), **not**
-        whether DST is currently active.  The offset is only applied when
-        the system's local timezone reports that DST is in effect.
+        No daylight-saving adjustment: the charger stores ``ftt`` as seconds
+        since local midnight and reads it back the same way.
         """
         if isinstance(departure_time, datetime.datetime):
             departure_time = departure_time.time()
@@ -681,14 +676,11 @@ class Wattpilot:
             + departure_time.second
         )
 
-        # wattpilot: no daylight-saving correction. The adopted client added
-        # an hour whenever `tds` announced a scheme and the clock was in
-        # summer time. Measured on the real charger on 2026-09-06, in summer
-        # time and with `tds` = 1: a departure set to 07:30 in the app reads
-        # back as 27000, not 30600. The firmware takes plain seconds since
-        # local midnight, exactly as the protocol reference says, and the
-        # entity reads them back the same way -- adding the hour here made
-        # 07:30 come back as 08:30 (audit A12-06).
+        # The adopted client added an hour whenever `tds` announced a scheme
+        # and the clock was in summer time. Measured on the real charger on
+        # 2026-09-06, summer time, `tds` = 1: 07:30 set in the app reads
+        # back as 27000, not 30600 -- adding the hour made 07:30 come back
+        # as 08:30 (audit A12-06).
         await self.set_property("ftt", timestamp)
 
     async def set_next_trip_energy(self, energy_kwh: float) -> None:
