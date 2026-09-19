@@ -707,28 +707,34 @@ class Wattpilot:
         *,
         timeout: float = 10.0,  # noqa: ASYNC109 -- part of this client's API
     ) -> CloudInfo:
-        """
-        Enable the go-e Cloud API and wait for the API key.
+        """Enable the go-e Cloud API and wait up to *timeout* seconds for the key."""
+        key_arrived = asyncio.Event()
 
-        Returns a :class:`CloudInfo` with the API key and URL.
-        Raises :class:`WattpilotConnectionError` if the API key is not received
-        within *timeout* seconds.
-        """
-        await self.set_property("cae", True)  # noqa: FBT003 -- a written value
+        def note_key(name: str, value: Any) -> None:  # noqa: ANN401 -- wire value
+            if name == "cak" and value:
+                key_arrived.set()
 
-        elapsed = 0.0
-        while elapsed < timeout:
-            if self._cak and self._cak != "":
-                return CloudInfo(
-                    enabled=True,
-                    api_key=self._cak,
-                    url=f"{CLOUD_API_BASE_URL}/{self.serial}",
-                )
-            await asyncio.sleep(1)
-            elapsed += 1
+        unsubscribe = self.on_property_change(note_key)
+        try:
+            await self.set_property("cae", True)  # noqa: FBT003 -- a written value
+            if not self._cak:
+                async with asyncio.timeout(timeout):
+                    await key_arrived.wait()
+        except TimeoutError as err:
+            msg = "Timeout waiting for cloud API key"
+            raise WattpilotConnectionError(msg) from err
+        finally:
+            unsubscribe()
 
-        msg = "Timeout waiting for cloud API key"
-        raise WattpilotConnectionError(msg)
+        api_key = self._cak
+        if not api_key:
+            msg = "Cloud API key arrived empty"
+            raise WattpilotConnectionError(msg)
+        return CloudInfo(
+            enabled=True,
+            api_key=api_key,
+            url=f"{CLOUD_API_BASE_URL}/{self.serial}",
+        )
 
     async def disable_cloud_api(self) -> None:
         """Disable the go-e Cloud API."""

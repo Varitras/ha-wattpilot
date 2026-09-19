@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import json
+import time
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -125,8 +126,22 @@ async def test_enable_cloud_api_returns_the_key_the_charger_reports(
     assert client.serial in info.url
 
 
-async def test_enable_cloud_api_gives_up_rather_than_waiting_forever(
+async def test_enable_cloud_api_gives_up_within_the_timeout_it_was_given(
     client: Wattpilot,
 ) -> None:
+    """The wait counted whole one-second sleeps, so a 10 ms timeout still
+    slept a full second before giving up (audit A13-04)."""
+    # The first write loads the API definition from disk; that one-off cost
+    # is not the wait being measured here.
+    await client.set_property("cae", False)  # noqa: FBT003 -- a written value
+    started = time.monotonic()
     with pytest.raises(WattpilotConnectionError, match="Timeout"):
         await client.enable_cloud_api(timeout=0.01)
+    assert time.monotonic() - started < 0.5
+
+
+async def test_enable_cloud_api_leaves_no_callback_behind(client: Wattpilot) -> None:
+    """Whether the key arrives or the wait times out, the listener goes."""
+    with pytest.raises(WattpilotConnectionError):
+        await client.enable_cloud_api(timeout=0.01)
+    assert client._property_callbacks == []
