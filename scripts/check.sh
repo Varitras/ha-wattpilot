@@ -33,23 +33,32 @@ mutation_gate() {
     rm -rf mutants
     mutmut run || return $?
 
-    # Re-test the accepted survivors on their own before judging. In a full
-    # run mutmut reported two of them as killed on CI while they provably
-    # survived locally and, run singly, survived on CI too -- and mutmut maps
-    # pytest's exit 3 (an internal error) to "killed" just like exit 1, so a
-    # kill out of a full run is not evidence that a test caught anything.
-    # A single-mutant run has agreed across machines every time it was
-    # checked, so that is the measurement the gate trusts for these few.
-    accepted=$(grep -v -e '^#' -e '^$' scripts/equivalent-mutants.txt)
-    if [[ -n "$accepted" ]]; then
-        # shellcheck disable=SC2086 -- one argument per mutant name, on purpose
-        mutmut run $accepted >/dev/null 2>&1
-    fi
-
     # --all: plain `mutmut results` prints only the mutants that were not
     # killed, so a perfect run looks exactly like a run that checked
     # nothing. Measured on a real run: 5 lines without it, 410 with.
     mutmut results --all true >mutants/results.txt || return $?
+
+    # The accepted survivors get their verdict from a raw pytest run, not
+    # from mutmut. Twice now CI has reported one of them killed while it
+    # provably survived everywhere else -- and mutmut books pytest's exit 3
+    # (an internal error) as a kill, swallows the output that would say
+    # which, and runs the tests behind a bare TextIOBase standing in for
+    # stdout and stderr. The same mutant under plain pytest, with the real
+    # exit code and the output kept, has agreed with reality every time it
+    # was checked (a killed neighbour fails there with a real test failure).
+    # So for these few, that is the measurement the report carries; if one
+    # of them ever dies here, the reason is in the log.
+    accepted=$(grep -v -e '^#' -e '^$' scripts/equivalent-mutants.txt)
+    for mutant in $accepted; do
+        sed -i "/^ *${mutant}: /d" mutants/results.txt
+        mutmut tests-for-mutant "$mutant" | grep '::' >mutants/tests-for-accepted.txt
+        # shellcheck disable=SC2046 -- one argument per test id, on purpose
+        if (cd mutants && MUTANT_UNDER_TEST="$mutant" python3 -m pytest -x -q                 --rootdir=. -p no:cacheprovider $(cat tests-for-accepted.txt)); then
+            echo "    ${mutant}: survived" >>mutants/results.txt
+        else
+            echo "    ${mutant}: killed" >>mutants/results.txt
+        fi
+    done
     python3 scripts/judge_mutants.py mutants/results.txt scripts/equivalent-mutants.txt
 }
 
