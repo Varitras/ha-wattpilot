@@ -72,17 +72,9 @@ jobs:
         with:
           python-version: "3.14"
       - run: pip install --group dev
-      - name: Full mutation run, then the two accepted survivors alone, all output kept
+      - name: The exact release path, with mutmut debug output kept
         run: |
-          set -x
           nproc
-          mutmut run 2>&1 | tail -c 200000
+          bash scripts/check.sh --release 2>&1 | tail -c 400000
+          echo "gate-exit=${PIPESTATUS[0]}"
           mutmut results --all true | grep -v killed
-          mutmut run custom_components.wattpilot.hub.xǁWattpilotHubǁasync_connect__mutmut_1 2>&1 | tail -c 200000
-          mutmut results --all true | grep -v killed
-      - name: The same mutant under raw pytest, exit code kept
-        run: |
-          mutmut tests-for-mutant custom_components.wattpilot.hub.xǁWattpilotHubǁasync_connect__mutmut_1 | grep '::' > /tmp/tests.txt
-          wc -l /tmp/tests.txt
-          cd mutants
-          MUTANT_UNDER_TEST=custom_components.wattpilot.hub.xǁWattpilotHubǁasync_connect__mutmut_1 python -m pytest -x -q --rootdir=. -p no:randomly $(cat /tmp/tests.txt) ; echo "raw-exit=$?"

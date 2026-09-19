@@ -43,7 +43,7 @@ mutation_gate() {
     accepted=$(grep -v -e '^#' -e '^$' scripts/equivalent-mutants.txt)
     if [[ -n "$accepted" ]]; then
         # shellcheck disable=SC2086 -- one argument per mutant name, on purpose
-        mutmut run $accepted >/dev/null 2>&1
+        mutmut run $accepted
     fi
 
     # --all: plain `mutmut results` prints only the mutants that were not
