@@ -6,12 +6,9 @@ import importlib.resources as import_resources
 import logging
 import pkgutil
 from dataclasses import dataclass, field
-from types import SimpleNamespace
 from typing import Any
 
 import yaml
-
-from .utils import value_to_json
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,7 +20,6 @@ class ApiDefinition:
     config: dict[str, Any] = field(default_factory=dict)
     messages: dict[str, dict[str, Any]] = field(default_factory=dict)
     properties: dict[str, dict[str, Any]] = field(default_factory=dict)
-    split_properties: list[str] = field(default_factory=list)
 
 
 def validate_api_definition(config: Any) -> dict[str, Any]:  # noqa: ANN401 -- charger values are dynamically typed
@@ -47,10 +43,6 @@ def validate_api_definition(config: Any) -> dict[str, Any]:  # noqa: ANN401 -- c
         if not isinstance(prop, dict) or "key" not in prop:
             msg = "Each property entry must be a mapping with a 'key'"
             raise ValueError(msg)
-        child_props = prop.get("childProps", [])
-        if not isinstance(child_props, list):
-            msg = "'childProps' must be a list when present"
-            raise TypeError(msg)
 
     return config
 
@@ -63,12 +55,13 @@ def _add_unique(d: dict[str, Any], k: str, v: Any) -> dict[str, Any]:  # noqa: A
     return d
 
 
-def load_api_definition(*, split_properties: bool = True) -> ApiDefinition:
+def load_api_definition() -> ApiDefinition:
     """
     Load and parse ``wattpilot.yaml`` from package resources.
 
-    When *split_properties* is ``True`` (the default), array/object properties
-    with ``childProps`` entries are expanded into individual virtual properties.
+    Array and object properties keep their ``childProps`` entries as data;
+    the adopted client's expansion of them into virtual properties had no
+    caller here and was removed.
     """
     # Derived, never written down: the same code runs as
     # custom_components.wattpilot.api and, in the side-by-side development
@@ -100,88 +93,9 @@ def load_api_definition(*, split_properties: bool = True) -> ApiDefinition:
 
         for p in api_def.config["properties"]:
             api_def.properties = _add_unique(api_def.properties, p["key"], p)
-            if "childProps" in p and split_properties:
-                for raw_child in p["childProps"]:
-                    cp = (
-                        {
-                            "description": (
-                                f"This is a child property of '{p['key']}'. "
-                                "See its description for more information."
-                            ),
-                            "category": p.get("category", ""),
-                            "jsonType": p.get("itemType", ""),
-                        }
-                        | raw_child
-                        | {
-                            "parentProperty": p["key"],
-                            "rw": "R",
-                        }
-                    )
-                    api_def.properties = _add_unique(api_def.properties, cp["key"], cp)
-                    api_def.split_properties.append(cp["key"])
 
     except yaml.YAMLError as exc:
         _LOGGER.fatal("Failed to parse wattpilot.yaml: %s", exc)
         raise
 
     return api_def
-
-
-def get_child_property_value(  # noqa: PLR0911 -- one return per YAML type, a mapping not a flow
-    api_def: ApiDefinition,
-    all_props: dict[str, Any],
-    child_key: str,
-) -> Any:  # noqa: ANN401 -- charger values are dynamically typed
-    """Resolve the value of a split child property from its parent's value."""
-    cpd = api_def.properties[child_key]
-    if "parentProperty" not in cpd:
-        _LOGGER.warning(
-            "Child property '%s' is not linked to a parent property", cpd["key"]
-        )
-        return None
-
-    ppd = api_def.properties[cpd["parentProperty"]]
-    parent_value = all_props.get(ppd["key"])
-
-    if ppd["jsonType"] == "array":
-        if parent_value is None:
-            return None
-        idx = int(cpd["valueRef"])
-        if idx < len(parent_value):
-            return parent_value[idx]
-        return None
-
-    if ppd["jsonType"] == "object":
-        if parent_value is None:
-            return None
-        ref = cpd["valueRef"]
-        if isinstance(parent_value, SimpleNamespace) and ref in parent_value.__dict__:
-            return parent_value.__dict__[ref]
-        if isinstance(parent_value, dict) and ref in parent_value:
-            return parent_value[ref]
-        _LOGGER.warning(
-            "Unable to map child property %s: type=%s, value=%s",
-            cpd["key"],
-            type(parent_value),
-            value_to_json(parent_value),
-        )
-        return None
-
-    _LOGGER.warning("Property %s cannot be split!", ppd["key"])
-    return None
-
-
-def get_all_properties(
-    api_def: ApiDefinition,
-    all_props: dict[str, Any],
-    *,
-    available_only: bool = True,
-) -> dict[str, Any]:
-    """Return a dict of all property values, optionally including child properties."""
-    if available_only:
-        props = dict(all_props)
-        for cp_key in api_def.split_properties:
-            props[cp_key] = get_child_property_value(api_def, all_props, cp_key)
-    else:
-        props = {k: all_props.get(k) for k in api_def.properties}
-    return props
