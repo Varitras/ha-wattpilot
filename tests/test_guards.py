@@ -498,7 +498,7 @@ def test_complexity_ratchet() -> None:
         "redaction.py::scrub": 9,
         # 7 since the `ts` rule (audit VA-07): one more branch in what is
         # a dispatch table written as code, not added logic.
-        "redaction.py::sanitize_property": 8,
+        "redaction.py::sanitize_property": 7,
         "sensor.py::WattpilotSensor": 7,
         "sensor.py::WattpilotSensor._apply_value": 17,
         "services.py::_hub_for_device": 6,

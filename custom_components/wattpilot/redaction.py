@@ -151,13 +151,21 @@ def _sanitized_card(index: int, card: Any) -> Any:  # noqa: ANN401 -- untyped JS
     }
 
 
+def _sanitized_cards(value: Any) -> Any:  # noqa: ANN401 -- untyped JSON
+    # A card that is not a dict used to pass through as-is, which for a bare
+    # string means the identifier itself survived. An unknown shape is
+    # exactly the case we cannot judge, so it is dropped (VA-12) -- and so
+    # is an outer value that is not a list, which used to abort the whole
+    # diagnostics download (A13-05).
+    if not isinstance(value, list):
+        return UNEXPECTED_SHAPE
+    return [_sanitized_card(i, card) for i, card in enumerate(value)]
+
+
 def sanitize_property(key: str, value: Any) -> Any:  # noqa: ANN401 -- untyped JSON
     """Sanitize one charger property. Callers must skip DROP_KEYS first."""
     if key == "cards":
-        # A card that is not a dict used to pass through as-is, which for a
-        # bare string means the identifier itself survived. An unknown shape
-        # is exactly the case we cannot judge, so it is dropped (VA-12).
-        return [_sanitized_card(i, card) for i, card in enumerate(value)]
+        return _sanitized_cards(value)
     if key == "cci":
         # Paired companion device (e.g. a solar inverter's DataManager).
         # id/label/commonName are per-installation identifiers (label is
