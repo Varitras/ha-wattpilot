@@ -814,14 +814,12 @@ class Wattpilot:
         """
         if self._api_def_cache is not None:
             return
-        self._api_def_cache = await asyncio.to_thread(
-            load_api_definition, split_properties=False
-        )
+        self._api_def_cache = await asyncio.to_thread(load_api_definition)
 
     def _get_api_def(self) -> ApiDefinition:
         """Return the cached API definition, reading it if connect did not."""
         if self._api_def_cache is None:
-            self._api_def_cache = load_api_definition(split_properties=False)
+            self._api_def_cache = load_api_definition()
         return self._api_def_cache
 
     def _coerce_value(self, name: str, value: Any) -> Any:  # noqa: ANN401 -- charger values are dynamically typed

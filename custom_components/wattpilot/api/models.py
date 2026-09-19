@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 
 
@@ -70,37 +70,6 @@ class AuthHashType(StrEnum):
 
     PBKDF2 = "pbkdf2"
     BCRYPT = "bcrypt"
-
-
-@dataclass(frozen=True, slots=True)
-class MqttConfig:
-    """MQTT bridge configuration."""
-
-    host: str = ""
-    port: int = 1883
-    client_id: str = "wattpilot2mqtt"
-    topic_base: str = "wattpilot"
-    topic_messages: str = "{baseTopic}/messages/{messageType}"
-    topic_property_base: str = "{baseTopic}/properties/{propName}"
-    topic_property_set: str = "~/set"
-    topic_property_state: str = "~/state"
-    topic_available: str = "{baseTopic}/available"
-    publish_messages: bool = False
-    publish_properties: bool = True
-    properties: list[str] = field(default_factory=list)
-    messages: list[str] = field(default_factory=list)
-
-
-@dataclass(frozen=True, slots=True)
-class HaConfig:
-    """Home Assistant discovery configuration."""
-
-    enabled: bool = False
-    topic_config: str = "homeassistant/{component}/{uniqueId}/config"
-    properties: list[str] = field(default_factory=list)
-    disabled_entities: bool = False
-    wait_init_s: int = 0
-    wait_props_ms: int = 0
 
 
 @dataclass

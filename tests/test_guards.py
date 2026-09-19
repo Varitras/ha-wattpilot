@@ -515,9 +515,8 @@ def test_complexity_ratchet() -> None:
         "client.py::Wattpilot._handle_message": 11,
         "client.py::Wattpilot._on_response": 7,
         "client.py::Wattpilot._update_property": 24,
-        "definition.py::validate_api_definition": 13,
-        "definition.py::load_api_definition": 11,
-        "definition.py::get_child_property_value": 11,
+        "definition.py::validate_api_definition": 12,
+        "definition.py::load_api_definition": 8,
     }
     actual: dict[str, int] = {}
     for path in iter_python_files():

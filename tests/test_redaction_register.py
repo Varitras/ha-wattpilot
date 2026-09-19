@@ -133,7 +133,7 @@ def _actual_fields() -> set[str]:
     observed = {key for key, value in snapshot.items() if isinstance(value, str)}
     declared = {
         key
-        for key, prop in load_api_definition(split_properties=False).properties.items()
+        for key, prop in load_api_definition().properties.items()
         if prop.get("jsonType") == "string"
     }
     return observed | declared
