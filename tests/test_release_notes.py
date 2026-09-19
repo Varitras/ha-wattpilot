@@ -9,6 +9,7 @@ before it runs for real, not after.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -77,3 +78,16 @@ def test_the_real_changelog_has_notes_for_the_declared_version() -> None:
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     notes = section_for(CHANGELOG.read_text(encoding="utf-8"), manifest["version"])
     assert len(notes) > 200, "the release notes are suspiciously short"
+
+
+def test_every_version_heading_has_its_comparison_link() -> None:
+    """Keep a Changelog ends with one link per version, and "Unreleased" has
+    to compare against the newest one. 0.1.2b1 got its section and no link,
+    and Unreleased still diffed against 0.1.1 (audit A13-03)."""
+    changelog = CHANGELOG.read_text(encoding="utf-8")
+    versions = re.findall(r"^## \[([^\]]+)\]", changelog, flags=re.MULTILINE)
+    links = dict(re.findall(r"^\[([^\]]+)\]: (\S+)$", changelog, flags=re.MULTILINE))
+    missing = [v for v in versions if v not in links]
+    assert not missing, f"no link line for {missing}"
+    newest = next(v for v in versions if v != "Unreleased")
+    assert links["Unreleased"].endswith(f"/compare/v{newest}...HEAD")

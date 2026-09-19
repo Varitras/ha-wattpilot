@@ -1149,9 +1149,9 @@ BUTTON_DESCRIPTIONS: tuple[WattpilotButtonEntityDescription, ...] = (
 # Verified against the fork's TIME_DESCRIPTIONS at pinned commit 1decee7: the
 # single entry matches on uid/charger_key, and the seconds-since-midnight ->
 # datetime.time conversion mirrors the fork's runtime ChargerTime exactly.
-# Writes go through hub.async_set_next_trip (not a plain property write): the
-# vendor client applies a daylight-saving correction based on the charger's
-# "tds" property before sending "ftt".
+# Writes go through hub.async_set_next_trip rather than a plain property
+# write, and send the time unchanged: the charger applies no daylight-saving
+# correction of its own (measured, audit A12-06).
 @dataclass(frozen=True, kw_only=True)
 class WattpilotTimeEntityDescription(WattpilotDescriptionMixin, TimeEntityDescription):
     """Time description."""
