@@ -16,6 +16,7 @@ from custom_components.wattpilot.redaction import (
     DROP_KEYS,
     MAC_RE,
     MAC_SENTINEL,
+    UNEXPECTED_SHAPE,
     sanitize_snapshot,
 )
 
@@ -198,3 +199,10 @@ def test_unexpected_card_and_companion_shapes_are_safe() -> None:
 
     for shape in (None, "unexpected", 42, []):
         assert sanitize_snapshot({"cci": shape}) is not None
+
+    # The same boundary one level up: the outer `cards` value was iterated
+    # without a check, so None or a number raised and a string was walked
+    # character by character (audit A13-05).
+    for shape in (None, "OWNER-CARD-1234", 42, {}):
+        cleaned = sanitize_snapshot({"cards": shape})
+        assert cleaned["cards"] == UNEXPECTED_SHAPE
