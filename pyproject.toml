@@ -28,6 +28,9 @@ dev = [
     "mypy>=1.16.0",
     "radon>=6.0.0",
     "mutmut>=3.0.0",
+    # The shell scripts are checked like the Python: a malformed directive
+    # once made shellcheck skip the rest of check.sh without a word.
+    "shellcheck-py>=0.11.0",
     "pytest-timeout>=2.3.0",
     "PyYAML>=6.0",
 ]
