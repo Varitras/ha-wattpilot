@@ -84,8 +84,10 @@ async def test_unknown_label_raises_validation_error(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     select = await make_select(hass, fake_charger, "lmo")
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as raised:
         await select.async_select_option("Not A Real Option")
+    assert raised.value.translation_key == "unknown_option"
+    assert raised.value.translation_placeholders == {"option": "Not A Real Option"}
 
 
 async def test_push_updates_current_option(

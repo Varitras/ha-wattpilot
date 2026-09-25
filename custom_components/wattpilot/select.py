@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.select import SelectEntity
 from homeassistant.exceptions import ServiceValidationError
 
+from .const import DOMAIN
 from .descriptions import (
     SELECT_DESCRIPTIONS,
     WattpilotSelectEntityDescription,
@@ -68,4 +69,8 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
                     self.entity_description.charger_key, wire_value
                 )
                 return
-        raise ServiceValidationError(f"Unknown option: {option}")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="unknown_option",
+            translation_placeholders={"option": option},
+        )

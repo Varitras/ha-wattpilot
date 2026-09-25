@@ -94,9 +94,17 @@ class WattpilotHub:
         try:
             await self.charger.connect()
         except AuthenticationError as err:
-            raise ConfigEntryAuthFailed(str(err)) from err
+            raise ConfigEntryAuthFailed(
+                translation_domain=DOMAIN,
+                translation_key="authentication_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
         except _WRITE_ERRORS as err:
-            raise ConfigEntryNotReady(f"Cannot connect to charger: {err}") from err
+            raise ConfigEntryNotReady(
+                translation_domain=DOMAIN,
+                translation_key="cannot_connect",
+                translation_placeholders={"error": str(err)},
+            ) from err
         self._update_availability(available=True)
 
     def start_dispatch(self) -> None:
@@ -191,7 +199,11 @@ class WattpilotHub:
         try:
             await self.charger.disconnect()
         except _WRITE_ERRORS as err:
-            raise HomeAssistantError(f"Failed to disconnect: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="disconnect_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
         finally:
             # Announcing this is not optional and not conditional. The
             # subscription above is gone, so no update will ever reach an
@@ -323,14 +335,22 @@ class WattpilotHub:
         try:
             await self.charger.set_property(key, value)
         except _WRITE_ERRORS as err:
-            raise HomeAssistantError(f"Failed to set {key}: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="set_failed",
+                translation_placeholders={"key": key, "error": str(err)},
+            ) from err
 
     async def async_set_next_trip(self, departure: time) -> None:
         """Set the next scheduled departure time."""
         try:
             await self.charger.set_next_trip(departure)
         except _WRITE_ERRORS as err:
-            raise HomeAssistantError(f"Failed to set next trip: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="next_trip_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
     async def async_set_next_trip_energy(self, energy_wh: float) -> None:
         """Set the energy target for the next scheduled trip."""
@@ -339,25 +359,41 @@ class WattpilotHub:
         try:
             await self.charger.set_next_trip_energy(energy_wh)
         except _WRITE_ERRORS as err:
-            raise HomeAssistantError(f"Failed to set next trip energy: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="next_trip_energy_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
     async def async_enable_cloud_api(self) -> CloudInfo:
         """Enable the charger's cloud API and return its connection info."""
         try:
             return await self.charger.enable_cloud_api()
         except _WRITE_ERRORS as err:
-            raise HomeAssistantError(f"Failed to enable cloud API: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="cloud_enable_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
     async def async_disable_cloud_api(self) -> None:
         """Disable the charger's cloud API."""
         try:
             await self.charger.disable_cloud_api()
         except _WRITE_ERRORS as err:
-            raise HomeAssistantError(f"Failed to disable cloud API: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="cloud_disable_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
     async def async_install_firmware(self, version: str | None) -> None:
         """Trigger a firmware update, or install the latest if version is None."""
         try:
             await self.charger.install_firmware_update(version)
         except _WRITE_ERRORS as err:
-            raise HomeAssistantError(f"Firmware update failed: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="firmware_update_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err

@@ -8,6 +8,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Error messages now appear in your Home Assistant language (English and
+  German so far): a failed setting, a refused password, a lost connection.
+  They used to be fixed English text.
 - Reconnecting and disconnecting no longer trip over each other. A
   reconnect under way when the integration was unloaded or disconnected
   could open a connection after the teardown had finished, and a reconnect

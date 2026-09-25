@@ -37,6 +37,18 @@ if TYPE_CHECKING:
 ENTRY_ID = "entry1"
 
 
+def assert_translated(
+    raised: pytest.ExceptionInfo[HomeAssistantError],
+    translation_key: str,
+    /,
+    **placeholders: str,
+) -> None:
+    """What a user reads: the translation key, and what fills it in."""
+    assert raised.value.translation_domain == DOMAIN
+    assert raised.value.translation_key == translation_key
+    assert raised.value.translation_placeholders == placeholders
+
+
 def make_hub(
     hass: HomeAssistant,
     charger: FakeWattpilot,
@@ -87,8 +99,9 @@ async def test_connect_maps_auth_error(
 ) -> None:
     fake_charger.connect_error = AuthenticationError("wrong password")
     hub = make_hub(hass, fake_charger)
-    with pytest.raises(ConfigEntryAuthFailed, match="wrong password"):
+    with pytest.raises(ConfigEntryAuthFailed) as raised:
         await hub.async_connect()
+    assert_translated(raised, "authentication_failed", error="wrong password")
 
 
 async def test_connect_maps_connection_error(
@@ -96,8 +109,9 @@ async def test_connect_maps_connection_error(
 ) -> None:
     fake_charger.connect_error = ConnectionError("timeout")
     hub = make_hub(hass, fake_charger)
-    with pytest.raises(ConfigEntryNotReady, match="Cannot connect to charger: timeout"):
+    with pytest.raises(ConfigEntryNotReady) as raised:
         await hub.async_connect()
+    assert_translated(raised, "cannot_connect", error="timeout")
 
 
 async def test_connect_maps_wattpilot_error(
@@ -105,8 +119,9 @@ async def test_connect_maps_wattpilot_error(
 ) -> None:
     fake_charger.connect_error = WattpilotError("boom")
     hub = make_hub(hass, fake_charger)
-    with pytest.raises(ConfigEntryNotReady, match="Cannot connect to charger: boom"):
+    with pytest.raises(ConfigEntryNotReady) as raised:
         await hub.async_connect()
+    assert_translated(raised, "cannot_connect", error="boom")
 
 
 async def test_connect_marks_available_so_first_push_is_no_transition(
@@ -192,8 +207,9 @@ async def test_set_property_maps_errors(
     hub = make_hub(hass, fake_charger)
     await hub.async_connect()
     fake_charger.set_error = ConnectionError("socket closed")
-    with pytest.raises(HomeAssistantError, match="Failed to set amp: socket closed"):
+    with pytest.raises(HomeAssistantError) as raised:
         await hub.async_set_property("amp", 16)
+    assert_translated(raised, "set_failed", key="amp", error="socket closed")
 
 
 async def test_set_property_maps_websocket_error(
@@ -202,21 +218,22 @@ async def test_set_property_maps_websocket_error(
     hub = make_hub(hass, fake_charger)
     await hub.async_connect()
     fake_charger.set_error = WebSocketException("closed")
-    with pytest.raises(HomeAssistantError, match="Failed to set amp: closed"):
+    with pytest.raises(HomeAssistantError) as raised:
         await hub.async_set_property("amp", 16)
+    assert_translated(raised, "set_failed", key="amp", error="closed")
 
 
 @pytest.mark.parametrize(
-    ("write", "message"),
+    ("write", "key"),
     [
-        (lambda hub: hub.async_set_next_trip(time(7, 30)), "Failed to set next trip"),
+        (lambda hub: hub.async_set_next_trip(time(7, 30)), "next_trip_failed"),
         (
             lambda hub: hub.async_set_next_trip_energy(25000),
-            "Failed to set next trip energy",
+            "next_trip_energy_failed",
         ),
-        (lambda hub: hub.async_enable_cloud_api(), "Failed to enable cloud API"),
-        (lambda hub: hub.async_disable_cloud_api(), "Failed to disable cloud API"),
-        (lambda hub: hub.async_install_firmware("42.6"), "Firmware update failed"),
+        (lambda hub: hub.async_enable_cloud_api(), "cloud_enable_failed"),
+        (lambda hub: hub.async_disable_cloud_api(), "cloud_disable_failed"),
+        (lambda hub: hub.async_install_firmware("42.6"), "firmware_update_failed"),
     ],
     ids=["next_trip", "next_trip_energy", "cloud_on", "cloud_off", "firmware"],
 )
@@ -224,14 +241,15 @@ async def test_write_errors_surface_with_their_cause(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
     write: Callable[[WattpilotHub], Awaitable[object]],
-    message: str,
+    key: str,
 ) -> None:
     """Every write path must name what failed and why, not just raise."""
     hub = make_hub(hass, fake_charger)
     await hub.async_connect()
     fake_charger.write_error = ConnectionError("socket closed")
-    with pytest.raises(HomeAssistantError, match=f"{message}: socket closed"):
+    with pytest.raises(HomeAssistantError) as raised:
         await write(hub)
+    assert_translated(raised, key, error="socket closed")
 
 
 async def test_shutdown_disconnects_and_stops_dispatch(
@@ -255,8 +273,9 @@ async def test_shutdown_maps_disconnect_error_and_still_clears_callbacks(
     await hub.async_connect()
     hub.start_dispatch()
     fake_charger.disconnect_error = ConnectionError("socket closed")
-    with pytest.raises(HomeAssistantError, match="Failed to disconnect: socket closed"):
+    with pytest.raises(HomeAssistantError) as raised:
         await hub.async_shutdown()
+    assert_translated(raised, "disconnect_failed", error="socket closed")
     assert fake_charger._callbacks == []
     assert hub._unsubscribe_properties is None
     assert hub._cancel_timer is None
@@ -517,8 +536,11 @@ async def test_a_refused_write_reaches_the_user_as_an_error(
     await hub.async_connect()
     fake_charger.set_error = CommandError("Charger rejected command 1: nope")
 
-    with pytest.raises(HomeAssistantError, match="Failed to set amp"):
+    with pytest.raises(HomeAssistantError) as raised:
         await hub.async_set_property("amp", 10)
+    assert_translated(
+        raised, "set_failed", key="amp", error="Charger rejected command 1: nope"
+    )
 
 
 async def test_a_fresh_hub_does_not_claim_to_be_torn_down(

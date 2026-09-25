@@ -38,17 +38,47 @@
     }
   },
   "exceptions": {
+    "authentication_failed": {
+      "message": "Das Ladegerät hat das Passwort abgelehnt: {error}"
+    },
+    "cannot_connect": {
+      "message": "Keine Verbindung zum Ladegerät: {error}"
+    },
+    "cloud_disable_failed": {
+      "message": "Die Cloud-API konnte nicht deaktiviert werden: {error}"
+    },
+    "cloud_enable_failed": {
+      "message": "Die Cloud-API konnte nicht aktiviert werden: {error}"
+    },
     "cloud_not_supported": {
       "message": "Cloud-Verbindungen werden noch nicht unterstützt. Den Eintrag mit der lokalen Adresse des Ladegeräts neu konfigurieren."
     },
-    "entry_unloaded": {
-      "message": "Der Eintrag des Ladegeräts wurde entladen. Zum Wiederverbinden den Eintrag neu laden."
+    "disconnect_failed": {
+      "message": "Trennen vom Ladegerät fehlgeschlagen: {error}"
     },
     "duplicate_device": {
       "message": "Ladegerät {serial} ist bereits durch einen anderen Eintrag konfiguriert."
     },
+    "entry_unloaded": {
+      "message": "Der Eintrag des Ladegeräts wurde entladen. Zum Wiederverbinden den Eintrag neu laden."
+    },
+    "firmware_update_failed": {
+      "message": "Firmware-Update fehlgeschlagen: {error}"
+    },
     "invalid_device": {
       "message": "Gerät {device_id} ist kein aktives Wattpilot-Ladegerät."
+    },
+    "next_trip_energy_failed": {
+      "message": "Die Energie für die nächste Fahrt konnte nicht gesetzt werden: {error}"
+    },
+    "next_trip_failed": {
+      "message": "Die nächste Fahrt konnte nicht gesetzt werden: {error}"
+    },
+    "set_failed": {
+      "message": "{key} konnte nicht gesetzt werden: {error}"
+    },
+    "unknown_option": {
+      "message": "Unbekannte Option: {option}"
     },
     "wrong_charger": {
       "message": "Dieser Eintrag gehört zu Ladegerät {expected}, das Gerät unter dieser Adresse meldet aber die Seriennummer {found}. Wurde das Ladegerät ersetzt, diesen Eintrag löschen und das neue hinzufügen."
