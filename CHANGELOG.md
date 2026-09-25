@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0b1] - 2026-09-26
+
+A release candidate: new entities for the car state, for charging control and
+for dynamic electricity prices, and a round of fixes found by audits and by
+recording what a real charger sends. One part has not been tried on a real
+charger yet: switching the energy limit off (0) sends the charger's
+documented "no limit", but the charger has not yet been seen to accept it.
+
 ### Added
 
 - **Car plugged in** and **Car charging**, two yes/no sensors.
@@ -234,7 +242,8 @@ former builds on.
 - `trx` starts at its real value: `null` is that property's "no
   transaction", not the absence of a value.
 
-[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0b1...HEAD
+[0.2.0b1]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2...v0.2.0b1
 [0.1.2]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2b1...v0.1.2
 [0.1.2b1]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.1...v0.1.2b1
 [0.1.1]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.0...v0.1.1
