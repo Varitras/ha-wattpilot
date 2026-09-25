@@ -44,11 +44,12 @@ async def test_full_setup_registers_expected_entities(
     entities = er.async_entries_for_config_entry(registry, entry.entry_id)
     unique_ids = {entity.unique_id for entity in entities}
 
-    # 85 descriptions ship in total (75 fork uids + the 4 energy-split
-    # sensors + pnp, alw, acu, tpa, fhz + the ct car profile). This fixture
-    # reports firmware 42.5 on an 11 kW charger, which gates away exactly the
-    # five asserted below.
-    assert len(entities) == 80
+    # 92 descriptions ship in total (75 fork uids + the 4 energy-split
+    # sensors + pnp, alw, acu, tpa, fhz, awcp + the ct car profile + the frc
+    # and preset selects + cco, dwo + the two car binary sensors). This
+    # fixture reports firmware 42.5 on an 11 kW charger, which gates away
+    # exactly the five asserted below.
+    assert len(entities) == 87
     assert {
         f"{SERIAL}-wh",
         f"{SERIAL}-whs",

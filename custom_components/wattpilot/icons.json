@@ -7,7 +7,15 @@
       "session_energy_other": {"default": "mdi:flash"},
       "charging_reason": {"default": "mdi:information-outline"},
       "id_chip": {"default": "mdi:credit-card-wireless"},
-      "id_chip_current": {"default": "mdi:credit-card-wireless-outline"}
+      "id_chip_current": {"default": "mdi:credit-card-wireless-outline"},
+      "electricity_price": {"default": "mdi:cash-clock"}
+    },
+    "select": {
+      "force_state": {"default": "mdi:ev-station"},
+      "current_preset": {"default": "mdi:current-ac"}
+    },
+    "number": {
+      "car_consumption": {"default": "mdi:car-electric"}
     },
     "button": {
       "start_charging": {"default": "mdi:play"},

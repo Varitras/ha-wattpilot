@@ -36,7 +36,8 @@ async def make_number(
 
 
 def test_number_parity_with_fork() -> None:
-    assert_platform_parity("number", NUMBER_DESCRIPTIONS)
+    # Additions this project chose: car consumption and the energy limit.
+    assert_platform_parity("number", NUMBER_DESCRIPTIONS, {"cco", "dwo"})
 
 
 def test_amp_variants_are_disjoint() -> None:
@@ -104,3 +105,32 @@ async def test_awp_is_labelled_cent_not_euro(
     assert entity.native_value == 50.0
     await entity.async_set_native_value(30.0)
     assert fake_charger.set_calls[-1] == ("awp", 30.0)
+
+
+async def test_no_energy_limit_reads_as_zero(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    fake_charger._properties["dwo"] = None
+    number = await make_number(hass, fake_charger, "dwo")
+    assert number.native_value == 0
+    fake_charger.push("dwo", 20000.0)
+    assert number.native_value == 20000.0
+
+
+async def test_zero_switches_the_energy_limit_off_instead_of_sending_it(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A limit of 0 Wh would stop every charge; null is the charger's "off"."""
+    fake_charger._properties["dwo"] = 20000.0
+    number = await make_number(hass, fake_charger, "dwo")
+    await number.async_set_native_value(0.0)
+    assert fake_charger.set_calls[-1] == ("dwo", None)
+    await number.async_set_native_value(5000.0)
+    assert fake_charger.set_calls[-1] == ("dwo", 5000.0)
+
+
+def test_car_consumption_is_there_but_not_created_unasked() -> None:
+    """Only the app uses it, so it waits in the registry until enabled."""
+    description = by_uid("cco")
+    assert description.entity_registry_enabled_default is False
+    assert description.native_unit_of_measurement == "kWh/100km"

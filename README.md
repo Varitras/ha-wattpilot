@@ -54,16 +54,17 @@ domain.
 ## Features
 
 Every one of the 75 unique IDs `ruaan-deysel/ha-wattpilot` shipped is
-reproduced, across seven platforms, plus the additions described below.
-The reference device ends up with 80 entities — the rest are gated away by its
+reproduced, plus the additions described below, across eight platforms.
+The reference device ends up with 87 entities — the rest are gated away by its
 firmware and power variant.
 
 | Platform | What it covers |
 | --- | --- |
-| `sensor` | Charging power, session and total energy, car state and connection, phases in use, charging reason, charger temperature, cable-unlock and lock feedback, Wi-Fi and inverter diagnostics, reboot counters, the ten ID-chip energy counters |
+| `sensor` | Charging power, session and total energy, car state and connection, phases in use, charging reason, charger temperature, cable-unlock and lock feedback, Wi-Fi and inverter diagnostics, reboot counters, the ten ID-chip energy counters, electricity price |
+| `binary_sensor` | Car plugged in, car charging |
 | `switch` | PV surplus charging, charge pause, load balancing, eco mode, battery boost, LED energy saving, NTP, hotspot auto-disable and more |
-| `number` | Max charging current, PV-surplus start threshold, minimum charging time, next-trip energy, PV-battery thresholds, phase-switch timings, aWATTar price limit |
-| `select` | Charging mode, access control, phase switching, cable unlock, aWATTar country, lock level, boost type, daylight saving, car profile |
+| `number` | Max charging current, PV-surplus start threshold, minimum charging time, next-trip energy, PV-battery thresholds, phase-switch timings, aWATTar price limit, energy limit per charge, car consumption |
+| `select` | Charging mode, access control, phase switching, cable unlock, aWATTar country, lock level, boost type, daylight saving, car profile, forced charging state, charging current preset |
 | `button` | Start / stop / force charging, restart, authenticate |
 | `time` | Next-trip departure |
 | `update` | Firmware version, with install |
@@ -97,6 +98,17 @@ fork's set only lets you infer:
 | **Allowed charging current** | `acu` | The current actually offered to the car, as opposed to **Maximum charging current**, which is the configured ceiling. Unknown while nothing is offered |
 | **Average charging power** | `tpa` | The charger's own 30-second average, steadier than **Charging power** for threshold automations |
 | **Grid frequency** | `fhz` | Diagnostic, **disabled by default**: it changes with nearly every push, so it is recorder load unless you are watching grid quality |
+
+And a few that make existing settings usable from Home Assistant:
+
+| Entity | Property | What it adds |
+| --- | --- | --- |
+| **Car plugged in**, **Car charging** | `car` | Yes/no versions of the car state, for automations and dashboards. Unknown while the charger reports an unknown or error state |
+| **Forced charging state** | `frc` | The state the three charging buttons set (Neutral, Off, On), now readable. It does not survive a power cut: the charger comes back as Neutral |
+| **Charging current preset** | `amp`, `clp` | Sets the current to one of the presets configured in the app. The app's current slider stops only at those presets, so a current in between (13 A with presets 12 and 14) has no position there; this select shows no option for it either |
+| **Energy limit per charge** | `dwo` | Stops the charge after this much energy. **0 means no limit** |
+| **Electricity price** | `awcp`, `awpl` | The current market price of a dynamic tariff in ct/kWh, with the charger's price list as the `prices` attribute. **Disabled by default** |
+| **Car consumption** | `cco` | kWh per 100 km, which the app uses to show range. **Disabled by default** |
 
 ### Energy Dashboard
 

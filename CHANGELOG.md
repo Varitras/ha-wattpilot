@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Car plugged in** and **Car charging**, two yes/no sensors.
+- **Forced charging state**: what the three charging buttons set, now
+  readable and settable in one place.
+- **Charging current preset**: sets the current to one of the presets from
+  the app, so the app's slider stays in step with Home Assistant.
+- **Energy limit per charge**: stops the charge after a set amount of
+  energy; 0 switches the limit off.
+- **Electricity price** and **Car consumption**, both disabled by default:
+  the market price of a dynamic tariff, with the day's prices as an
+  attribute, and the consumption the app uses to show range.
+
 ### Fixed
 
 - Error messages now appear in your Home Assistant language (English and

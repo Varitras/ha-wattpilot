@@ -35,6 +35,7 @@ DEFAULT_UPDATE_INTERVAL = 5
 CONF_AWAITING_SERIAL = "awaiting_serial"
 
 PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.NUMBER,
     Platform.SELECT,

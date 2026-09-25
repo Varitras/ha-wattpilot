@@ -31,9 +31,9 @@ ENTRY_ID = "entry1"
 ENERGY_SPLIT_UIDS = {"whs", "whb", "whg", "who"}
 # Additions this project chose on top of the frozen fork uids: the energy
 # split, the phase count (pnp), charging permission and current (alw, acu),
-# average power (tpa) and grid frequency (fhz). See tests/parity.py before
-# widening this to make a test pass.
-EXTRA_SENSOR_UIDS = ENERGY_SPLIT_UIDS | {"pnp", "alw", "acu", "tpa", "fhz"}
+# average power (tpa), grid frequency (fhz) and the electricity price (awcp).
+# See tests/parity.py before widening this to make a test pass.
+EXTRA_SENSOR_UIDS = ENERGY_SPLIT_UIDS | {"pnp", "alw", "acu", "tpa", "fhz", "awcp"}
 
 
 def by_uid(uid: str) -> Any:
@@ -540,3 +540,53 @@ async def test_a_null_start_value_is_applied_when_the_property_exists(
     fake_charger._properties["trx"] = None
     sensor = await make_sensor(hass, fake_charger, "trx")
     assert sensor.native_value == "No Transaction"
+
+
+PRICE_HOUR = {"start": 1786395600, "end": 1786399200, "marketprice": 15.144}
+
+
+async def test_electricity_price_is_the_current_market_price(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    fake_charger._properties.update(
+        {
+            "awcp": PRICE_HOUR,
+            "awpl": [
+                PRICE_HOUR,
+                {"start": 1786399200, "end": 1786402800, "marketprice": 13.92},
+            ],
+        }
+    )
+    sensor = await make_sensor(hass, fake_charger, "awcp")
+    assert sensor.native_value == 15.144
+    assert sensor.native_unit_of_measurement == "ct/kWh"
+    prices = sensor.extra_state_attributes["prices"]
+    assert [entry["price"] for entry in prices] == [15.144, 13.92]
+    assert prices[1]["start"].timestamp() == 1786399200
+    assert prices[1]["end"].timestamp() == 1786402800
+
+
+async def test_a_new_price_list_reaches_the_attribute(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The list is its own property; the current price does not change when
+    the next day's prices arrive, so the list has to refresh the entity."""
+    fake_charger._properties.update({"awcp": PRICE_HOUR, "awpl": [PRICE_HOUR]})
+    sensor = await make_sensor(hass, fake_charger, "awcp")
+    tomorrow = {"start": 1786482000, "end": 1786485600, "marketprice": 9.5}
+    fake_charger.push("awpl", [PRICE_HOUR, tomorrow])
+    assert len(sensor.extra_state_attributes["prices"]) == 2
+
+
+async def test_no_tariff_no_price(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    fake_charger._properties.update({"awcp": None, "awpl": None})
+    sensor = await make_sensor(hass, fake_charger, "awcp")
+    assert sensor.native_value is None
+    assert sensor.extra_state_attributes == {"prices": []}
+
+
+def test_the_price_list_stays_out_of_the_recorder() -> None:
+    assert "prices" in WattpilotSensor._unrecorded_attributes
+    assert by_uid("awcp").entity_registry_enabled_default is False
