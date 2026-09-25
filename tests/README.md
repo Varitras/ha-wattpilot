@@ -22,6 +22,20 @@ with the fork is checked in each platform's own test file):
 |---|---|
 | mutation run (check.sh --release) | tests are real: every mutant in hub/sensor/init must die, except the equivalent ones in scripts/equivalent-mutants.txt, which must survive exactly |
 
+## Recorded frame sequences
+
+`fixtures/replay/` holds frame sequences recorded read-only from a real
+charger, sanitized with the integration's own redaction tables before they
+were written, and reviewed before they were committed. `test_replay.py`
+feeds them through the client in their recorded order: they test the client
+against what the charger actually sends, where the other tests feed frames
+written by hand.
+
+The file name carries the firmware version. A new firmware gets new
+recordings next to these, never edits to them, and
+`test_replay_fixtures_are_anonymized` checks every recording the way the
+device snapshot is checked.
+
 ## The pre-push hook is not in this repository
 
 `.git/hooks/pre-push` runs three fail-closed gates before anything leaves the
