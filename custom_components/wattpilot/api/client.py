@@ -225,6 +225,11 @@ class Wattpilot:
     # ---- Read-only properties ----
 
     @property
+    def authentication_rejected(self) -> bool:
+        """Return whether the charger refused the password for good."""
+        return isinstance(self._connection.fatal_error, AuthenticationError)
+
+    @property
     def connected(self) -> bool:
         """Return whether the WebSocket connection is up."""
         return self._connection.connected
@@ -989,14 +994,9 @@ class Wattpilot:
         """
         Refuse a connection that is not the charger this client already knows.
 
-        Hello is the one frame every connection sends -- the first, an
-        automatic reconnect and an explicit one alike -- so the check belongs
-        here rather than in the setup path that ran once. The address can be
-        reused by DHCP or the hardware replaced, and a reconnect kept the
-        config entry, its entities and their history pointed at whatever
-        answered (audit A11-02). Nothing is applied and no command is
-        accepted afterwards: the socket goes, and the loop above stops
-        reconnecting because a fatal error is set.
+        Hello comes on every connection, reconnects included, so the check
+        lives here: DHCP can hand the address to another device, and a
+        reconnect kept the entry pointed at whatever answered (audit A11-02).
         """
         known = self._device.serial
         if not known or known == serial:
@@ -1144,10 +1144,7 @@ class Wattpilot:
         """
         Hash the password for this device, off the event loop.
 
-        PBKDF2 with 100,000 rounds measured 110-116 ms per handshake, and
-        bcrypt is no cheaper. Home Assistant runs this client in its event
-        loop, so every connection stalled everything else for that long
-        (audit A11-08). The protocol parameters are unchanged.
+        PBKDF2 measured 110-116 ms per handshake on the event loop (A11-08).
         """
         if not self._password or not self._device.serial:
             return

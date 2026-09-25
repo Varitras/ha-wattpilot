@@ -267,6 +267,13 @@ class WattpilotHub:
     @callback
     def _check_availability(self, _now: datetime) -> None:
         self._update_availability(available=self.available)
+        # The client stops for good on a refused password -- retrying would
+        # only repeat the refusal -- so the user has to be asked. Home
+        # Assistant starts no second reauth flow while one is open.
+        if self.charger.authentication_rejected:
+            entry = self._hass.config_entries.async_get_entry(self._entry_id)
+            if entry is not None:
+                entry.async_start_reauth(self._hass)
 
     @callback
     def _update_availability(self, *, available: bool, expected: bool = False) -> None:
