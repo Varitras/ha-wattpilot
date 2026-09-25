@@ -12,7 +12,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reconnect under way when the integration was unloaded or disconnected
   could open a connection after the teardown had finished, and a reconnect
   during a slow disconnect could report success for the very connection
-  being closed.
+  being closed. An unloaded integration now refuses a late reconnect
+  instead of coming back to life behind it.
 - Entities can no longer go missing when the integration connects. The
   charger sends its first status in several pieces, and a live update
   arriving between two of them used to count as "all properties known" --

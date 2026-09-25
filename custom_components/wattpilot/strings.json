@@ -41,6 +41,9 @@
     "cloud_not_supported": {
       "message": "Cloud connections are not supported yet. Reconfigure the entry with the charger's local address."
     },
+    "entry_unloaded": {
+      "message": "The charger's entry was unloaded. Reload it to reconnect."
+    },
     "duplicate_device": {
       "message": "Charger {serial} is already configured by another entry."
     },

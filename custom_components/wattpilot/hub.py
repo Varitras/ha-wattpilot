@@ -23,7 +23,7 @@ from homeassistant.helpers.event import async_track_time_interval
 from websockets.exceptions import WebSocketException
 
 from .api import AuthenticationError, CloudInfo, Wattpilot, WattpilotError
-from .const import signal_availability, signal_property
+from .const import DOMAIN, signal_availability, signal_property
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,6 +63,8 @@ class WattpilotHub:
         self._cancel_flush: CALLBACK_TYPE | None = None
         # Set by async_shutdown, cleared by async_connect: see `available`.
         self._torn_down = False
+        # Set once by async_shutdown: an unloaded hub never comes back (A15-02).
+        self._retired = False
 
     @classmethod
     def create_local(
@@ -146,12 +148,26 @@ class WattpilotHub:
         The opposite order is right during setup, where the entities do not
         exist yet; that is why neither caller assembles this itself.
         """
+        if self._retired:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="entry_unloaded"
+            )
         self.start_dispatch()
         await self.async_connect()
 
     async def async_shutdown(self) -> None:
         """
-        Stop dispatching and close the connection.
+        Close for good: unload, failed setup, a config-flow probe.
+
+        A reconnect already under way loses its connection attempt to the
+        close; one that starts later is refused.
+        """
+        self._retired = True
+        await self.async_disconnect()
+
+    async def async_disconnect(self) -> None:
+        """
+        Stop dispatching and close the connection; a reconnect may follow.
 
         Handle cleanup (unsubscribe, cancel timer) runs first and
         unconditionally, before the I/O call that can fail -- a failed

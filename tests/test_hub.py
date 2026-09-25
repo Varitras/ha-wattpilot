@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import time, timedelta
 from typing import TYPE_CHECKING, Any
@@ -21,7 +22,11 @@ from websockets.exceptions import WebSocketException
 
 from custom_components.wattpilot.api import AuthenticationError, WattpilotError
 from custom_components.wattpilot.api.exceptions import CommandError
-from custom_components.wattpilot.const import signal_availability, signal_property
+from custom_components.wattpilot.const import (
+    DOMAIN,
+    signal_availability,
+    signal_property,
+)
 from custom_components.wattpilot.hub import WattpilotHub
 
 if TYPE_CHECKING:
@@ -342,6 +347,41 @@ async def test_availability_is_not_delayed_by_the_update_interval(
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
     await hass.async_block_till_done()
     assert events == [False]
+
+
+async def test_a_reconnect_during_shutdown_does_not_revive_the_hub(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """Shutdown unregisters first and then waits for the disconnect. A
+    reconnect in that window registered callbacks and timers again and
+    cleared the torn-down flag; shutdown then returned with a hub live
+    behind an entry that was being unloaded (audit A15-02)."""
+    hub = make_hub(hass, fake_charger, timedelta(seconds=5))
+    await hub.async_connect()
+    hub.start_dispatch()
+    release = asyncio.Event()
+    disconnect = fake_charger.disconnect
+
+    async def slow_disconnect() -> None:
+        await release.wait()
+        await disconnect()
+
+    fake_charger.disconnect = slow_disconnect  # type: ignore[method-assign]
+    shutting_down = asyncio.create_task(hub.async_shutdown())
+    await asyncio.sleep(0)
+
+    with pytest.raises(HomeAssistantError) as refused:
+        await hub.async_reconnect()
+    # Translated, like every error this integration shows a user.
+    assert refused.value.translation_domain == DOMAIN
+    assert refused.value.translation_key == "entry_unloaded"
+    release.set()
+    await shutting_down
+
+    assert fake_charger._callbacks == [], "a push callback outlived shutdown"
+    assert hub._cancel_timer is None
+    assert hub._cancel_flush is None
+    assert not hub.available
 
 
 async def test_shutdown_announces_unavailable_as_a_boolean(
