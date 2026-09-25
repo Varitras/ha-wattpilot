@@ -85,6 +85,10 @@
     }
   },
   "issues": {
+    "wrong_charger": {
+      "title": "Another charger answers at this charger's address",
+      "description": "Home Assistant reached a different charger at the address of the charger with serial {serial}, and stopped connecting so it does not show that charger's readings as this one's. The address was probably handed to another device.\n\nIf the charger now has a different address, open the integration and choose **Reconfigure** to enter it. This notice goes away when the integration is reloaded."
+    },
     "migration_collision": {
       "title": "Some entities could not be migrated",
       "description": "These entities from a previously installed Wattpilot integration keep their old identifier, because an entity with the new one already exists: {entities}.\n\nNothing was deleted. Each of them still holds its history, entity ID and customisations, but no longer belongs to a loaded integration, so it shows as unavailable. The entity that is loaded is the one that was already there.\n\nDecide per entity which one to keep: delete the unavailable one if its history does not matter to you, or delete the loaded one and restart Home Assistant, so the old one is adopted in its place."

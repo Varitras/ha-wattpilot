@@ -359,6 +359,10 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # A15-01, A16-01): shared attempts, a close that cancels instead of
     # waiting, and one visible transition at a time (measured: 406).
     "connection.py": 410,
+    # Past the default on 2026-09-26 by the repair notice for a different
+    # charger answering at runtime (audit A15-04): the hub is where the
+    # connection's state turns into what the user is told (measured: 424).
+    "hub.py": 430,
 }
 SHRINK_SLACK = 0.85  # an entry >=15% below budget must be ratcheted down
 
