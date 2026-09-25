@@ -54,16 +54,28 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
         entry_id: str,
         description: WattpilotSelectEntityDescription,
     ) -> None:
-        """Set the static option list alongside the base entity's setup."""
+        """Set the option list alongside the base entity's setup."""
         super().__init__(hub, entry_id, description)
-        self._attr_options = list(description.select_options.values())
+        self._attr_options = list(self._wire_options().values())
+
+    def _wire_options(self) -> dict[Any, str]:
+        """Wire value -> label: the fixed table, or the charger's own list."""
+        description = self.entity_description
+        if description.companion_key is None:
+            return description.select_options
+        allowed = self._hub.get_property(description.companion_key)
+        if not isinstance(allowed, list):
+            return {}
+        return {value: f"{value} A" for value in allowed}
 
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
-        self._attr_current_option = self.entity_description.select_options.get(value)
+        options = self._wire_options()
+        self._attr_options = list(options.values())
+        self._attr_current_option = options.get(value)
 
     async def async_select_option(self, option: str) -> None:
         """Write the wire value matching the chosen label."""
-        for wire_value, label in self.entity_description.select_options.items():
+        for wire_value, label in self._wire_options().items():
             if label == option:
                 await self._hub.async_set_property(
                     self.entity_description.charger_key, wire_value

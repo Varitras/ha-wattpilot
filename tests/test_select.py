@@ -7,7 +7,10 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from homeassistant.exceptions import ServiceValidationError
 
-from custom_components.wattpilot.descriptions import SELECT_DESCRIPTIONS
+from custom_components.wattpilot.descriptions import (
+    SELECT_DESCRIPTIONS,
+    filter_supported,
+)
 from custom_components.wattpilot.hub import WattpilotHub
 from custom_components.wattpilot.select import WattpilotSelect
 
@@ -39,8 +42,9 @@ async def make_select(
 
 
 def test_select_parity_with_fork() -> None:
-    # "ct" (car profile) is mk-maddin parity, not present in the deysel fixture.
-    assert_platform_parity("select", SELECT_DESCRIPTIONS, {"ct"})
+    # Additions this project chose: the car profile (ct), the readable force
+    # state (frc) and the current presets (amp_preset).
+    assert_platform_parity("select", SELECT_DESCRIPTIONS, {"ct", "frc", "amp_preset"})
 
 
 async def test_charging_mode_roundtrip(
@@ -114,3 +118,56 @@ async def test_car_profile_roundtrip(
     await select.async_select_option("Kia Soul")
     assert fake_charger.set_calls[-1] == ("ct", "kiaSoul")
     assert isinstance(fake_charger.set_calls[-1][1], str)
+
+
+async def test_force_state_reads_what_the_buttons_write(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    fake_charger._properties["frc"] = 1
+    select = await make_select(hass, fake_charger, "frc")
+    assert select.current_option == "Off"
+    await select.async_select_option("On")
+    assert fake_charger.set_calls[-1] == ("frc", 2)
+    fake_charger.push("frc", 0)
+    assert select.current_option == "Neutral"
+
+
+async def test_current_presets_are_the_chargers_own(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    fake_charger._properties.update({"clp": [6, 10, 12, 14, 16], "amp": 10})
+    select = await make_select(hass, fake_charger, "amp_preset")
+    assert select.options == ["6 A", "10 A", "12 A", "14 A", "16 A"]
+    assert select.current_option == "10 A"
+    await select.async_select_option("16 A")
+    assert fake_charger.set_calls[-1] == ("amp", 16)
+    assert isinstance(fake_charger.set_calls[-1][1], int)
+
+
+async def test_a_current_between_presets_is_no_option(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """13 A, set by hand or by the number entity, has no preset: showing the
+    nearest one would claim a current the car is not getting."""
+    fake_charger._properties.update({"clp": [6, 10, 12, 14, 16], "amp": 13})
+    select = await make_select(hass, fake_charger, "amp_preset")
+    assert select.current_option is None
+
+
+async def test_changed_presets_reach_the_options(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The presets are edited in the app; the entity must follow without a
+    reload, and a current that is now a preset must show as one."""
+    fake_charger._properties.update({"clp": [6, 10, 12, 14, 16], "amp": 13})
+    select = await make_select(hass, fake_charger, "amp_preset")
+    fake_charger.push("clp", [6, 13, 16])
+    assert select.options == ["6 A", "13 A", "16 A"]
+    assert select.current_option == "13 A"
+
+
+def test_no_presets_no_preset_select() -> None:
+    kept = filter_supported(
+        SELECT_DESCRIPTIONS, firmware="42.5", variant=11, properties={"amp": 16}
+    )
+    assert "amp_preset" not in {d.uid_suffix for d in kept}

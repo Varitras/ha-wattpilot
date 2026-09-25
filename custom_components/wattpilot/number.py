@@ -51,6 +51,8 @@ class WattpilotNumber(WattpilotEntity, NumberEntity):
     entity_description: WattpilotNumberEntityDescription
 
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
+        if value is None and self.entity_description.zero_means_null:
+            value = 0
         try:
             self._attr_native_value = float(value)
         except TypeError, ValueError:
@@ -62,7 +64,15 @@ class WattpilotNumber(WattpilotEntity, NumberEntity):
         if key == _NEXT_TRIP_ENERGY_KEY:
             await self._hub.async_set_next_trip_energy(value)
             return
-        payload: float | int = (
-            int(value) if self.entity_description.set_as_int else value
+        await self._hub.async_set_property(
+            key, _wire_value(self.entity_description, value)
         )
-        await self._hub.async_set_property(key, payload)
+
+
+def _wire_value(
+    description: WattpilotNumberEntityDescription, value: float
+) -> float | int | None:
+    """Return what the charger is sent for the number the user set."""
+    if description.zero_means_null and value == 0:
+        return None
+    return int(value) if description.set_as_int else value

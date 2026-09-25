@@ -91,6 +91,10 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "car_plugged_in": {"name": "Car plugged in"},
+      "car_charging": {"name": "Car charging"}
+    },
     "sensor": {
       "access_state": {"name": "Access state"},
       "car_connected": {"name": "Car connection"},
@@ -124,7 +128,8 @@
       "charging_allowed": {"name": "Charging allowed"},
       "allowed_current": {"name": "Allowed charging current"},
       "average_charging_power": {"name": "Average charging power"},
-      "grid_frequency": {"name": "Grid frequency"}
+      "grid_frequency": {"name": "Grid frequency"},
+      "electricity_price": {"name": "Electricity price"}
     },
     "switch": {
       "lock_level_selection": {"name": "Button current change lock"},
@@ -154,7 +159,9 @@
       "phase_switch_delay": {"name": "Phase switch delay"},
       "phase_switch_interval": {"name": "Phase switch interval"},
       "pv_battery_discharges_until": {"name": "PV surplus discharges battery until"},
-      "three_phase_power_level": {"name": "Three-phase power level"}
+      "three_phase_power_level": {"name": "Three-phase power level"},
+      "car_consumption": {"name": "Car consumption"},
+      "charging_energy_limit": {"name": "Energy limit per charge (0 = off)"}
     },
     "select": {
       "access_control": {"name": "Access control"},
@@ -165,7 +172,9 @@
       "phase_switch": {"name": "Phase switching"},
       "daylight_saving": {"name": "Daylight saving"},
       "cable_unlock_select": {"name": "Cable lock behavior"},
-      "car_profile": {"name": "Car profile"}
+      "car_profile": {"name": "Car profile"},
+      "force_state": {"name": "Forced charging state"},
+      "current_preset": {"name": "Charging current preset"}
     },
     "button": {
       "start_charging": {"name": "Start charging"},

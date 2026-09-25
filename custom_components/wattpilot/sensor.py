@@ -66,10 +66,27 @@ def _namespace_get(value: Any, field: str) -> Any:  # noqa: ANN401 -- dynamicall
     return getattr(value, field, None)
 
 
+def _price_list(value: Any) -> list[dict[str, Any]]:  # noqa: ANN401 -- dynamically shaped charger payload
+    """Return the charger's price list, with its unix times as datetimes."""
+    if not isinstance(value, list):
+        return []
+    return [
+        {
+            "start": dt_util.utc_from_timestamp(_namespace_get(entry, "start")),
+            "end": dt_util.utc_from_timestamp(_namespace_get(entry, "end")),
+            "price": _namespace_get(entry, "marketprice"),
+        }
+        for entry in value
+    ]
+
+
 class WattpilotSensor(WattpilotEntity, SensorEntity):
     """One charger property as a sensor."""
 
     entity_description: WattpilotSensorEntityDescription
+    # A day or two of hourly prices, rewritten every hour: history of it
+    # would only fill the recorder.
+    _unrecorded_attributes = frozenset({"prices"})
 
     def __init__(self, *args: Any) -> None:  # noqa: ANN401 -- forwards WattpilotEntity's args unchanged
         """Set the ID-chip index placeholder, if this sensor has one."""
@@ -100,6 +117,7 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
                     for field in description.namespace_attributes
                 }
                 value = state
+            self._apply_price_list()
             if value is not None and description.html_unescape:
                 value = html.unescape(str(value))
             if description.device_class is SensorDeviceClass.TIMESTAMP:
@@ -136,6 +154,15 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
                 description.charger_key,
                 type(err).__name__,
             )
+
+    def _apply_price_list(self) -> None:
+        """Show the companion price list, for the one sensor that has one."""
+        key = self.entity_description.companion_key
+        if key is None:
+            return
+        self._attr_extra_state_attributes = {
+            "prices": _price_list(self._hub.get_property(key))
+        }
 
     def _apply_card(self, value: Any, index: int) -> None:  # noqa: ANN401 -- charger payload
         """

@@ -91,6 +91,10 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "car_plugged_in": {"name": "Fahrzeug angesteckt"},
+      "car_charging": {"name": "Fahrzeug lädt"}
+    },
     "sensor": {
       "access_state": {"name": "Zugriffsstatus"},
       "car_connected": {"name": "Fahrzeugverbindung"},
@@ -124,7 +128,8 @@
       "charging_allowed": {"name": "Laden freigegeben"},
       "allowed_current": {"name": "Freigegebener Ladestrom"},
       "average_charging_power": {"name": "Mittlere Ladeleistung"},
-      "grid_frequency": {"name": "Netzfrequenz"}
+      "grid_frequency": {"name": "Netzfrequenz"},
+      "electricity_price": {"name": "Strompreis"}
     },
     "switch": {
       "lock_level_selection": {"name": "Sperre für Stromänderung per Taste"},
@@ -154,7 +159,9 @@
       "phase_switch_delay": {"name": "Phasenumschaltverzögerung"},
       "phase_switch_interval": {"name": "Phasenumschaltintervall"},
       "pv_battery_discharges_until": {"name": "PV-Überschuss entlädt Batterie bis"},
-      "three_phase_power_level": {"name": "Dreiphasen-Leistungsstufe"}
+      "three_phase_power_level": {"name": "Dreiphasen-Leistungsstufe"},
+      "car_consumption": {"name": "Fahrzeugverbrauch"},
+      "charging_energy_limit": {"name": "Energielimit pro Ladung (0 = aus)"}
     },
     "select": {
       "access_control": {"name": "Zugriffskontrolle"},
@@ -165,7 +172,9 @@
       "phase_switch": {"name": "Phasenumschaltung"},
       "daylight_saving": {"name": "Sommerzeit"},
       "cable_unlock_select": {"name": "Kabelverriegelungsverhalten"},
-      "car_profile": {"name": "Fahrzeugprofil"}
+      "car_profile": {"name": "Fahrzeugprofil"},
+      "force_state": {"name": "Erzwungener Ladezustand"},
+      "current_preset": {"name": "Ladestrom-Stufe"}
     },
     "button": {
       "start_charging": {"name": "Laden starten"},

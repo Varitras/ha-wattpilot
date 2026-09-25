@@ -154,7 +154,7 @@ async def test_a_push_during_platform_setup_is_not_lost(
     The charger does not wait for Home Assistant to finish setting up.
 
     Every entity reads its initial value as it is added. If dispatching only
-    starts once all seven platforms are up, a push landing in between
+    starts once all platforms are up, a push landing in between
     updates the client's cache and reaches nobody: the entity already took
     its value and will not look again. It then shows a stale reading until
     the device happens to send that property once more -- for something like

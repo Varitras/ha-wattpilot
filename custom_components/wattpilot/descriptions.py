@@ -10,6 +10,10 @@ from dataclasses import dataclass
 from operator import eq, ge, gt, le, lt
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
+    BinarySensorEntityDescription,
+)
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntityDescription
 from homeassistant.components.number import (
     NumberDeviceClass,
@@ -61,6 +65,10 @@ class WattpilotDescriptionMixin:
     variant: str | None = None
     # Buttons/update trigger keys are write-only: no presence check.
     requires_property: bool = True
+    # A second property the entity reads; its pushes refresh the entity too.
+    # What it means is the platform's to say: select, the list of allowed
+    # values; sensor, a price list shown as an attribute.
+    companion_key: str | None = None
 
     @property
     def uid_suffix(self) -> str:
@@ -101,6 +109,16 @@ def variant_supported(current: object, constraint: str | None) -> bool:
     return str(current) == constraint
 
 
+def _properties_present(
+    description: WattpilotDescriptionMixin, properties: Mapping[str, object]
+) -> bool:
+    """Return whether the device reports every property the entity reads."""
+    if not description.requires_property:
+        return True
+    read = (description.charger_key, description.companion_key)
+    return all(key in properties for key in read if key is not None)
+
+
 def filter_supported[DescriptionT: WattpilotDescriptionMixin](
     descriptions: Sequence[DescriptionT],
     *,
@@ -114,7 +132,7 @@ def filter_supported[DescriptionT: WattpilotDescriptionMixin](
         for description in descriptions
         if firmware_supported(firmware, description.firmware)
         and variant_supported(variant, description.variant)
-        and (not description.requires_property or description.charger_key in properties)
+        and _properties_present(description, properties)
     ]
 
 
@@ -533,9 +551,8 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
         key="charging_allowed",
         charger_key="alw",
         translation_key="charging_allowed",
-        # ponytail: a plain string state, because the integration has no
-        # binary_sensor platform. Add one (and move this there) once a second
-        # read-only boolean earns it -- "adi", "cpe" and "fsp" are candidates.
+        # A string state, not a binary sensor: it shipped as a sensor before
+        # that platform existed, and moving it would change its entity id.
         enum={True: "Allowed", False: "Blocked"},
     ),
     WattpilotSensorEntityDescription(
@@ -587,6 +604,60 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
         # charging starts, and it stayed at 3 with zero current for the rest
         # of the session). Read it as "how many phases is the charger set to
         # use", which is what phase-switch automations need.
+    ),
+    WattpilotSensorEntityDescription(
+        key="electricity_price",
+        charger_key="awcp",
+        companion_key="awpl",
+        translation_key="electricity_price",
+        namespace_value="marketprice",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+        entity_registry_enabled_default=False,
+        # ct/kWh: the recorded day curves (about 0 at noon, 15-20 in the
+        # evening) fit nothing else, and awp, the limit eco mode compares it
+        # with, is in ct. No MONETARY class, for awp's reason: "ct" is no
+        # currency code.
+        native_unit_of_measurement="ct/kWh",
+    ),
+)
+
+
+# ---------------------------------------------------------------------------
+# Binary sensor descriptions
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, kw_only=True)
+class WattpilotBinarySensorEntityDescription(
+    WattpilotDescriptionMixin, BinarySensorEntityDescription
+):
+    """Binary sensor description: the wire values that mean on and off."""
+
+    on_values: frozenset[Any]
+    off_values: frozenset[Any]
+
+
+# Both read "car". Its 0 (unknown) and 5 (error) are in neither set: the
+# charger does not know, so neither does the entity.
+BINARY_SENSOR_DESCRIPTIONS: tuple[WattpilotBinarySensorEntityDescription, ...] = (
+    WattpilotBinarySensorEntityDescription(
+        key="car_plugged_in",
+        charger_key="car",
+        uid="car_plugged_in",
+        translation_key="car_plugged_in",
+        device_class=BinarySensorDeviceClass.PLUG,
+        on_values=frozenset({2, 3, 4}),
+        off_values=frozenset({1}),
+    ),
+    WattpilotBinarySensorEntityDescription(
+        key="car_charging",
+        charger_key="car",
+        uid="car_charging",
+        translation_key="car_charging",
+        device_class=BinarySensorDeviceClass.BATTERY_CHARGING,
+        on_values=frozenset({2}),
+        off_values=frozenset({1, 3, 4}),
     ),
 )
 
@@ -716,6 +787,8 @@ class WattpilotNumberEntityDescription(
     """Number description; set_as_int coerces writes to int."""
 
     set_as_int: bool = False
+    # For a property whose null means "off": it reads and writes as 0.
+    zero_means_null: bool = False
 
 
 # Bounds/mode/set_as_int verified against the fork's NUMBER_DESCRIPTIONS at
@@ -890,6 +963,34 @@ NUMBER_DESCRIPTIONS: tuple[WattpilotNumberEntityDescription, ...] = (
         entity_registry_enabled_default=False,
         entity_category=EntityCategory.CONFIG,
     ),
+    WattpilotNumberEntityDescription(
+        key="car_consumption",
+        charger_key="cco",
+        translation_key="car_consumption",
+        native_min_value=0,
+        native_max_value=100,
+        native_step=0.1,
+        mode=NumberMode.BOX,
+        device_class=NumberDeviceClass.ENERGY_DISTANCE,
+        native_unit_of_measurement="kWh/100km",
+        # Only the app reads it, to turn charged energy into range.
+        entity_registry_enabled_default=False,
+        entity_category=EntityCategory.CONFIG,
+    ),
+    WattpilotNumberEntityDescription(
+        key="charging_energy_limit",
+        charger_key="dwo",
+        translation_key="charging_energy_limit",
+        native_min_value=0,
+        native_max_value=999999,
+        native_step=100,
+        mode=NumberMode.BOX,
+        device_class=NumberDeviceClass.ENERGY,
+        native_unit_of_measurement="Wh",
+        # Null is "no limit"; a limit of 0 Wh would stop every charge. So 0
+        # stands for null both ways, and cannot be sent by mistake.
+        zero_means_null=True,
+    ),
 )
 
 
@@ -966,6 +1067,7 @@ class WattpilotSelectEntityDescription(
 
     # kw_only dataclass: a required field after defaulted mixin fields is
     # fine -- keyword-only fields carry no positional ordering constraint.
+    # Empty when companion_key lists the allowed values instead (amperes).
     select_options: dict[Any, str]
 
 
@@ -1073,6 +1175,25 @@ SELECT_DESCRIPTIONS: tuple[WattpilotSelectEntityDescription, ...] = (
             "vwID3_4": "VW ID (SW 3.2-4.1)",
             "vwID5": "VW ID (SW 5.x)",
         },
+    ),
+    # The state behind the three frc buttons, so automations can read it.
+    # Not kept across a power cut: a measured 1 came back as 0.
+    WattpilotSelectEntityDescription(
+        key="force_state",
+        charger_key="frc",
+        translation_key="force_state",
+        select_options={0: "Neutral", 1: "Off", 2: "On"},
+    ),
+    # The app's current slider stops only at the clp presets, so a current
+    # set between two of them (13 A) has no position there. This offers
+    # just the presets; a current between them shows as no option.
+    WattpilotSelectEntityDescription(
+        key="current_preset",
+        charger_key="amp",
+        uid="amp_preset",
+        companion_key="clp",
+        translation_key="current_preset",
+        select_options={},
     ),
 )
 

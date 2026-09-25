@@ -64,6 +64,14 @@ class WattpilotEntity(Entity):
             initial = self._hub.get_property(description.charger_key, _NOT_SENT)
             if initial is not _NOT_SENT:
                 self._apply_value(initial)
+        if description.companion_key is not None:
+            self.async_on_remove(
+                async_dispatcher_connect(
+                    self.hass,
+                    signal_property(self._entry_id, description.companion_key),
+                    self._handle_companion_push,
+                )
+            )
         self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,
@@ -80,6 +88,14 @@ class WattpilotEntity(Entity):
     @callback
     def _handle_push(self, value: Any) -> None:  # noqa: ANN401 -- charger values are dynamically typed
         self._apply_value(value)
+        self.async_write_ha_state()
+
+    @callback
+    def _handle_companion_push(self, _value: Any) -> None:  # noqa: ANN401 -- charger values are dynamically typed
+        # The platform reads the companion itself, so re-apply the main value.
+        value = self._hub.get_property(self._description.charger_key, _NOT_SENT)
+        if value is not _NOT_SENT:
+            self._apply_value(value)
         self.async_write_ha_state()
 
     @callback

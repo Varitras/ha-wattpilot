@@ -139,6 +139,17 @@ def test_a_value_that_cannot_be_coerced_is_refused(
         client._coerce_to_json_type(value, json_type, "amp")
 
 
+def test_null_is_sent_where_the_charger_declares_the_value_optional(
+    client: Wattpilot,
+) -> None:
+    """dwo (energy limit per charge) is `optional<double>`, and null is how
+    the charger is told the limit is off. Coercing it as a float refused
+    exactly that value; a key that is not optional still refuses it."""
+    assert client._coerce_value("dwo", None) is None
+    with pytest.raises(PropertyError, match="amp"):
+        client._coerce_value("amp", None)
+
+
 def test_an_unknown_json_type_passes_the_value_through(client: Wattpilot) -> None:
     """The definition file may name a type this client does not know; that is
     not a reason to refuse the write."""
