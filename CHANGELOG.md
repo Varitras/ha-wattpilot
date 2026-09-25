@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Entities can no longer go missing when the integration connects. The
+  charger sends its first status in several pieces, and a live update
+  arriving between two of them used to count as "all properties known" --
+  whatever came later got no entity until the integration was reloaded.
+  Possible rather than observed: after a restart the pieces paused for
+  about a second, while live updates arrive once a second.
+
 ## [0.1.2] - 2026-09-19
 
 Everything from the 0.1.2b1 candidate, plus what an independent audit of it

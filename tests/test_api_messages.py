@@ -74,6 +74,36 @@ async def test_a_partial_full_status_does_not_complete_it(client: Wattpilot) -> 
     assert client.amp == 16
 
 
+async def test_a_delta_between_partial_frames_does_not_complete_it(
+    client: Wattpilot,
+) -> None:
+    """A live delta can arrive between the chunks of the first full status:
+    recorded after a restart, the stream paused for about a second while
+    deltas come once a second. A delta used to count as "initialised" on its
+    own, so connect() could return mid-stream -- and the platforms, which only
+    create entities for properties already reported, left everything that
+    came later without an entity until the entry was reloaded."""
+    await send(client, {"type": "fullStatus", "partial": True, "status": {"amp": 16}})
+    await send(client, {"type": "deltaStatus", "status": {"amp": 6}})
+    assert not client.properties_initialized
+
+    await send(
+        client, {"type": "fullStatus", "partial": False, "status": {"ebe": True}}
+    )
+    assert client.properties_initialized
+
+
+async def test_a_new_connection_starts_without_a_stream_in_progress(
+    client: Wattpilot,
+) -> None:
+    """A connection that dropped mid-stream must not leave the next one
+    waiting for a final chunk that will never come."""
+    await send(client, {"type": "fullStatus", "partial": True, "status": {"amp": 16}})
+    client._connection.begin()
+    await send(client, {"type": "deltaStatus", "status": {"amp": 6}})
+    assert client.properties_initialized
+
+
 async def test_a_delta_status_also_completes_it(client: Wattpilot) -> None:
     """Some firmware sends deltas straight away without a full status."""
     await send(client, {"type": "deltaStatus", "status": {"amp": 6}})
