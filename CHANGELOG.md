@@ -8,9 +8,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Unloading or reloading the integration while a reconnect is under way no
-  longer leaves a live connection behind. The teardown finished first, and
-  the reconnect then opened a connection that nothing owned any more.
+- Reconnecting and disconnecting no longer trip over each other. A
+  reconnect under way when the integration was unloaded or disconnected
+  could open a connection after the teardown had finished, and a reconnect
+  during a slow disconnect could report success for the very connection
+  being closed.
 - Entities can no longer go missing when the integration connects. The
   charger sends its first status in several pieces, and a live update
   arriving between two of them used to count as "all properties known" --

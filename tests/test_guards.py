@@ -305,6 +305,10 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # 2026-09-06 for the audit round's connect cleanup and firmware deadline
     # (measured: 1221).
     "client.py": 1230,
+    # Past the default on 2026-09-25 by the open/close coordination (audits
+    # A15-01, A16-01): shared attempts, a close that cancels instead of
+    # waiting, and one visible transition at a time (measured: 406).
+    "connection.py": 410,
 }
 SHRINK_SLACK = 0.85  # an entry >=15% below budget must be ratcheted down
 
@@ -319,8 +323,11 @@ CLUSTER_BUDGET = {
     # ownership and readiness deadlines (A12-01/04), fail-stop on refusal
     # (A12-02), the cleanup that spans the definition load (A12-03) and the
     # firmware deadline with the disconnect event it waits on (A12-08), at a
-    # measured 1567 lines.
-    "api client": (("client.py", "connection.py"), 1590),
+    # measured 1567 lines. Raised a second time on 2026-09-25, after about
+    # forty lines of comment had already been condensed to make room: the
+    # open/close coordination (A13-01, A14-01, A15-01) and the refused-
+    # password flag (A14-02), at a measured 1607 lines.
+    "api client": (("client.py", "connection.py"), 1610),
 }
 
 

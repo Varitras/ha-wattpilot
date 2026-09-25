@@ -451,6 +451,205 @@ async def test_a_close_during_a_pending_open_stays_closed(
     assert factory.open_sockets == [], "the late socket was left open"
 
 
+async def test_an_open_queued_before_a_close_does_not_outlive_it(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two opens, then a close, all requested before any connector returned.
+    The first open noticed the close; the second one, queued behind it,
+    only looked afterwards and opened a live connection after close() had
+    returned (audit A15-01)."""
+    factory = SocketFactory()
+    release = asyncio.Event()
+    entered = asyncio.Event()
+
+    async def blocked_connect(url: str) -> FakeSocket:
+        entered.set()
+        await release.wait()
+        return await factory(url)
+
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
+        blocked_connect,
+    )
+    connection = client._connection
+    first = asyncio.create_task(connection.open())
+    second = asyncio.create_task(connection.open())
+    # Inside the connector, not merely queued: yielding once was not enough
+    # to get there, and the test proved less than it claimed.
+    await entered.wait()
+
+    await connection.close()
+    release.set()
+    for _ in range(5):
+        await asyncio.sleep(0)
+    if connection.socket is not None:  # the charger answers what got opened
+        connection.mark_authenticated()
+        connection.mark_initialized()
+    outcomes = await asyncio.gather(first, second, return_exceptions=True)
+
+    assert all(isinstance(o, WattpilotConnectionError) for o in outcomes)
+    assert not connection.connected
+    assert factory.open_sockets == [], "a socket outlived the close"
+
+
+async def test_a_finished_attempt_is_not_handed_to_the_next_open(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The shared attempt is forgotten by a done-callback. An open() landing
+    between the attempt's end and that callback was handed the old attempt
+    -- and its old failure -- instead of trying again."""
+    factory = SocketFactory()
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
+        factory,
+    )
+    connection = client._connection
+    connection.connect_timeout = 0.01
+
+    async def failed_earlier() -> None:
+        msg = "an attempt that already ended"
+        raise WattpilotConnectionError(msg)
+
+    stale = asyncio.create_task(failed_earlier())
+    with contextlib.suppress(WattpilotConnectionError):
+        await stale
+    connection._opening = stale  # finished, not yet forgotten
+
+    with pytest.raises(WattpilotConnectionError, match="authentication"):
+        await connection.open()
+    assert factory.sockets, "no new attempt was made"
+
+
+async def test_an_open_during_the_cancel_step_of_a_close_stays_open(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """close() cancelled the pending attempt and only then made itself
+    visible. An open() in that gap started on its own, succeeded -- and was
+    torn down by the close it had come after (audit A16-01)."""
+    connection = client._connection
+    entered = asyncio.Event()
+    calls: list[str] = []
+
+    async def connect(url: str) -> FakeSocket:
+        calls.append(url)
+        if len(calls) == 1:
+            entered.set()
+            await asyncio.Event().wait()  # hangs until close() cancels it
+        # The charger answers at once, so a wrong order shows immediately.
+        connection.mark_authenticated()
+        connection.mark_initialized()
+        return FakeSocket([])
+
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
+        connect,
+    )
+    first = asyncio.create_task(connection.open())
+    await entered.wait()
+    later: list[asyncio.Future[None]] = []
+    # Registered before close() waits on the attempt, so it runs in the gap.
+    assert connection._opening is not None
+    connection._opening.add_done_callback(
+        lambda _: later.append(asyncio.ensure_future(connection.open()))
+    )
+
+    await connection.close()
+    with contextlib.suppress(WattpilotConnectionError):
+        await first
+    await later[0]
+
+    assert connection.connected, "an open that succeeded was torn down"
+    await connection.close()
+
+
+async def test_an_open_waits_out_every_close_in_progress(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """open() waited for the close it found, once. A second close starting
+    as the first one ended was not checked for, so the open started while it
+    ran -- and that close could take the new connection down again."""
+    connection = client._connection
+    connects: list[str] = []
+
+    async def connect(url: str) -> FakeSocket:
+        connects.append(url)
+        connection.mark_authenticated()
+        connection.mark_initialized()
+        return FakeSocket([])
+
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
+        connect,
+    )
+    loop = asyncio.get_running_loop()
+    first_close: asyncio.Future[None] = loop.create_future()
+    second_close: asyncio.Future[None] = loop.create_future()
+    connection._closing = first_close  # type: ignore[assignment]
+    first_close.add_done_callback(
+        lambda _: setattr(connection, "_closing", second_close)
+    )
+
+    opening = asyncio.create_task(connection.open())
+    await asyncio.sleep(0)
+    first_close.set_result(None)
+    for _ in range(5):
+        await asyncio.sleep(0)
+    assert connects == [], "open() started while a close was still running"
+
+    second_close.set_result(None)
+    await opening
+    assert connection.connected
+    await connection.close()
+
+
+class SlowClosingSocket(FakeSocket):
+    """A socket whose close handshake takes as long as the test says."""
+
+    def __init__(self, release: asyncio.Event) -> None:
+        super().__init__([])
+        self._release = release
+
+    async def close(self) -> None:
+        await self._release.wait()
+        await super().close()
+
+
+async def test_an_open_during_a_slow_close_waits_for_a_new_connection(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """While close() waited for the socket's close handshake, the connection
+    still counted as connected -- so an open() in that window returned at
+    once, reporting a connection the close then took down (audit A15-01)."""
+    factory = SocketFactory()
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
+        factory,
+    )
+    connection = client._connection
+    release = asyncio.Event()
+    connection.socket = SlowClosingSocket(release)  # type: ignore[assignment]
+    connection.mark_authenticated()
+    connection.mark_initialized()
+
+    closing = asyncio.create_task(connection.close())
+    await asyncio.sleep(0)
+    opening = asyncio.create_task(connection.open())
+    for _ in range(5):
+        await asyncio.sleep(0)
+    assert not opening.done(), "open() reported the connection being closed"
+
+    release.set()
+    await closing
+    await _settle(lambda: connection.socket is not None)
+    connection.mark_authenticated()
+    connection.mark_initialized()
+    await opening
+
+    assert connection.connected
+    assert connection.socket is factory.sockets[-1], "not a fresh connection"
+    await connection.close()
+
+
 async def test_a_silent_socket_after_reconnect_is_given_up_on(
     client: Wattpilot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
