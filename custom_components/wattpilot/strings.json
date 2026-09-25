@@ -38,17 +38,47 @@
     }
   },
   "exceptions": {
+    "authentication_failed": {
+      "message": "The charger refused the password: {error}"
+    },
+    "cannot_connect": {
+      "message": "Cannot connect to the charger: {error}"
+    },
+    "cloud_disable_failed": {
+      "message": "Failed to disable the cloud API: {error}"
+    },
+    "cloud_enable_failed": {
+      "message": "Failed to enable the cloud API: {error}"
+    },
     "cloud_not_supported": {
       "message": "Cloud connections are not supported yet. Reconfigure the entry with the charger's local address."
     },
-    "entry_unloaded": {
-      "message": "The charger's entry was unloaded. Reload it to reconnect."
+    "disconnect_failed": {
+      "message": "Failed to disconnect from the charger: {error}"
     },
     "duplicate_device": {
       "message": "Charger {serial} is already configured by another entry."
     },
+    "entry_unloaded": {
+      "message": "The charger's entry was unloaded. Reload it to reconnect."
+    },
+    "firmware_update_failed": {
+      "message": "Firmware update failed: {error}"
+    },
     "invalid_device": {
       "message": "Device {device_id} is not a loaded Wattpilot charger."
+    },
+    "next_trip_energy_failed": {
+      "message": "Failed to set the next trip energy: {error}"
+    },
+    "next_trip_failed": {
+      "message": "Failed to set the next trip: {error}"
+    },
+    "set_failed": {
+      "message": "Failed to set {key}: {error}"
+    },
+    "unknown_option": {
+      "message": "Unknown option: {option}"
     },
     "wrong_charger": {
       "message": "This entry belongs to charger {expected}, but the charger at this address reports serial {found}. If you replaced the charger, delete this entry and add the new one."

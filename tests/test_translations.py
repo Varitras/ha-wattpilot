@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 from pathlib import Path
 
 from custom_components.wattpilot.descriptions import (
@@ -62,6 +63,35 @@ def _keys(tree: dict, prefix: str = "") -> set[str]:
 
 def test_de_mirrors_key_structure() -> None:
     assert _keys(load("translations/de.json")) == _keys(load("strings.json"))
+
+
+def _texts(tree: object, path: str = "") -> dict[str, str]:
+    if isinstance(tree, dict):
+        return {
+            k: v
+            for key, sub in tree.items()
+            for k, v in _texts(sub, f"{path}/{key}").items()
+        }
+    return {path: tree} if isinstance(tree, str) else {}
+
+
+def test_de_fills_the_same_placeholders() -> None:
+    """The code passes the placeholders the English text names. A German
+    text naming a different one ({fehler} for {error}) breaks the message
+    for German users only, and the key-structure check above cannot see it."""
+    placeholder = re.compile(r"{(\w+)}")
+    english = _texts(load("strings.json"))
+    german = _texts(load("translations/de.json"))
+    drifted = {
+        path: (
+            sorted(set(placeholder.findall(text))),
+            sorted(set(placeholder.findall(german.get(path, "")))),
+        )
+        for path, text in english.items()
+        if set(placeholder.findall(text))
+        != set(placeholder.findall(german.get(path, "")))
+    }
+    assert not drifted, f"placeholders differ in de.json: {drifted}"
 
 
 def test_exception_translation_keys_resolve() -> None:

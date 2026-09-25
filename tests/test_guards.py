@@ -421,6 +421,76 @@ def test_the_client_stays_independent_of_home_assistant() -> None:
     assert not offenders, f"the client reached into Home Assistant: {offenders}"
 
 
+# Every exception class Home Assistant turns into text a user reads.
+_USER_FACING_ERRORS = frozenset(
+    {
+        "HomeAssistantError",
+        "ServiceValidationError",
+        "ConfigEntryError",
+        "ConfigEntryNotReady",
+        "ConfigEntryAuthFailed",
+    }
+)
+_PLACEHOLDER = re.compile(r"{(\w+)}")
+
+
+def _raised_name(call: ast.Call) -> str:
+    func = call.func
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return func.id if isinstance(func, ast.Name) else ""
+
+
+def test_every_user_facing_error_is_translated() -> None:
+    """
+    An error Home Assistant shows a user carries a translation key, and the
+    placeholders it passes are the ones its message uses.
+
+    quality_scale.yaml declared exception-translations done while every
+    error the hub raised was an English f-string, and nothing checked the
+    claim; the existing key test only resolves keys that are present.
+
+    Fix: raise with translation_domain=DOMAIN, translation_key=... and
+    translation_placeholders matching the message in strings.json.
+
+    Only a direct `raise X(...)` is seen. An error built in a helper and
+    raised by name slips past, which is why each one is spelled out.
+    """
+    messages = {
+        key: entry["message"]
+        for key, entry in json.loads(
+            (PACKAGE / "strings.json").read_text(encoding="utf-8")
+        )["exceptions"].items()
+    }
+    problems: list[str] = []
+    for path in iter_python_files():
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not (isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call)):
+                continue
+            call = node.exc
+            if _raised_name(call) not in _USER_FACING_ERRORS:
+                continue
+            where = f"{path.name}:{node.lineno}"
+            keywords = {k.arg: k.value for k in call.keywords}
+            key = keywords.get("translation_key")
+            if not (isinstance(key, ast.Constant) and isinstance(key.value, str)):
+                problems.append(f"{where}: no literal translation_key")
+                continue
+            given = keywords.get("translation_placeholders")
+            passed = (
+                {k.value for k in given.keys if isinstance(k, ast.Constant)}
+                if isinstance(given, ast.Dict)
+                else set()
+            )
+            wanted = set(_PLACEHOLDER.findall(messages.get(key.value, "")))
+            if passed != wanted:
+                problems.append(
+                    f"{where}: {key.value} passes {sorted(passed)}, "
+                    f"its message uses {sorted(wanted)}"
+                )
+    assert not problems, "untranslated or mismatched errors:\n" + "\n".join(problems)
+
+
 def test_the_client_is_only_imported_by_hub() -> None:
     """One import site, still. The client living in this repository rather
     than in site-packages changed where it is, not why it stays behind one
@@ -681,6 +751,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         "test_domain_literal_only_in_const": "domain string lives in const.py only",
         "test_domain_literal_confined_to_known_carriers": "no fourth domain carrier",
         "test_manifest_is_consistent": "manifest metadata stays as declared",
+        "test_every_user_facing_error_is_translated": (
+            "every error a user reads is translated, with matching placeholders"
+        ),
         "test_the_test_environment_installs_what_the_manifest_declares": (
             "the tests run with the dependencies the manifest promises"
         ),
