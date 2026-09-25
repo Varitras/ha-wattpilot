@@ -19,12 +19,14 @@ run_gate() {
     fi
 }
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 # `mutmut run` exits 0 no matter what it found -- it only reports. The gate
 # has to judge the report itself, and every outcome needs a verdict, not just
 # "survived": see scripts/judge_mutants.py, which is where that policy lives
 # and where it is covered by tests.
+# Called by name through run_gate below, which shellcheck cannot follow.
+# shellcheck disable=SC2329
 mutation_gate() {
     # Discard the whole sandbox first. mutmut keeps each mutant's verdict there
     # and only retests mutants whose *source* changed -- so after adding tests
@@ -52,8 +54,9 @@ mutation_gate() {
     for mutant in $accepted; do
         sed -i "/^ *${mutant}: /d" mutants/results.txt
         mutmut tests-for-mutant "$mutant" | grep '::' >mutants/tests-for-accepted.txt
-        # shellcheck disable=SC2046 -- one argument per test id, on purpose
-        if (cd mutants && MUTANT_UNDER_TEST="$mutant" python3 -m pytest -x -q                 --rootdir=. -p no:cacheprovider $(cat tests-for-accepted.txt)); then
+        # One argument per test id, on purpose: the list is word-split.
+        # shellcheck disable=SC2046
+        if (cd mutants && MUTANT_UNDER_TEST="$mutant" python3 -m pytest -x -q --rootdir=. -p no:cacheprovider $(cat tests-for-accepted.txt)); then
             echo "    ${mutant}: survived" >>mutants/results.txt
         else
             echo "    ${mutant}: killed" >>mutants/results.txt
@@ -65,6 +68,7 @@ mutation_gate() {
 run_gate "ruff format" ruff format --check custom_components tests scripts
 run_gate "ruff lint" ruff check custom_components tests scripts
 run_gate "mypy strict" mypy
+run_gate "shellcheck" shellcheck scripts/*.sh
 run_gate "pytest" python3 -m pytest
 
 if [[ "${1:-}" == "--release" ]]; then
