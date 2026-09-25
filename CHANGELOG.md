@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   during a slow disconnect could report success for the very connection
   being closed. An unloaded integration now refuses a late reconnect
   instead of coming back to life behind it.
+- A password the charger refuses while Home Assistant is running now asks
+  for a new one. The integration stopped reconnecting, as it should, but
+  never said why: the charger just stayed unavailable until a reload.
 - Entities can no longer go missing when the integration connects. The
   charger sends its first status in several pieces, and a live update
   arriving between two of them used to count as "all properties known" --

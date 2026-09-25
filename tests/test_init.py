@@ -73,6 +73,32 @@ async def setup_entry(
     return result
 
 
+async def test_a_password_rejected_while_running_asks_for_a_new_one(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The client stops reconnecting once the charger refuses the password
+    -- retrying would only repeat the refusal. But nothing told Home
+    Assistant: the entry just stayed unavailable until someone reloaded it,
+    with no hint that the password was the problem (audit A14-02)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+
+    fake_charger.connected = False
+    fake_charger.authentication_rejected = True
+    for minutes in (1, 2):
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=minutes))
+        await hass.async_block_till_done()
+
+    flows = [
+        flow
+        for flow in hass.config_entries.flow.async_progress()
+        if flow["context"].get("source") == "reauth"
+    ]
+    assert len(flows) == 1, "no reauthentication was started, or a second one"
+
+
 async def test_setup_creates_entities_and_unloads(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
