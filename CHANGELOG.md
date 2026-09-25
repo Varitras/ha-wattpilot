@@ -8,6 +8,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- When setup refuses a charger (a different device at the address, or one
+  already set up), that reason is what you see, even if closing the
+  connection fails as well. The closing error used to take its place.
 - Entities can no longer go missing when the integration connects. The
   charger sends its first status in several pieces, and a live update
   arriving between two of them used to count as "all properties known" --
