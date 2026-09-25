@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   whatever came later got no entity until the integration was reloaded.
   Possible rather than observed: after a restart the pieces paused for
   about a second, while live updates arrive once a second.
+- The restart button no longer reports a failure on every press. The
+  charger restarts without ever answering the command, and waiting for that
+  answer ran into a timeout each time.
 
 ## [0.1.2] - 2026-09-19
 

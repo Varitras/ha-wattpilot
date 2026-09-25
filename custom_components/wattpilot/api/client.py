@@ -34,6 +34,9 @@ _LOGGER = logging.getLogger(__name__)
 WPFLEX_DEVICE_TYPE = "wattpilot_flex"
 # Seconds between two attempts to reach a charger that is rebooting.
 _REBOOT_RETRY_PAUSE = 2.0
+# Recorded on firmware 42.5: rst=1 is never answered -- the charger goes
+# silent and drops the socket to reboot. Waiting timed out on every restart.
+_NEVER_ACKNOWLEDGED = frozenset({"rst"})
 CLOUD_API_BASE_URL = "https://app.wattpilot.io/app"
 
 type PropertyCallback = Callable[[str, Any], Any]
@@ -630,12 +633,7 @@ class Wattpilot:
     # ---- Commands ----
 
     async def set_property(self, name: str, value: Any) -> None:  # noqa: ANN401 -- charger values are dynamically typed
-        """
-        Set a single property on the device.
-
-        Values are automatically coerced to the type expected by the charger
-        protocol (based on the API definition's ``jsonType``).
-        """
+        """Set one property, coerced to the type the API definition declares."""
         value = self._coerce_value(name, value)
         self._request_id += 1
         message: dict[str, Any] = {
@@ -645,8 +643,10 @@ class Wattpilot:
             "value": value,
         }
         secure = self._device.secured is not None and self._device.secured > 0
-        # wattpilot: await the device's answer instead of returning once the
-        # frame is on the wire (audit VA-03).
+        if name in _NEVER_ACKNOWLEDGED:
+            await self._send(message, secure=secure)
+            return
+        # Wait for the answer, not just the send (audit VA-03).
         await self._send_command(message, secure=secure)
 
     async def set_power(self, amperage: int) -> None:
@@ -1046,8 +1046,9 @@ class Wattpilot:
         # without a waiter is still applied and logged, as before.
         future = self._pending_commands.get(_correlation_key(msg.requestId))
         if msg.success:
-            props = msg.status.__dict__
-            for key, value in props.items():
+            # Nothing in the protocol promises a status on every acceptance.
+            status = getattr(msg, "status", SimpleNamespace())
+            for key, value in vars(status).items():
                 self._update_property(key, value)
             if future is not None and not future.done():
                 future.set_result(None)
