@@ -1,0 +1,2626 @@
+{
+ "firmware": "42.5",
+ "recorded": "2026-09-25",
+ "what": "rst=1 sent after the first connect: no response frame ever arrives, the socket closes about 17 s later, and the reconnect streams its full status with a pause of about a second mid-stream",
+ "before_restart": [
+  {
+   "t": 0.0,
+   "frame": {
+    "type": "hello",
+    "serial": "123456",
+    "hostname": "Wattpilot_123456",
+    "friendly_name": "Wattpilot",
+    "manufacturer": "fronius",
+    "devicefamily": "wattpilot",
+    "devicetype": "wattpilot_V2",
+    "version": "42.5",
+    "protocol": 2,
+    "proto": 3,
+    "secured": true
+   }
+  },
+  {
+   "t": 0.0,
+   "frame": {
+    "type": "authRequired",
+    "token1": "<nonce>",
+    "token2": "<nonce>",
+    "hash": "pbkdf2"
+   }
+  },
+  {
+   "t": 1.36,
+   "frame": {
+    "type": "authSuccess"
+   }
+  },
+  {
+   "t": 1.36,
+   "frame": {
+    "type": "fullStatus",
+    "partial": true,
+    "status": {
+     "alw": true,
+     "acu": 9,
+     "acui": 9,
+     "cll": {
+      "adapterCurrentLimit": 16,
+      "cableCurrentLimit": 20,
+      "currentLimitMax": 16,
+      "pvSurplus": 9,
+      "requestedCurrent": 16,
+      "temperatureCurrentLimit": 32,
+      "unsymetryCurrentLimit": 32
+     },
+     "adi": true,
+     "acl": 16,
+     "dwo": null,
+     "tpa": 6027.58252,
+     "sse": "123456",
+     "eto": 2681214,
+     "etop": 2681193,
+     "wifis": [
+      {
+       "ssid": "TestNet",
+       "key": true,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      }
+     ],
+     "scas": 2
+    }
+   }
+  },
+  {
+   "t": 1.36,
+   "frame": {
+    "type": "clearInverters"
+   }
+  },
+  {
+   "t": 1.36,
+   "frame": {
+    "type": "updateInverter"
+   }
+  },
+  {
+   "t": 1.36,
+   "frame": {
+    "type": "clearSmips"
+   }
+  },
+  {
+   "t": 1.36,
+   "frame": {
+    "type": "fullStatus",
+    "partial": true,
+    "status": {
+     "scan": [
+      {
+       "ssid": "TestNet",
+       "encryptionType": 7,
+       "rssi": -66,
+       "channel": 6,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 7,
+       "rssi": -66,
+       "channel": 6,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 7,
+       "rssi": -67,
+       "channel": 6,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 7,
+       "rssi": -68,
+       "channel": 6,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 7,
+       "rssi": -69,
+       "channel": 11,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 7,
+       "rssi": -69,
+       "channel": 11,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 7,
+       "rssi": -70,
+       "channel": 11,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 7,
+       "rssi": -73,
+       "channel": 11,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 3,
+       "rssi": -75,
+       "channel": 2,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        true,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 3,
+       "rssi": -79,
+       "channel": 11,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        ""
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 4,
+       "rssi": -81,
+       "channel": 11,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        5,
+        3,
+        true,
+        true,
+        true,
+        false,
+        true,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 3,
+       "rssi": -83,
+       "channel": 6,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        true,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 3,
+       "rssi": -84,
+       "channel": 11,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        false,
+        true,
+        true,
+        false,
+        true
+       ]
+      }
+     ],
+     "lwf": 405453,
+     "scaa": 408116,
+     "wst": 3,
+     "wsc": 0
+    }
+   }
+  },
+  {
+   "t": 1.36,
+   "frame": {
+    "type": "fullStatus",
+    "partial": true,
+    "status": {
+     "wsms": 3,
+     "ccw": {
+      "ssid": "TestNet",
+      "encryptionType": 7,
+      "pairwiseCipher": 4,
+      "groupCipher": 4,
+      "b": true,
+      "g": true,
+      "n": true,
+      "lr": false,
+      "wps": false,
+      "ftmResponder": false,
+      "ftmInitiator": false,
+      "channel": 6,
+      "bssid": "xx:xx:xx:xx:xx:xx",
+      "ip": "192.0.2.1",
+      "netmask": "255.255.255.0",
+      "gw": "192.0.2.1",
+      "ipv6": [
+       "2001:db8::1"
+      ]
+     },
+     "wfb": null,
+     "wcb": "xx:xx:xx:xx:xx:xx",
+     "wpb": [
+      "xx:xx:xx:xx:xx:xx"
+     ],
+     "nif": "st",
+     "dns": {
+      "dns0": "192.0.2.1",
+      "dns1": "0.0.0.0",
+      "dns2": "0.0.0.0"
+     },
+     "hsta": "Wattpilot_123456",
+     "wbw": 1,
+     "rssi": -73,
+     "lssfc": 405453,
+     "lsstc": 410743,
+     "ehs": 262316,
+     "efh": 90716,
+     "efh32": 90716,
+     "efh8": 59892,
+     "emfh": 54416,
+     "emhb": 31732,
+     "abm": "xx:xx:xx:xx:xx:xx",
+     "dbm": "xx:xx:xx:xx:xx:xx",
+     "cbm": null,
+     "obm": null,
+     "macs": "xx:xx:xx:xx:xx:xx",
+     "maca": null,
+     "esr": [
+      12,
+      12
+     ],
+     "rr": 5,
+     "wae": true,
+     "wan": "Wattpilot_123456",
+     "wda": true,
+     "wen": true,
+     "wsmr": -90,
+     "wapc": 1,
+     "swc": false,
+     "pass": true,
+     "facpass": false,
+     "tse": false,
+     "ts": "time.example.invalid",
+     "tssi": 3600000,
+     "tsss": 0,
+     "tof": 60,
+     "tds": 1,
+     "tzt": "",
+     "utc": "2026-09-25T10:21:15.646",
+     "loc": "2026-09-25T12:21:15.647 +02:00",
+     "tab": 1790094308961,
+     "lto": 7200000,
+     "lbr": 150,
+     "lmo": 4,
+     "ama": 16,
+     "tcl": null,
+     "die": false,
+     "dii": true,
+     "din": 1,
+     "la1": 16,
+     "la3": 16,
+     "di1": false,
+     "pgr": true,
+     "pdi": false,
+     "ufe": false,
+     "ufm": 0,
+     "ufa": 49.79999924,
+     "ufs": 49,
+     "uve": false,
+     "uvt": 184,
+     "uvs": 3000,
+     "clp": [
+      6,
+      10,
+      12,
+      14,
+      16
+     ],
+     "al1": 6,
+     "al2": 10,
+     "al3": 12,
+     "al4": 14,
+     "al5": 16,
+     "bam": 3,
+     "bac": 3,
+     "bar": 3,
+     "lbp": null,
+     "lbh": null,
+     "lbl": null,
+     "amp": 16,
+     "ffna": "Wattpilot_123456",
+     "fna": "Wattpilot",
+     "isgo": false,
+     "aus": false,
+     "cy": "germany",
+     "ule": false,
+     "ulu": false,
+     "ula": 16,
+     "rdbs": 0,
+     "rdes": 0,
+     "rdbf": 0,
+     "rdef": 0,
+     "rdre": 0,
+     "rdpl": 0,
+     "rdbse": null,
+     "rdese": null,
+     "rdbfe": null,
+     "rdefe": null,
+     "rdree": null,
+     "rdple": null,
+     "gmtr": 60,
+     "gsa": null,
+     "rsa": null,
+     "rmiv": 207,
+     "rmav": 250.6999969,
+     "rmif": 49.90000153,
+     "rmaf": 50.09999847,
+     "rsre": false,
+     "rsrr": 0.159999996,
+     "cid": "#0000FF",
+     "cwc": "#FFFF00",
+     "cch": "#00FFFF",
+     "cfi": "#00FF00",
+     "ust": 1,
+     "lck": 1,
+     "sch_week": {
+      "control": 0,
+      "ranges": [
+       {
+        "begin": {
+         "hour": 6,
+         "minute": 0,
+         "second": 0
+        },
+        "end": {
+         "hour": 20,
+         "minute": 0,
+         "second": 0
+        }
+       },
+       {
+        "begin": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        },
+        "end": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        }
+       }
+      ]
+     },
+     "sch_satur": {
+      "control": 0,
+      "ranges": [
+       {
+        "begin": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        },
+        "end": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        }
+       },
+       {
+        "begin": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        },
+        "end": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        }
+       }
+      ]
+     },
+     "sch_sund": {
+      "control": 0,
+      "ranges": [
+       {
+        "begin": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        },
+        "end": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        }
+       },
+       {
+        "begin": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        },
+        "end": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        }
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "t": 1.36,
+   "frame": {
+    "type": "fullStatus",
+    "partial": true,
+    "status": {
+     "nmo": false,
+     "fsp": false,
+     "acs": 0,
+     "frc": 0,
+     "rbc": 48,
+     "rbt": 237366800,
+     "car": 2,
+     "err": 0,
+     "cbl": 20,
+     "pha": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     "wh": 9803.430139,
+     "whs": 9769.130313,
+     "whb": 34.26738153,
+     "whg": 0.032443935,
+     "who": -1.531098928e-07,
+     "trx": null,
+     "evt": null,
+     "fwv": "42.5",
+     "arv": "1.2.1",
+     "ccu": null,
+     "oem": "fronius",
+     "dfam": "wattpilot",
+     "typ": "wattpilot_V2",
+     "grp": "Wattpilot Home 11 J 2.0",
+     "art": "4,240,404",
+     "authhash": "pbkdf2",
+     "fwc": "0.0.1-50",
+     "ccrv": "0.0.1-50",
+     "apd": {
+      "project_name": "wattpilot_hw5+",
+      "version": "42.5",
+      "secure_version": 0,
+      "timestamp": "May 21 2025 09:12:41",
+      "idf_ver": "v5.3-dev-3517-g19c52dcec9",
+      "sha256": "a26c84d6ca3a0394"
+     },
+     "lse": true,
+     "mws": true,
+     "cdi": {
+      "type": 0,
+      "value": 229025568
+     },
+     "lch": 86757615,
+     "lccfi": 86757615,
+     "lccfc": 232863848,
+     "lcctc": 232989888,
+     "tma": [
+      35
+     ],
+     "amt": 32,
+     "nrg": [
+      237.4600067,
+      234.9799957,
+      234.9799957,
+      1.549999952,
+      8.550000191,
+      8.663999557,
+      8.701999664,
+      2008.166016,
+      1999.598999,
+      2018.265015,
+      0,
+      6026.030273,
+      98.91064453,
+      98.21859741,
+      98.70256042,
+      100
+     ],
+     "modelStatus": 12,
+     "lmsc": 232987292,
+     "mca": 6,
+     "awc": 1,
+     "awp": 50,
+     "awcp": {
+      "start": 1790330400,
+      "end": 1790334000,
+      "marketprice": 6.018499851
+     },
+     "awpl": [
+      {
+       "start": 1790330400,
+       "end": 1790334000,
+       "marketprice": 6.018499851
+      },
+      {
+       "start": 1790334000,
+       "end": 1790337600,
+       "marketprice": 3.010999918
+      },
+      {
+       "start": 1790337600,
+       "end": 1790341200,
+       "marketprice": 3.988749981
+      },
+      {
+       "start": 1790341200,
+       "end": 1790344800,
+       "marketprice": 8.704250336
+      },
+      {
+       "start": 1790344800,
+       "end": 1790348400,
+       "marketprice": 15.45149994
+      },
+      {
+       "start": 1790348400,
+       "end": 1790352000,
+       "marketprice": 19.89949989
+      },
+      {
+       "start": 1790352000,
+       "end": 1790355600,
+       "marketprice": 24.14249992
+      },
+      {
+       "start": 1790355600,
+       "end": 1790359200,
+       "marketprice": 30.34275055
+      },
+      {
+       "start": 1790359200,
+       "end": 1790362800,
+       "marketprice": 25.21649933
+      },
+      {
+       "start": 1790362800,
+       "end": 1790366400,
+       "marketprice": 22.41749954
+      },
+      {
+       "start": 1790366400,
+       "end": 1790370000,
+       "marketprice": 20.63525009
+      },
+      {
+       "start": 1790370000,
+       "end": 1790373600,
+       "marketprice": 18.6760006
+      }
+     ],
+     "frm": 1,
+     "fup": true,
+     "ful": false,
+     "fst": 1600,
+     "fmt": 900000,
+     "ftt": 27000,
+     "fte": 25000,
+     "fre": true,
+     "fap": true,
+     "cco": 20,
+     "esk": true,
+     "fzf": false,
+     "fot": 20,
+     "fam": 50,
+     "pdte": false,
+     "pdt": 100,
+     "pdle": false,
+     "pdls": 14400,
+     "pdlo": 25200,
+     "ebv": true,
+     "ebe": false,
+     "ebt": 0,
+     "ebo": false,
+     "iri": 5000,
+     "sbs": 6,
+     "sbc": 2,
+     "sh": 200,
+     "psh": 500,
+     "po": -300,
+     "zfo": 200,
+     "psmd": 10000,
+     "sumd": 10000,
+     "mpwst": 300000,
+     "mptwt": 600000,
+     "fi23": false,
+     "fio23": 0,
+     "ferm": 1,
+     "fmmp": 0,
+     "ftlf": false,
+     "ftls": null,
+     "lpc": 237338425,
+     "fntp": null,
+     "lpsc": 237338425,
+     "npd": true,
+     "fbuf_age": 237365936,
+     "fml": "grid",
+     "fbuf_pGrid": 9.600000381,
+     "fbuf_pPv": 6441.583008,
+     "fbuf_akkuSOC": 53.29999924,
+     "fbuf_akkuMode": 1,
+     "fbuf_pAkku": 169.8755798,
+     "fbuf_pAcTotal": null,
+     "fbuf_ohmpilotState": null,
+     "fbuf_ohmpilotTemperature": null,
+     "fit": 1,
+     "pvopt_deltaP": -204.103714,
+     "pnp": 3,
+     "pvopt_deltaA": -0.295802504,
+     "pvopt_averagePGrid": 4.366666794,
+     "pvopt_averagePPv": 6437.933594,
+     "pvopt_averagePAkku": 199.7370453,
+     "pvopt_averagePOhmpilot": 0,
+     "pvopt_specialCase": 0,
+     "ct": "default",
+     "mci": 0,
+     "mcpd": 120000,
+     "mcpea": null,
+     "su": false,
+     "sua": false,
+     "hsa": true,
+     "var": 11,
+     "loe": false,
+     "log": "",
+     "lop": 50,
+     "lopr": false,
+     "lof": 0,
+     "map": [
+      1,
+      2,
+      3
+     ],
+     "upo": false,
+     "pwm": 2,
+     "lfspt": 232862816,
+     "fsptws": null,
+     "spl3": 4200,
+     "psm": 0,
+     "csd": false,
+     "ocu": [
+      "43.4-RC1 - BETA",
+      "42.5",
+      "41.13 - OUTDATED",
+      "41.9 - OUTDATED",
+      "V 40.7 - OUTDATED"
+     ],
+     "ocugc": false,
+     "ocs": 0,
+     "ocp": 0,
+     "eov": null,
+     "ocm": "",
+     "ocl": null,
+     "oca": null,
+     "opad": {
+      "project_name": "wattpilot_hw5+",
+      "version": "41.13",
+      "secure_version": 0,
+      "timestamp": "Oct 28 2024 10:54:05",
+      "idf_ver": "v5.3-dev-3514-g2b98d387fce",
+      "sha256": "ca4466c04721147c"
+     },
+     "cwe": true,
+     "cgc": false
+    }
+   }
+  },
+  {
+   "t": 1.36,
+   "frame": {
+    "type": "fullStatus",
+    "partial": false,
+    "status": {
+     "cpi": 60,
+     "cpt": 120,
+     "cws": true,
+     "cwsc": true,
+     "cwsca": 214499909,
+     "chr": true,
+     "clea": 214473471,
+     "cle": "esp_transport_connect() failed with -1, transport_error=ESP_ERR_ESP_TLS_CONNECTION_TIMEOUT, tls_error_code=0, tls_flags=0, esp_ws_handshake_status_code=101, errno=11",
+     "cpe": true,
+     "cpr": true,
+     "cus": 3,
+     "ffb": 0,
+     "ffba": null,
+     "rcd": null,
+     "fhz": 49.97700119,
+     "onv": "42.5",
+     "lom": null,
+     "loa": null,
+     "los": null,
+     "lot": {
+      "amp": 32,
+      "dyn": 32,
+      "sta": 32,
+      "ts": 0
+     },
+     "loty": 1,
+     "cards": [
+      {
+       "name": "Card 0",
+       "cardId": true,
+       "energy": 99911
+      },
+      {
+       "name": "Card 1",
+       "cardId": true,
+       "energy": 0
+      },
+      {
+       "name": "Card 2",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 3",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 4",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 5",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 6",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 7",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 8",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 9",
+       "cardId": false,
+       "energy": 0
+      }
+     ],
+     "dci": 4000,
+     "cdci": 2000,
+     "cci": {
+      "id": "00000000",
+      "paired": true,
+      "deviceFamily": "DataManager",
+      "label": "Companion Device",
+      "model": "PILOT",
+      "commonName": "companion-0.0e-0_0",
+      "ip": "192.0.2.1",
+      "connected": true,
+      "reachableMdns": true,
+      "reachableUdp": true,
+      "reachableHttp": true,
+      "status": 0,
+      "message": "ok"
+     },
+     "irs": false,
+     "facice": true,
+     "ice": true,
+     "imd": true,
+     "imi": "0",
+     "ccsm": null,
+     "smr": true,
+     "sid": false,
+     "smd": {
+      "ts": 237366665,
+      "I1": -2.848999977,
+      "I2": -2.210000038,
+      "I3": 4.132999897
+     },
+     "sie": true,
+     "sis": false,
+     "sic": false,
+     "sica": null,
+     "sil": null,
+     "sila": null,
+     "gsie": false,
+     "gsmr": true,
+     "ocppe": false,
+     "ocppf": null,
+     "ocppft": 0,
+     "ocppg": true,
+     "ocppcn": false,
+     "ocppss": false,
+     "ocpps": false,
+     "ocppc": false,
+     "ocppca": null,
+     "ocppa": false,
+     "ocppaa": null,
+     "ocppti": null,
+     "ocppte": 1782575479891,
+     "ocppao": false,
+     "ocpplo": true,
+     "ocppla": true,
+     "orsch": false,
+     "ocpph": 60,
+     "ocppi": 10,
+     "ocppai": 0,
+     "ocppd": "no-card",
+     "ocppr": false,
+     "ocppcm": 0,
+     "ocpplea": null,
+     "ocpple": null,
+     "ocpprl": false,
+     "ocppsc": false,
+     "ocppcs": 2,
+     "ocppt": false,
+     "ocppio": false,
+     "ocpprv": -666,
+     "ocppmp": null,
+     "ocppdp": null,
+     "ocpptp": null,
+     "lbs": 2854,
+     "las": 0,
+     "rde": false,
+     "lri": null,
+     "tsi": null,
+     "lrc": null,
+     "lrr": null,
+     "sau": false,
+     "loi": false,
+     "gme": false,
+     "gmk": "",
+     "cae": false,
+     "ens": "",
+     "aup": 6,
+     "tou": 0,
+     "aut": null,
+     "cot": null,
+     "cc4st": 6,
+     "cc4cs": 2,
+     "cc4sp": 9000,
+     "cc4dc": 150,
+     "deb": false,
+     "ana": true,
+     "app": false,
+     "exp": false,
+     "emx": 0
+    }
+   }
+  }
+ ],
+ "after_restart": [
+  {
+   "t": 0.0,
+   "frame": {
+    "type": "hello",
+    "serial": "123456",
+    "hostname": "Wattpilot_123456",
+    "friendly_name": "Wattpilot",
+    "manufacturer": "fronius",
+    "devicefamily": "wattpilot",
+    "devicetype": "wattpilot_V2",
+    "version": "42.5",
+    "protocol": 2,
+    "proto": 3,
+    "secured": true
+   }
+  },
+  {
+   "t": 0.0,
+   "frame": {
+    "type": "authRequired",
+    "token1": "<nonce>",
+    "token2": "<nonce>",
+    "hash": "pbkdf2"
+   }
+  },
+  {
+   "t": 1.22,
+   "frame": {
+    "type": "authSuccess"
+   }
+  },
+  {
+   "t": 1.22,
+   "frame": {
+    "type": "fullStatus",
+    "partial": true,
+    "status": {
+     "alw": false,
+     "acu": null,
+     "acui": null,
+     "cll": {
+      "adapterCurrentLimit": 16,
+      "cableCurrentLimit": 20,
+      "currentLimitMax": 16,
+      "requestedCurrent": 16,
+      "temperatureCurrentLimit": 32,
+      "unsymetryCurrentLimit": 32
+     },
+     "adi": true,
+     "acl": 16,
+     "dwo": null,
+     "tpa": 0,
+     "sse": "123456",
+     "eto": 2681193,
+     "etop": 2681193,
+     "wifis": [
+      {
+       "ssid": "TestNet",
+       "key": true,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      },
+      {
+       "ssid": "",
+       "key": false,
+       "useStaticIp": false,
+       "staticIp": "0.0.0.0",
+       "staticSubnet": "0.0.0.0",
+       "staticGateway": "0.0.0.0",
+       "useStaticDns": false,
+       "staticDns0": "0.0.0.0",
+       "staticDns1": "0.0.0.0",
+       "staticDns2": "0.0.0.0"
+      }
+     ],
+     "scas": 2
+    }
+   }
+  },
+  {
+   "t": 1.22,
+   "frame": {
+    "type": "clearInverters"
+   }
+  },
+  {
+   "t": 1.22,
+   "frame": {
+    "type": "updateInverter"
+   }
+  },
+  {
+   "t": 1.22,
+   "frame": {
+    "type": "clearSmips"
+   }
+  },
+  {
+   "t": 1.22,
+   "frame": {
+    "type": "fullStatus",
+    "partial": true,
+    "status": {
+     "scan": [
+      {
+       "ssid": "TestNet",
+       "encryptionType": 7,
+       "rssi": -71,
+       "channel": 6,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 7,
+       "rssi": -73,
+       "channel": 6,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 7,
+       "rssi": -74,
+       "channel": 6,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 7,
+       "rssi": -75,
+       "channel": 6,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 3,
+       "rssi": -79,
+       "channel": 6,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        ""
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 3,
+       "rssi": -88,
+       "channel": 6,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        true,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 3,
+       "rssi": -90,
+       "channel": 1,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        4,
+        4,
+        true,
+        true,
+        true,
+        false,
+        true,
+        false,
+        false,
+        "DE"
+       ]
+      },
+      {
+       "ssid": "TestNet",
+       "encryptionType": 4,
+       "rssi": -90,
+       "channel": 6,
+       "bssid": "xx:xx:xx:xx:xx:xx",
+       "f": [
+        5,
+        3,
+        true,
+        true,
+        true,
+        false,
+        true,
+        false,
+        false,
+        "DE"
+       ]
+      }
+     ],
+     "lwf": null,
+     "scaa": 3992,
+     "wst": 3,
+     "wsc": 0,
+     "wsms": 3,
+     "ccw": {
+      "ssid": "TestNet",
+      "encryptionType": 7,
+      "pairwiseCipher": 4,
+      "groupCipher": 4,
+      "b": true,
+      "g": true,
+      "n": true,
+      "lr": false,
+      "wps": false,
+      "ftmResponder": false,
+      "ftmInitiator": false,
+      "channel": 6,
+      "bssid": "xx:xx:xx:xx:xx:xx",
+      "ip": "192.0.2.1",
+      "netmask": "255.255.255.0",
+      "gw": "192.0.2.1",
+      "ipv6": [
+       "2001:db8::1"
+      ]
+     },
+     "wfb": null,
+     "wcb": "xx:xx:xx:xx:xx:xx",
+     "wpb": null,
+     "nif": "st",
+     "dns": {
+      "dns0": "192.0.2.1",
+      "dns1": "0.0.0.0",
+      "dns2": "0.0.0.0"
+     },
+     "hsta": "Wattpilot_123456",
+     "wbw": 1,
+     "rssi": -71,
+     "lssfc": null,
+     "lsstc": 6696,
+     "ehs": 263140,
+     "efh": 93524,
+     "efh32": 93524,
+     "efh8": 62700,
+     "emfh": 83388,
+     "emhb": 57332,
+     "abm": "xx:xx:xx:xx:xx:xx",
+     "dbm": "xx:xx:xx:xx:xx:xx",
+     "cbm": null,
+     "obm": null,
+     "macs": "xx:xx:xx:xx:xx:xx",
+     "maca": "xx:xx:xx:xx:xx:xx",
+     "esr": [
+      12,
+      12
+     ],
+     "rr": 3,
+     "wae": true,
+     "wan": "Wattpilot_123456",
+     "wda": true,
+     "wen": true,
+     "wsmr": -90,
+     "wapc": 1,
+     "swc": false,
+     "pass": true,
+     "facpass": false,
+     "tse": false,
+     "ts": "time.example.invalid",
+     "tssi": 3600000,
+     "tsss": 0,
+     "tof": 60,
+     "tds": 1,
+     "tzt": "",
+     "utc": "2026-09-25T10:21:40.802",
+     "loc": "2026-09-25T12:21:40.804 +02:00",
+     "tab": 1790331678904,
+     "lto": 7200000,
+     "lbr": 150,
+     "lmo": 4,
+     "ama": 16,
+     "tcl": null,
+     "die": false,
+     "dii": true,
+     "din": 1,
+     "la1": 16,
+     "la3": 16,
+     "di1": false,
+     "pgr": true,
+     "pdi": false
+    }
+   }
+  },
+  {
+   "t": 1.22,
+   "frame": {
+    "type": "fullStatus",
+    "partial": true,
+    "status": {
+     "ufe": false,
+     "ufm": 0,
+     "ufa": 49.79999924,
+     "ufs": 49,
+     "uve": false,
+     "uvt": 184,
+     "uvs": 3000,
+     "clp": [
+      6,
+      10,
+      12,
+      14,
+      16
+     ],
+     "al1": 6,
+     "al2": 10,
+     "al3": 12,
+     "al4": 14,
+     "al5": 16,
+     "bam": 3,
+     "bac": 3,
+     "bar": 3,
+     "lbp": null,
+     "lbh": null,
+     "lbl": null,
+     "amp": 16,
+     "ffna": "Wattpilot_123456",
+     "fna": "Wattpilot",
+     "isgo": false,
+     "aus": false,
+     "cy": "germany",
+     "ule": false,
+     "ulu": false,
+     "ula": 16,
+     "rdbs": 0,
+     "rdes": 0,
+     "rdbf": 0,
+     "rdef": 0,
+     "rdre": 0,
+     "rdpl": 0,
+     "rdbse": null,
+     "rdese": null,
+     "rdbfe": null,
+     "rdefe": null,
+     "rdree": null,
+     "rdple": null,
+     "gmtr": 60,
+     "gsa": null,
+     "rsa": null,
+     "rmiv": 207,
+     "rmav": 250.6999969,
+     "rmif": 49.90000153,
+     "rmaf": 50.09999847,
+     "rsre": false,
+     "rsrr": 0.159999996,
+     "cid": "#0000FF",
+     "cwc": "#FFFF00",
+     "cch": "#00FFFF",
+     "cfi": "#00FF00",
+     "ust": 1,
+     "lck": 1,
+     "sch_week": {
+      "control": 0,
+      "ranges": [
+       {
+        "begin": {
+         "hour": 6,
+         "minute": 0,
+         "second": 0
+        },
+        "end": {
+         "hour": 20,
+         "minute": 0,
+         "second": 0
+        }
+       },
+       {
+        "begin": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        },
+        "end": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        }
+       }
+      ]
+     },
+     "sch_satur": {
+      "control": 0,
+      "ranges": [
+       {
+        "begin": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        },
+        "end": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        }
+       },
+       {
+        "begin": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        },
+        "end": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        }
+       }
+      ]
+     },
+     "sch_sund": {
+      "control": 0,
+      "ranges": [
+       {
+        "begin": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        },
+        "end": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        }
+       },
+       {
+        "begin": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        },
+        "end": {
+         "hour": 0,
+         "minute": 0,
+         "second": 0
+        }
+       }
+      ]
+     },
+     "nmo": false,
+     "fsp": false,
+     "acs": 0,
+     "frc": 0,
+     "rbc": 49,
+     "rbt": 22006,
+     "car": 4,
+     "err": 0,
+     "cbl": 20,
+     "pha": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+     ],
+     "wh": 9805.112194,
+     "whs": 9770.812368,
+     "whb": 34.26738153,
+     "whg": 0.032443935,
+     "who": -1.531098928e-07,
+     "trx": null,
+     "evt": null,
+     "fwv": "42.5",
+     "arv": "1.2.1",
+     "ccu": null,
+     "oem": "fronius",
+     "dfam": "wattpilot",
+     "typ": "wattpilot_V2",
+     "grp": "Wattpilot Home 11 J 2.0",
+     "art": "4,240,404",
+     "authhash": "pbkdf2",
+     "fwc": "0.0.1-50",
+     "ccrv": "0.0.1-50",
+     "apd": {
+      "project_name": "wattpilot_hw5+",
+      "version": "42.5",
+      "secure_version": 0,
+      "timestamp": "May 21 2025 09:12:41",
+      "idf_ver": "v5.3-dev-3517-g19c52dcec9",
+      "sha256": "a26c84d6ca3a0394"
+     },
+     "lse": true,
+     "mws": true,
+     "cdi": {
+      "type": 1,
+      "value": 8342189
+     },
+     "lch": -150610143,
+     "lccfi": -150610143,
+     "lccfc": -4503910,
+     "lcctc": -4377870,
+     "tma": [
+      35
+     ],
+     "amt": 32,
+     "nrg": [
+      238.6999969,
+      235.6000061,
+      236.2200012,
+      1.549999952,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "modelStatus": 17,
+     "lmsc": 2612,
+     "mca": 6,
+     "awc": 1,
+     "awp": 50,
+     "awcp": {
+      "start": 1790330400,
+      "end": 1790334000,
+      "marketprice": 6.019000053
+     }
+    }
+   }
+  },
+  {
+   "t": 2.27,
+   "frame": {
+    "type": "fullStatus",
+    "partial": true,
+    "status": {
+     "awpl": [
+      {
+       "start": 1790330400,
+       "end": 1790334000,
+       "marketprice": 6.019000053
+      },
+      {
+       "start": 1790334000,
+       "end": 1790337600,
+       "marketprice": 3.010999918
+      },
+      {
+       "start": 1790337600,
+       "end": 1790341200,
+       "marketprice": 3.989000082
+      },
+      {
+       "start": 1790341200,
+       "end": 1790344800,
+       "marketprice": 8.704000473
+      },
+      {
+       "start": 1790344800,
+       "end": 1790348400,
+       "marketprice": 15.45199966
+      },
+      {
+       "start": 1790348400,
+       "end": 1790352000,
+       "marketprice": 19.89999962
+      },
+      {
+       "start": 1790352000,
+       "end": 1790355600,
+       "marketprice": 24.14299965
+      },
+      {
+       "start": 1790355600,
+       "end": 1790359200,
+       "marketprice": 30.34300041
+      },
+      {
+       "start": 1790359200,
+       "end": 1790362800,
+       "marketprice": 25.21699905
+      },
+      {
+       "start": 1790362800,
+       "end": 1790366400,
+       "marketprice": 22.41799927
+      },
+      {
+       "start": 1790366400,
+       "end": 1790370000,
+       "marketprice": 20.63500023
+      },
+      {
+       "start": 1790370000,
+       "end": 1790373600,
+       "marketprice": 18.6760006
+      }
+     ],
+     "frm": 1,
+     "fup": true,
+     "ful": false,
+     "fst": 1600,
+     "fmt": 900000,
+     "ftt": 27000,
+     "fte": 25000,
+     "fre": true,
+     "fap": true,
+     "cco": 20,
+     "esk": true,
+     "fzf": false,
+     "fot": 20,
+     "fam": 50,
+     "pdte": false,
+     "pdt": 100,
+     "pdle": false,
+     "pdls": 14400,
+     "pdlo": 25200,
+     "ebv": true,
+     "ebe": false,
+     "ebt": 0,
+     "ebo": false,
+     "iri": 5000,
+     "sbs": 6,
+     "sbc": 2,
+     "sh": 200,
+     "psh": 500,
+     "po": -300,
+     "zfo": 200,
+     "psmd": 10000,
+     "sumd": 10000,
+     "mpwst": 300000,
+     "mptwt": 600000,
+     "fi23": false,
+     "fio23": 0,
+     "ferm": 1,
+     "fmmp": 0,
+     "ftlf": false,
+     "ftls": null,
+     "lpc": null,
+     "fntp": null,
+     "lpsc": null,
+     "npd": true,
+     "fbuf_age": 22060,
+     "fml": "grid",
+     "fbuf_pGrid": 7.699999809,
+     "fbuf_pPv": 6399.988281,
+     "fbuf_akkuSOC": 53.59999847,
+     "fbuf_akkuMode": 1,
+     "fbuf_pAkku": -6072.821289,
+     "fbuf_pAcTotal": null,
+     "fbuf_ohmpilotState": null,
+     "fbuf_ohmpilotTemperature": null,
+     "fit": 1,
+     "pvopt_deltaP": 0,
+     "pnp": 0,
+     "pvopt_deltaA": 0,
+     "pvopt_averagePGrid": 0,
+     "pvopt_averagePPv": 0,
+     "pvopt_averagePAkku": 0,
+     "pvopt_averagePOhmpilot": 0,
+     "pvopt_specialCase": 0,
+     "ct": "default",
+     "mci": 0,
+     "mcpd": 120000,
+     "mcpea": null,
+     "su": false,
+     "sua": false,
+     "hsa": true,
+     "var": 11,
+     "loe": false,
+     "log": "",
+     "lop": 50,
+     "lopr": false,
+     "lof": 0,
+     "map": [
+      1,
+      2,
+      3
+     ],
+     "upo": false,
+     "pwm": 0,
+     "lfspt": null,
+     "fsptws": null,
+     "spl3": 4200,
+     "psm": 0,
+     "csd": false,
+     "ocu": [
+      "43.4-RC1 - BETA",
+      "42.5",
+      "41.13 - OUTDATED",
+      "41.9 - OUTDATED",
+      "V 40.7 - OUTDATED"
+     ],
+     "ocugc": false,
+     "ocs": 0,
+     "ocp": 0,
+     "eov": null,
+     "ocm": "",
+     "ocl": null,
+     "oca": null,
+     "opad": {
+      "project_name": "wattpilot_hw5+",
+      "version": "41.13",
+      "secure_version": 0,
+      "timestamp": "Oct 28 2024 10:54:05",
+      "idf_ver": "v5.3-dev-3514-g2b98d387fce",
+      "sha256": "ca4466c04721147c"
+     },
+     "cwe": true,
+     "cgc": false,
+     "cpi": 60,
+     "cpt": 120,
+     "cws": true,
+     "cwsc": true,
+     "cwsca": 8245,
+     "chr": true,
+     "clea": null,
+     "cle": null,
+     "cpe": true,
+     "cpr": true,
+     "cus": 1,
+     "ffb": 0,
+     "ffba": null,
+     "rcd": null,
+     "fhz": 50.03300095,
+     "onv": "42.5",
+     "lom": null,
+     "loa": null,
+     "los": null,
+     "lot": {
+      "amp": 32,
+      "dyn": 32,
+      "sta": 32,
+      "ts": 0
+     },
+     "loty": 1,
+     "cards": [
+      {
+       "name": "Card 0",
+       "cardId": true,
+       "energy": 99911
+      },
+      {
+       "name": "Card 1",
+       "cardId": true,
+       "energy": 0
+      },
+      {
+       "name": "Card 2",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 3",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 4",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 5",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 6",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 7",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 8",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 9",
+       "cardId": false,
+       "energy": 0
+      }
+     ],
+     "dci": 4000,
+     "cdci": 2000
+    }
+   }
+  },
+  {
+   "t": 2.27,
+   "frame": {
+    "type": "fullStatus",
+    "partial": false,
+    "status": {
+     "cci": {
+      "id": "00000000",
+      "paired": true,
+      "deviceFamily": "DataManager",
+      "label": "Companion Device",
+      "model": "PILOT",
+      "commonName": "companion-0.0e-0_0",
+      "ip": "192.0.2.1",
+      "connected": true,
+      "reachableMdns": true,
+      "reachableUdp": true,
+      "reachableHttp": true,
+      "status": 0,
+      "message": "ok"
+     },
+     "irs": false,
+     "facice": true,
+     "ice": true,
+     "imd": true,
+     "imi": "0",
+     "ccsm": null,
+     "smr": true,
+     "sid": false,
+     "smd": {
+      "ts": 17063,
+      "I1": -2.369999886,
+      "I2": -1.432999969,
+      "I3": 3.553999901
+     },
+     "sie": true,
+     "sis": false,
+     "sic": false,
+     "sica": null,
+     "sil": null,
+     "sila": null,
+     "gsie": false,
+     "gsmr": true,
+     "ocppe": false,
+     "ocppf": null,
+     "ocppft": 0,
+     "ocppg": true,
+     "ocppcn": false,
+     "ocppss": false,
+     "ocpps": false,
+     "ocppc": false,
+     "ocppca": null,
+     "ocppa": false,
+     "ocppaa": null,
+     "ocppti": null,
+     "ocppte": 1782575479891,
+     "ocppao": false,
+     "ocpplo": true,
+     "ocppla": true,
+     "orsch": false,
+     "ocpph": 60,
+     "ocppi": 10,
+     "ocppai": 0,
+     "ocppd": "no-card",
+     "ocppr": false,
+     "ocppcm": 0,
+     "ocpplea": null,
+     "ocpple": null,
+     "ocpprl": false,
+     "ocppsc": false,
+     "ocppcs": 3,
+     "ocppt": false,
+     "ocppio": false,
+     "ocpprv": -666,
+     "ocppmp": null,
+     "ocppdp": null,
+     "ocpptp": null,
+     "lbs": 2342,
+     "las": 0,
+     "rde": false,
+     "lri": null,
+     "tsi": null,
+     "lrc": null,
+     "lrr": null,
+     "sau": false,
+     "loi": false,
+     "gme": false,
+     "gmk": "",
+     "cae": false,
+     "ens": "",
+     "aup": 6,
+     "tou": 0,
+     "aut": null,
+     "cot": null,
+     "cc4st": 3,
+     "cc4cs": 1,
+     "cc4sp": 0,
+     "cc4dc": 1000,
+     "deb": false,
+     "ana": true,
+     "app": false,
+     "exp": false,
+     "emx": 0
+    }
+   }
+  },
+  {
+   "t": 2.27,
+   "frame": {
+    "type": "deltaStatus",
+    "status": {
+     "rssi": -71,
+     "ehs": 263300,
+     "efh": 100016,
+     "efh32": 100016,
+     "efh8": 69192,
+     "emfh": 83388,
+     "emhb": 61428,
+     "utc": "2026-09-25T10:21:42.054",
+     "loc": "2026-09-25T12:21:42.056 +02:00",
+     "rbt": 23163,
+     "awpl": [
+      {
+       "start": 1790330400,
+       "end": 1790334000,
+       "marketprice": 6.019000053
+      },
+      {
+       "start": 1790334000,
+       "end": 1790337600,
+       "marketprice": 3.010999918
+      },
+      {
+       "start": 1790337600,
+       "end": 1790341200,
+       "marketprice": 3.989000082
+      },
+      {
+       "start": 1790341200,
+       "end": 1790344800,
+       "marketprice": 8.704000473
+      },
+      {
+       "start": 1790344800,
+       "end": 1790348400,
+       "marketprice": 15.45199966
+      },
+      {
+       "start": 1790348400,
+       "end": 1790352000,
+       "marketprice": 19.89999962
+      },
+      {
+       "start": 1790352000,
+       "end": 1790355600,
+       "marketprice": 24.14299965
+      },
+      {
+       "start": 1790355600,
+       "end": 1790359200,
+       "marketprice": 30.34300041
+      },
+      {
+       "start": 1790359200,
+       "end": 1790362800,
+       "marketprice": 25.21699905
+      },
+      {
+       "start": 1790362800,
+       "end": 1790366400,
+       "marketprice": 22.41799927
+      },
+      {
+       "start": 1790366400,
+       "end": 1790370000,
+       "marketprice": 20.63500023
+      },
+      {
+       "start": 1790370000,
+       "end": 1790373600,
+       "marketprice": 18.6760006
+      }
+     ],
+     "frm": 1,
+     "fup": true,
+     "ful": false,
+     "fst": 1600,
+     "fmt": 900000,
+     "ftt": 27000,
+     "fte": 25000,
+     "fre": true,
+     "fap": true,
+     "cco": 20,
+     "esk": true,
+     "fzf": false,
+     "fot": 20,
+     "fam": 50,
+     "pdte": false,
+     "pdt": 100,
+     "pdle": false,
+     "pdls": 14400,
+     "pdlo": 25200,
+     "ebv": true,
+     "ebe": false,
+     "ebt": 0,
+     "ebo": false,
+     "iri": 5000,
+     "sbs": 6,
+     "sbc": 2,
+     "sh": 200,
+     "psh": 500,
+     "po": -300,
+     "zfo": 200,
+     "psmd": 10000,
+     "sumd": 10000,
+     "mpwst": 300000,
+     "mptwt": 600000,
+     "fi23": false,
+     "fio23": 0,
+     "ferm": 1,
+     "fmmp": 0,
+     "ftlf": false,
+     "ftls": null,
+     "lpc": null,
+     "fntp": null,
+     "lpsc": null,
+     "npd": true,
+     "fbuf_age": 22060,
+     "fml": "grid",
+     "fbuf_pGrid": 7.699999809,
+     "fbuf_pPv": 6399.988281,
+     "fbuf_akkuSOC": 53.59999847,
+     "fbuf_akkuMode": 1,
+     "fbuf_pAkku": -6072.821289,
+     "fbuf_pAcTotal": null,
+     "fbuf_ohmpilotState": null,
+     "fbuf_ohmpilotTemperature": null,
+     "fit": 1,
+     "pvopt_deltaP": 0,
+     "pnp": 0,
+     "pvopt_deltaA": 0,
+     "pvopt_averagePGrid": 0,
+     "pvopt_averagePPv": 0,
+     "pvopt_averagePAkku": 0,
+     "pvopt_averagePOhmpilot": 0,
+     "pvopt_specialCase": 0,
+     "ct": "default",
+     "mci": 0,
+     "mcpd": 120000,
+     "mcpea": null,
+     "su": false,
+     "sua": false,
+     "hsa": true,
+     "var": 11,
+     "loe": false,
+     "log": "",
+     "lop": 50,
+     "lopr": false,
+     "lof": 0,
+     "map": [
+      1,
+      2,
+      3
+     ],
+     "upo": false,
+     "pwm": 0,
+     "lfspt": null,
+     "fsptws": null,
+     "spl3": 4200,
+     "psm": 0,
+     "csd": false,
+     "ocu": [
+      "43.4-RC1 - BETA",
+      "42.5",
+      "41.13 - OUTDATED",
+      "41.9 - OUTDATED",
+      "V 40.7 - OUTDATED"
+     ],
+     "ocugc": false,
+     "ocs": 0,
+     "ocp": 0,
+     "eov": null,
+     "ocm": "",
+     "ocl": null,
+     "oca": null,
+     "opad": {
+      "project_name": "wattpilot_hw5+",
+      "version": "41.13",
+      "secure_version": 0,
+      "timestamp": "Oct 28 2024 10:54:05",
+      "idf_ver": "v5.3-dev-3514-g2b98d387fce",
+      "sha256": "ca4466c04721147c"
+     },
+     "cwe": true,
+     "cgc": false,
+     "cpi": 60,
+     "cpt": 120,
+     "cws": true,
+     "cwsc": true,
+     "cwsca": 8245,
+     "chr": true,
+     "clea": null,
+     "cle": null,
+     "cpe": true,
+     "cpr": true,
+     "cus": 1,
+     "ffb": 0,
+     "ffba": null,
+     "rcd": null,
+     "fhz": 50.03300095,
+     "onv": "42.5",
+     "lom": null,
+     "loa": null,
+     "los": null,
+     "lot": {
+      "amp": 32,
+      "dyn": 32,
+      "sta": 32,
+      "ts": 0
+     },
+     "loty": 1,
+     "cards": [
+      {
+       "name": "Card 0",
+       "cardId": true,
+       "energy": 99911
+      },
+      {
+       "name": "Card 1",
+       "cardId": true,
+       "energy": 0
+      },
+      {
+       "name": "Card 2",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 3",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 4",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 5",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 6",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 7",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 8",
+       "cardId": false,
+       "energy": 0
+      },
+      {
+       "name": "Card 9",
+       "cardId": false,
+       "energy": 0
+      }
+     ],
+     "dci": 4000,
+     "cdci": 2000
+    }
+   }
+  },
+  {
+   "t": 3.26,
+   "frame": {
+    "type": "deltaStatus",
+    "status": {
+     "utc": "2026-09-25T10:21:43.062",
+     "loc": "2026-09-25T12:21:43.063 +02:00",
+     "rbt": 24171,
+     "nrg": [
+      238.3899994,
+      235.6000061,
+      236.2200012,
+      1.549999952,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "cci": {
+      "id": "00000000",
+      "paired": true,
+      "deviceFamily": "DataManager",
+      "label": "Companion Device",
+      "model": "PILOT",
+      "commonName": "companion-0.0e-0_0",
+      "ip": "192.0.2.1",
+      "connected": true,
+      "reachableMdns": true,
+      "reachableUdp": true,
+      "reachableHttp": true,
+      "status": 0,
+      "message": "ok"
+     },
+     "irs": false,
+     "facice": true,
+     "ice": true,
+     "imd": true,
+     "imi": "0",
+     "ccsm": null,
+     "smr": true,
+     "sid": false,
+     "smd": {
+      "ts": 22934,
+      "I1": -2.364000082,
+      "I2": -1.43900001,
+      "I3": 3.483999968
+     },
+     "sie": true,
+     "sis": false,
+     "sic": false,
+     "sica": null,
+     "sil": null,
+     "sila": null,
+     "gsie": false,
+     "gsmr": true,
+     "ocppe": false,
+     "ocppf": null,
+     "ocppft": 0,
+     "ocppg": true,
+     "ocppcn": false,
+     "ocppss": false,
+     "ocpps": false,
+     "ocppc": false,
+     "ocppca": null,
+     "ocppa": false,
+     "ocppaa": null,
+     "ocppti": null,
+     "ocppte": 1782575479891,
+     "ocppao": false,
+     "ocpplo": true,
+     "ocppla": true,
+     "orsch": false,
+     "ocpph": 60,
+     "ocppi": 10,
+     "ocppai": 0,
+     "ocppd": "no-card",
+     "ocppr": false,
+     "ocppcm": 0,
+     "ocpplea": null,
+     "ocpple": null,
+     "ocpprl": false,
+     "ocppsc": false,
+     "ocppcs": 3,
+     "ocppt": false,
+     "ocppio": false,
+     "ocpprv": -666,
+     "ocppmp": null,
+     "ocppdp": null,
+     "ocpptp": null,
+     "lbs": 2342,
+     "las": 0,
+     "rde": false,
+     "lri": null,
+     "tsi": null,
+     "lrc": null,
+     "lrr": null,
+     "sau": false,
+     "loi": false,
+     "gme": false,
+     "gmk": "",
+     "cae": false,
+     "ens": "",
+     "aup": 6,
+     "tou": 0,
+     "aut": null,
+     "cot": null,
+     "cc4st": 3,
+     "cc4cs": 1,
+     "cc4sp": 0,
+     "cc4dc": 1000,
+     "deb": false,
+     "ana": true,
+     "app": false,
+     "exp": false,
+     "emx": 0
+    }
+   }
+  }
+ ]
+}

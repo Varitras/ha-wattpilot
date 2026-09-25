@@ -242,6 +242,56 @@ def test_the_two_declared_versions_agree() -> None:
 DEVICE_FIXTURE = Path(__file__).parent / "fixtures" / "device_properties.json"
 
 
+REPLAY_FIXTURES = Path(__file__).parent / "fixtures" / "replay"
+_MAC = re.compile(r"\b[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}\b")
+_IPV4 = re.compile(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b")
+
+
+def _statuses(recording: dict[str, object]) -> list[dict[str, object]]:
+    frames = [
+        entry["frame"]
+        for key in ("frames", "before_restart", "after_restart")
+        for entry in recording.get(key, [])  # type: ignore[attr-defined]
+    ]
+    return frames + [f["status"] for f in frames if isinstance(f.get("status"), dict)]
+
+
+def test_replay_fixtures_are_anonymized() -> None:
+    """
+    Recorded frame sequences carry the whole device state, several times.
+
+    They are checked like the device snapshot above, per frame: a recording
+    is easier to add than to review, and a future one from other firmware
+    may carry a field the sanitizer does not know yet.
+    Fix: re-record, or fix the sanitizing tables -- never hand-edit.
+    """
+    files = sorted(REPLAY_FIXTURES.glob("*.json"))
+    assert files, "no replay fixtures found -- the guard would check nothing"
+    for path in files:
+        raw = path.read_text(encoding="utf-8")
+        assert _MAC.search(raw) is None, f"{path.name}: MAC address"
+        for address in set(_IPV4.findall(raw)):
+            assert address in {"0.0.0.0", "127.0.0.1"} or address.startswith(  # noqa: S104
+                ("192.0.2.", "255.255.255.")
+            ), f"{path.name}: non-documentation IPv4 {address}"
+        for item in _statuses(json.loads(raw)):
+            dropped = DROP_KEYS & item.keys()
+            assert not dropped, f"{path.name}: identifying keys {sorted(dropped)}"
+            for key, synthetic in (
+                ("serial", "123456"),
+                ("hostname", "Wattpilot_123456"),  # carries the real serial
+                ("friendly_name", "Wattpilot"),  # the name the owner chose
+                ("sse", "123456"),
+                ("ct", "default"),
+                ("ffna", REPLACE["ffna"]),
+            ):
+                if key in item:
+                    assert item[key] == synthetic, f"{path.name}: real {key}"
+            companion = item.get("cci")
+            if isinstance(companion, dict):
+                assert companion.get("label") == "Companion Device", path.name
+
+
 def test_device_fixture_is_anonymized() -> None:
     """The committed device snapshot must contain no owner identifiers.
     Fix: re-run scripts/anonymize_probe.py, never hand-edit."""
@@ -753,6 +803,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         "test_manifest_is_consistent": "manifest metadata stays as declared",
         "test_every_user_facing_error_is_translated": (
             "every error a user reads is translated, with matching placeholders"
+        ),
+        "test_replay_fixtures_are_anonymized": (
+            "recorded frames carry no owner identifiers"
         ),
         "test_the_test_environment_installs_what_the_manifest_declares": (
             "the tests run with the dependencies the manifest promises"
