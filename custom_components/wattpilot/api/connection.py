@@ -126,9 +126,9 @@ class Connection:
         """
         Note a delta; it completes only firmware that sends no stream.
 
-        Deltas arrive between the chunks of the first full status. Counting
-        one returned open() mid-stream, and entities for later properties
-        were never created until a reload.
+        A delta can land between the chunks of the first full status (after
+        a restart the stream paused ~1 s; deltas come every ~1 s). Counting
+        it returned open() mid-stream, and later properties got no entity.
         """
         if not self._streaming_full_status:
             self.mark_initialized()

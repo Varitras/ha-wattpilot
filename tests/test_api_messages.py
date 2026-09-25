@@ -77,11 +77,12 @@ async def test_a_partial_full_status_does_not_complete_it(client: Wattpilot) -> 
 async def test_a_delta_between_partial_frames_does_not_complete_it(
     client: Wattpilot,
 ) -> None:
-    """The charger interleaves live deltas with the chunks of its first full
-    status. A delta used to count as "initialised" on its own, so connect()
-    returned mid-stream -- and the platforms, which only create entities for
-    properties already reported, left everything that came later without an
-    entity until the entry was reloaded."""
+    """A live delta can arrive between the chunks of the first full status:
+    recorded after a restart, the stream paused for about a second while
+    deltas come once a second. A delta used to count as "initialised" on its
+    own, so connect() could return mid-stream -- and the platforms, which only
+    create entities for properties already reported, left everything that
+    came later without an entity until the entry was reloaded."""
     await send(client, {"type": "fullStatus", "partial": True, "status": {"amp": 16}})
     await send(client, {"type": "deltaStatus", "status": {"amp": 6}})
     assert not client.properties_initialized
