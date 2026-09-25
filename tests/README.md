@@ -15,12 +15,11 @@ that did -- while the enforced index was correct the whole time. A second
 hand-maintained list of the same rule is the bug of tomorrow, so this file
 points at the enforced one instead of restating it.
 
-Guards outside that index, because they live in their own modules:
+The one guard outside that index, because it is not a test (entity parity
+with the fork is checked in each platform's own test file):
 
 | Guard | Holds |
 |---|---|
-| test_parity_capstone.py::test_full_parity | every fork unique_id preserved; only the listed extras added (sensor: whs/whb/whg/who, pnp/alw/acu/tpa/fhz; select: ct) |
-| test_parity_capstone.py::test_uid_suffixes_unique_per_platform | no duplicate unique_ids within a platform |
 | mutation run (check.sh --release) | tests are real: every mutant in hub/sensor/init must die, except the equivalent ones in scripts/equivalent-mutants.txt, which must survive exactly |
 
 ## The pre-push hook is not in this repository
