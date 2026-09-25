@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Entities no longer go missing after the charger restarts or comes back
+  from a power cut. It sends its first status in several pieces with live
+  updates in between, and one of those updates used to count as "all
+  properties known" -- whatever arrived later got no entity until the
+  integration was reloaded.
+
 ## [0.1.2] - 2026-09-19
 
 Everything from the 0.1.2b1 candidate, plus what an independent audit of it

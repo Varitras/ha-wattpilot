@@ -1033,14 +1033,10 @@ class Wattpilot:
         props = msg.status.__dict__
         for key, value in props.items():
             self._update_property(key, value)
-        if hasattr(msg, "partial") and not self._connection.initialized:
-            if not msg.partial:
-                self._connection.mark_initialized()
-        else:
-            self._connection.mark_initialized()
+        self._connection.receive_full_status(partial=getattr(msg, "partial", False))
 
     def _on_delta_status(self, msg: SimpleNamespace) -> None:
-        self._connection.mark_initialized()
+        self._connection.receive_delta_status()
         props = msg.status.__dict__
         for key, value in props.items():
             self._update_property(key, value)

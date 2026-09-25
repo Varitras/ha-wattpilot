@@ -69,6 +69,7 @@ class Connection:
 
         self._authenticated = False
         self._initialized = False
+        self._streaming_full_status = False
         self._authenticated_event = asyncio.Event()
         self._initialized_event = asyncio.Event()
         self._disconnected_event = asyncio.Event()
@@ -114,6 +115,23 @@ class Connection:
     async def wait_disconnected(self) -> None:
         """Wait until the charger is no longer authenticated."""
         await self._disconnected_event.wait()
+
+    def receive_full_status(self, *, partial: bool) -> None:
+        """Note one chunk of the full status; the last one completes it."""
+        self._streaming_full_status = partial
+        if not partial:
+            self.mark_initialized()
+
+    def receive_delta_status(self) -> None:
+        """
+        Note a delta; it completes only firmware that sends no stream.
+
+        Deltas arrive between the chunks of the first full status. Counting
+        one returned open() mid-stream, and entities for later properties
+        were never created until a reload.
+        """
+        if not self._streaming_full_status:
+            self.mark_initialized()
 
     def mark_initialized(self) -> None:
         """Record that the complete property snapshot has arrived."""
@@ -193,6 +211,7 @@ class Connection:
         """
         self._cancel_readiness_guard()
         self._initialized = False
+        self._streaming_full_status = False
         self._initialized_event.clear()
         self._authenticated_event.clear()
         self.fatal_error = None
