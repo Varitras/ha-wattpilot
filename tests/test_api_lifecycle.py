@@ -411,6 +411,46 @@ async def test_two_explicit_opens_leave_no_socket_behind(
     assert factory.open_sockets == [], "a socket outlived both attempts"
 
 
+async def test_a_close_during_a_pending_open_stays_closed(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """close() ran while open() was still waiting for the connector, found
+    neither socket nor reader, and returned. The connector then delivered,
+    open() installed socket and reader, and a connection that had just been
+    torn down was live again behind the caller's back (audit A14-01)."""
+    factory = SocketFactory()
+    release = asyncio.Event()
+
+    async def blocked_connect(url: str) -> FakeSocket:
+        await release.wait()
+        return await factory(url)
+
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
+        blocked_connect,
+    )
+    connection = client._connection
+    opening = asyncio.create_task(connection.open())
+    await asyncio.sleep(0)
+
+    await connection.close()
+    release.set()
+    for _ in range(5):
+        await asyncio.sleep(0)
+    # A real charger answers on whatever socket got installed. Without this
+    # the fake never authenticates, open() times out, cleans up after itself,
+    # and the test passes for the wrong reason -- which is what it first did.
+    if connection.socket is not None:
+        connection.mark_authenticated()
+        connection.mark_initialized()
+    with pytest.raises(WattpilotConnectionError):
+        await opening
+
+    assert connection.message_loop_task is None
+    assert connection.socket is None
+    assert factory.open_sockets == [], "the late socket was left open"
+
+
 async def test_a_silent_socket_after_reconnect_is_given_up_on(
     client: Wattpilot, monkeypatch: pytest.MonkeyPatch
 ) -> None:

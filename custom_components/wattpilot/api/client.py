@@ -135,11 +135,9 @@ class Wattpilot:
             reconnect_delay_max=reconnect_delay_max,
         )
         self._request_id = 0
-        # wattpilot: pending setValue commands by correlation key (VA-03).
-        # Upstream fired and forgot, so a charger's rejection reached nobody.
-        # Keyed by string: commands go out with an integer id, but the
-        # protocol documents responses carrying it as a string, and an
-        # unnormalized lookup missed those answers entirely (audit A11-01).
+        # Pending setValue commands, so a rejection reaches its caller (VA-03).
+        # Keyed by string: ids go out as int, but answers may carry them as
+        # strings, and an unnormalized lookup missed those (audit A11-01).
         self._pending_commands: dict[str, asyncio.Future[None]] = {}
         self.command_timeout = 10.0
         self._all_props: dict[str, Any] = {}
@@ -198,10 +196,8 @@ class Wattpilot:
     async def connect(self) -> None:
         """Open the WebSocket and authenticate."""
         await self._connection.open()
-        # The definition load belongs inside the same cleanup scope as the
-        # handshake. Between the two, a cancellation fell outside the
-        # connection's scope and outside the integration's, leaving the
-        # reader and the socket alive (audit A12-03).
+        # Same cleanup scope as the handshake: a cancellation between the two
+        # left reader and socket alive (audit A12-03).
         try:
             await self._load_api_definition()
         except BaseException:
@@ -676,11 +672,9 @@ class Wattpilot:
             + departure_time.second
         )
 
-        # The adopted client added an hour whenever `tds` announced a scheme
-        # and the clock was in summer time. Measured on the real charger on
-        # 2026-09-06, summer time, `tds` = 1: 07:30 set in the app reads
-        # back as 27000, not 30600 -- adding the hour made 07:30 come back
-        # as 08:30 (audit A12-06).
+        # No DST hour. Measured 2026-09-06, summer time, `tds` = 1: 07:30 set
+        # in the app reads back as 27000, not 30600; adding the hour made it
+        # come back as 08:30 (audit A12-06).
         await self.set_property("ftt", timestamp)
 
     async def set_next_trip_energy(self, energy_kwh: float) -> None:
@@ -754,11 +748,8 @@ class Wattpilot:
 
         await self.set_property("oct", version)
 
-        # wattpilot: a monotonic deadline, not a sum of sleeps. The counter
-        # this replaces advanced only by its own sleeps, so the time spent
-        # waiting for each reconnect was free -- under the default budget
-        # roughly sixty attempts of thirty seconds, half an hour past the two
-        # minutes the caller asked for (audit A12-08).
+        # A monotonic deadline: a sum of sleeps never counted the reconnect
+        # waits and overran the two-minute budget by half an hour (A12-08).
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
 

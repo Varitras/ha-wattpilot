@@ -8,6 +8,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Unloading or reloading the integration while a reconnect is under way no
+  longer leaves a live connection behind. The teardown finished first, and
+  the reconnect then opened a connection that nothing owned any more.
 - Entities can no longer go missing when the integration connects. The
   charger sends its first status in several pieces, and a live update
   arriving between two of them used to count as "all properties known" --

@@ -78,6 +78,9 @@ class Connection:
         # and each opened a socket; the second overwrote the references to
         # the first, and close() never reached it again (audit A13-01).
         self._open_lock = asyncio.Lock()
+        # A close() during the connector's await cannot reach the socket yet;
+        # this is how open() notices it instead (audit A14-01).
+        self._close_count = 0
 
     # ---- What the outside asks ----
 
@@ -172,15 +175,13 @@ class Connection:
                     )
             return
 
-        # A reader from an earlier attempt may still be sitting out its retry
-        # backoff. It owns a socket, and replacing it without stopping it left
-        # two readers racing on the same connection object -- measured three
-        # sockets and two live readers (audit A12-01).
+        # A reader still sitting out its retry backoff owns a socket; replacing
+        # it without stopping it left two readers racing (audit A12-01).
         if self.message_loop_task is not None:
             await self.close()
 
         self.begin()
-        self.socket = await websockets.asyncio.client.connect(self._url)
+        self.socket = await self._connect_unless_closed()
         self.message_loop_task = asyncio.create_task(self._message_loop())
 
         async with self._cleanup_on_failure():
@@ -194,6 +195,18 @@ class Connection:
                 self._initialized_event,
                 self.init_timeout,
             )
+
+    async def _connect_unless_closed(
+        self,
+    ) -> websockets.asyncio.client.ClientConnection:
+        # Not the open lock: close() would then wait out the connect timeout.
+        closes_before = self._close_count
+        socket = await websockets.asyncio.client.connect(self._url)
+        if self._close_count != closes_before:
+            await socket.close()
+            msg = "Connection closed while it was being opened"
+            raise WattpilotConnectionError(msg)
+        return socket
 
     def begin(self) -> None:
         """
@@ -222,6 +235,7 @@ class Connection:
 
     async def close(self) -> None:
         """Stop the reader and close the socket, however either of them ended."""
+        self._close_count += 1
         self._cancel_readiness_guard()
         task = self.message_loop_task
         self.message_loop_task = None
@@ -237,10 +251,8 @@ class Connection:
                     # re-raise here, before the socket was closed (A11-06).
                     _LOGGER.debug("Message loop ended with an error", exc_info=True)
         finally:
-            # wattpilot: the state is reset even when close() raises (audit
-            # VA-04). It used to be left standing, so `connected` stayed True
-            # while the message loop above was already cancelled -- a client
-            # that could never update anyone again, claiming it could.
+            # Reset even when close() raises, or `connected` stays True with
+            # the reader already cancelled (audit VA-04).
             try:
                 if self.socket is not None:
                     await self.socket.close()
@@ -316,22 +328,17 @@ class Connection:
             return
         async for frame in self.socket:
             if self.fatal_error is not None:
-                # Refusing the charger closes the socket, but frames its
-                # receive buffer already held still arrive -- and were still
-                # applied: amp from the wrong device landed in the cache
-                # after the rejection (audit A12-02). Fail-stop means here.
+                # Frames buffered before a refusal were still applied: the
+                # wrong device's amp reached the cache (audit A12-02).
                 _LOGGER.debug("Dropping a frame that arrived after the refusal")
                 break
             raw = frame.decode("utf-8") if isinstance(frame, bytes) else frame
             try:
                 await self._handle_frame(raw)
             except ValueError, TypeError, AttributeError, LookupError:
-                # wattpilot: one frame the handlers cannot read used to end
-                # the loop while the socket stayed open, so nothing updated
-                # again (audit A11-06). LookupError, not KeyError: an empty
-                # `nrg` array is indexed into, and that IndexError slipped
-                # past the first version of this guard. Errors that mean the
-                # connection itself is wrong are deliberately not caught.
+                # One unreadable frame used to end the loop with the socket
+                # open (A11-06). LookupError: an empty `nrg` is indexed into.
+                # Errors of the connection itself are deliberately not caught.
                 _LOGGER.warning("Ignoring an unreadable frame (%d bytes)", len(raw))
 
     async def _message_loop(self) -> None:
