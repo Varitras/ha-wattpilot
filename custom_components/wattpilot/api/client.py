@@ -1050,8 +1050,9 @@ class Wattpilot:
         # without a waiter is still applied and logged, as before.
         future = self._pending_commands.get(_correlation_key(msg.requestId))
         if msg.success:
-            props = msg.status.__dict__
-            for key, value in props.items():
+            # Nothing in the protocol promises a status on every acceptance.
+            status = getattr(msg, "status", SimpleNamespace())
+            for key, value in vars(status).items():
                 self._update_property(key, value)
             if future is not None and not future.done():
                 future.set_result(None)

@@ -212,6 +212,29 @@ async def test_an_accepted_command_applies_the_properties_it_returns() -> None:
     assert client.all_properties["amp"] == 10
 
 
+async def test_an_acknowledgement_without_status_still_answers_the_command() -> None:
+    """An acceptance may come without the charger's new state -- not seen on
+    firmware 42.5, but nothing in the protocol promises it. Reading it
+    unconditionally raised, the frame was dropped as unreadable, and the
+    waiting command ran into its timeout although it had been accepted."""
+    socket = FakeSocket()
+    client = make_client(socket)
+    client.command_timeout = 0.5
+    task = asyncio.ensure_future(client.set_property("amp", 10))
+    await asyncio.sleep(0)
+
+    await client._handle_message(
+        json.dumps(
+            {
+                "type": "response",
+                "requestId": socket.sent[0]["requestId"],
+                "success": True,
+            }
+        )
+    )
+    await task
+
+
 async def test_connect_loads_the_api_definition_off_the_event_loop() -> None:
     """The definition is an 88 kB YAML file, and it used to be read on the
     first write -- blocking the event loop at a moment nobody chose. Loading
