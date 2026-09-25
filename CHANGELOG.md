@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The restart button no longer reports a failure on every press. The
+  charger restarts without ever answering the command, and waiting for that
+  answer ran into a timeout each time.
+
 ## [0.1.2] - 2026-09-19
 
 Everything from the 0.1.2b1 candidate, plus what an independent audit of it

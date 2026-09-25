@@ -235,6 +235,22 @@ async def test_an_acknowledgement_without_status_still_answers_the_command() -> 
     await task
 
 
+async def test_a_restart_does_not_wait_for_an_answer_that_never_comes() -> None:
+    """Recorded on firmware 42.5: the charger never answers rst=1. It goes
+    silent and closes the socket about 17 s later to reboot. Waiting for the
+    answer ran into the command timeout on every press, so the restart
+    button reported a failure each time while the charger was restarting."""
+    socket = FakeSocket()
+    client = make_client(socket)
+    client.command_timeout = 0.5
+
+    async with asyncio.timeout(0.2):
+        await client.set_property("rst", 1)
+
+    assert socket.sent[0]["key"] == "rst"
+    assert client._pending_commands == {}
+
+
 async def test_connect_loads_the_api_definition_off_the_event_loop() -> None:
     """The definition is an 88 kB YAML file, and it used to be read on the
     first write -- blocking the event loop at a moment nobody chose. Loading
