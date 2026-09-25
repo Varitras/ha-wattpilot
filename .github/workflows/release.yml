@@ -4,6 +4,10 @@ on:
   push:
     tags: ["v*"]
 
+# Read-only unless a job asks for more; only `release` does.
+permissions:
+  contents: read
+
 jobs:
   # The tag alone would publish whatever check.sh --release passes; hassfest,
   # HACS and the minimum-HA run only ever saw the branch (audit A13-02).

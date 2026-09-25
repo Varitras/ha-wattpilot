@@ -19,9 +19,9 @@ Guards outside that index, because they live in their own modules:
 
 | Guard | Holds |
 |---|---|
-| test_parity_capstone.py::test_full_parity | every fork unique_id preserved; only whs/whb/whg/who added |
+| test_parity_capstone.py::test_full_parity | every fork unique_id preserved; only the listed extras added (sensor: whs/whb/whg/who, pnp/alw/acu/tpa/fhz; select: ct) |
 | test_parity_capstone.py::test_uid_suffixes_unique_per_platform | no duplicate unique_ids within a platform |
-| mutation run (check.sh --release) | tests are real: mutants in hub/sensor/init must die |
+| mutation run (check.sh --release) | tests are real: every mutant in hub/sensor/init must die, except the equivalent ones in scripts/equivalent-mutants.txt, which must survive exactly |
 
 ## The pre-push hook is not in this repository
 
