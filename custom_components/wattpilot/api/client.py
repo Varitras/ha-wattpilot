@@ -826,11 +826,11 @@ class Wattpilot:
         if prop_def is None:
             return value
 
-        json_type = prop_def.get("jsonType", "")
-        if not json_type:
-            return value
+        # A value, not a failed conversion: dwo=null switches the limit off.
+        if value is None and str(prop_def.get("type", "")).startswith("optional<"):
+            return None
 
-        return self._coerce_to_json_type(value, json_type, name)
+        return self._coerce_to_json_type(value, prop_def.get("jsonType", ""), name)
 
     # A type table written as code: one branch per jsonType the charger
     # declares. Splitting it would scatter the mapping without simplifying it.
