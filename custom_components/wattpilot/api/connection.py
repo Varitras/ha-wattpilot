@@ -1,17 +1,11 @@
 """
 The socket, the reader task and the state that belongs to one connection.
 
-Split out of client.py, which had grown past three raised size budgets in a
-single audit round. The point of the split is state ownership, not line
-count: everything that is true only until the next reconnect lives here and
-nowhere else -- the socket, the reader task, the two readiness events, and
-the error that makes a connection unusable. The client keeps the protocol
-and the property cache, which outlive any single connection.
-
-The connection knows nothing about messages. It hands each frame to the
-callback it was built with and is told, by the same client, when the
-handshake succeeded, when the first full snapshot arrived, and when
-something made the connection unusable.
+Everything true only until the next reconnect lives here: socket, reader,
+readiness events, and the error that makes a connection unusable. The client
+keeps the protocol and the property cache. This module knows nothing about
+messages -- it hands each frame to its callback and is told by the client
+when the handshake succeeded, the snapshot arrived, or the connection failed.
 """
 
 from __future__ import annotations
@@ -19,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import websockets
 import websockets.asyncio.client
@@ -27,11 +21,17 @@ import websockets.asyncio.client
 from .exceptions import WattpilotConnectionError
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Awaitable, Callable
+    from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
 
     from .exceptions import WattpilotError
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _cancelled_by_caller(attempt: asyncio.Task[None]) -> bool:
+    """Whether the caller itself was cancelled, not the attempt by close()."""
+    current = asyncio.current_task()
+    return not attempt.cancelled() or bool(current and current.cancelling())
 
 
 class Connection:
@@ -74,10 +74,11 @@ class Connection:
         self._initialized_event = asyncio.Event()
         self._disconnected_event = asyncio.Event()
         self._disconnected_event.set()
-        # Two open() calls arriving together each passed the checks below
-        # and each opened a socket; the second overwrote the references to
-        # the first, and close() never reached it again (audit A13-01).
-        self._open_lock = asyncio.Lock()
+        # One transition at a time (audits A13-01, A14-01, A15-01): opens
+        # share one attempt, close() cancels it rather than waiting it out,
+        # and an open() during a close() waits for a fresh connection.
+        self._opening: asyncio.Task[None] | None = None
+        self._closing: asyncio.Task[None] | None = None
 
     # ---- What the outside asks ----
 
@@ -158,8 +159,19 @@ class Connection:
 
     async def open(self) -> None:
         """Open the socket, start the reader, and wait for a usable state."""
-        async with self._open_lock:
-            await self._open()
+        # Every close in progress, not just the first: one can start as another ends.
+        while self._closing is not None and not self._closing.done():
+            await asyncio.wait({self._closing})
+        attempt = self._opening = self._ongoing(self._opening, self._open)
+        try:
+            # Not shielded: a caller Home Assistant gives up on takes the
+            # attempt down with it, socket and reader included (A11-05).
+            await attempt
+        except asyncio.CancelledError:
+            if _cancelled_by_caller(attempt):
+                raise
+            msg = "Connection closed while it was being opened"
+            raise WattpilotConnectionError(msg) from None
 
     async def _open(self) -> None:
         if self.connected:
@@ -172,12 +184,10 @@ class Connection:
                     )
             return
 
-        # A reader from an earlier attempt may still be sitting out its retry
-        # backoff. It owns a socket, and replacing it without stopping it left
-        # two readers racing on the same connection object -- measured three
-        # sockets and two live readers (audit A12-01).
+        # A reader still sitting out its retry backoff owns a socket; replacing
+        # it without stopping it left two readers racing (audit A12-01).
         if self.message_loop_task is not None:
-            await self.close()
+            await self._close()
 
         self.begin()
         self.socket = await websockets.asyncio.client.connect(self._url)
@@ -199,15 +209,10 @@ class Connection:
         """
         Reset everything that belongs to a single connection.
 
-        Every path that opens a socket comes through here. The explicit path
-        used to clear only the event and carry the initialized flag over from
-        the previous connection, so the first partial replay already
-        satisfied readiness and open() returned before the new snapshot had
-        arrived (audit A11-07).
-
-        What the charger replays is deliberately not reset -- that is the
-        client's property cache, and clearing it would blank every entity for
-        the length of the outage instead of holding the last known values.
+        Every path that opens a socket comes through here; carrying the
+        initialized flag over let open() return before the new snapshot
+        (audit A11-07). The property cache is deliberately kept: clearing it
+        would blank every entity for the length of the outage.
         """
         self._cancel_readiness_guard()
         self._initialized = False
@@ -222,6 +227,37 @@ class Connection:
 
     async def close(self) -> None:
         """Stop the reader and close the socket, however either of them ended."""
+        # Visible before anything is awaited: while it cancelled the pending
+        # attempt unannounced, a new open() started and was torn down (A16-01).
+        self._closing = self._ongoing(self._closing, self._cancel_and_close)
+        await asyncio.shield(self._closing)
+
+    async def _cancel_and_close(self) -> None:
+        if self._opening is not None:
+            self._opening.cancel()
+            await asyncio.wait({self._opening})
+        await self._close()
+
+    def _ongoing(
+        self,
+        task: asyncio.Task[None] | None,
+        start: Callable[[], Coroutine[Any, Any, None]],
+    ) -> asyncio.Task[None]:
+        # Done is not ongoing: _forget runs as a callback, a step later, and
+        # a caller in that gap would inherit a finished transition's result.
+        if task is not None and not task.done():
+            return task
+        task = asyncio.create_task(start())
+        task.add_done_callback(self._forget)
+        return task
+
+    def _forget(self, task: asyncio.Task[None]) -> None:
+        if self._opening is task:
+            self._opening = None
+        if self._closing is task:
+            self._closing = None
+
+    async def _close(self) -> None:
         self._cancel_readiness_guard()
         task = self.message_loop_task
         self.message_loop_task = None
@@ -237,10 +273,8 @@ class Connection:
                     # re-raise here, before the socket was closed (A11-06).
                     _LOGGER.debug("Message loop ended with an error", exc_info=True)
         finally:
-            # wattpilot: the state is reset even when close() raises (audit
-            # VA-04). It used to be left standing, so `connected` stayed True
-            # while the message loop above was already cancelled -- a client
-            # that could never update anyone again, claiming it could.
+            # Reset even when close() raises, or `connected` stays True with
+            # the reader already cancelled (audit VA-04).
             try:
                 if self.socket is not None:
                     await self.socket.close()
@@ -305,7 +339,7 @@ class Connection:
         try:
             yield
         except BaseException:
-            await self.close()
+            await self._close()
             raise
 
     # ---- Reader ----
@@ -316,22 +350,17 @@ class Connection:
             return
         async for frame in self.socket:
             if self.fatal_error is not None:
-                # Refusing the charger closes the socket, but frames its
-                # receive buffer already held still arrive -- and were still
-                # applied: amp from the wrong device landed in the cache
-                # after the rejection (audit A12-02). Fail-stop means here.
+                # Frames buffered before a refusal were still applied: the
+                # wrong device's amp reached the cache (audit A12-02).
                 _LOGGER.debug("Dropping a frame that arrived after the refusal")
                 break
             raw = frame.decode("utf-8") if isinstance(frame, bytes) else frame
             try:
                 await self._handle_frame(raw)
             except ValueError, TypeError, AttributeError, LookupError:
-                # wattpilot: one frame the handlers cannot read used to end
-                # the loop while the socket stayed open, so nothing updated
-                # again (audit A11-06). LookupError, not KeyError: an empty
-                # `nrg` array is indexed into, and that IndexError slipped
-                # past the first version of this guard. Errors that mean the
-                # connection itself is wrong are deliberately not caught.
+                # One unreadable frame used to end the loop with the socket
+                # open (A11-06). LookupError: an empty `nrg` is indexed into.
+                # Errors of the connection itself are deliberately not caught.
                 _LOGGER.warning("Ignoring an unreadable frame (%d bytes)", len(raw))
 
     async def _message_loop(self) -> None:

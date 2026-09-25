@@ -41,6 +41,9 @@
     "cloud_not_supported": {
       "message": "Cloud-Verbindungen werden noch nicht unterstützt. Den Eintrag mit der lokalen Adresse des Ladegeräts neu konfigurieren."
     },
+    "entry_unloaded": {
+      "message": "Der Eintrag des Ladegeräts wurde entladen. Zum Wiederverbinden den Eintrag neu laden."
+    },
     "duplicate_device": {
       "message": "Ladegerät {serial} ist bereits durch einen anderen Eintrag konfiguriert."
     },

@@ -72,7 +72,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
     async def disconnect_charger(call: ServiceCall) -> None:
         """Disconnect the charger's WebSocket connection."""
         hub = _hub_for_device(hass, call.data["device_id"])
-        await hub.async_shutdown()
+        await hub.async_disconnect()
 
     async def reconnect_charger(call: ServiceCall) -> None:
         """Reconnect the charger and resume dispatching updates."""

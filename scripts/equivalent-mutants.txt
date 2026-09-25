@@ -45,3 +45,9 @@
 # test_a_fresh_hub_does_not_claim_to_be_torn_down.
 custom_components.wattpilot.hub.xǁWattpilotHubǁ__init____mutmut_10
 custom_components.wattpilot.hub.xǁWattpilotHubǁasync_connect__mutmut_1
+
+# self._retired = False -> None in the constructor. It is only ever read as
+# `if self._retired`, where None is as falsy as False, and only
+# async_shutdown sets it (to True, which is killed by
+# test_a_reconnect_during_shutdown_does_not_revive_the_hub).
+custom_components.wattpilot.hub.xǁWattpilotHubǁ__init____mutmut_12
