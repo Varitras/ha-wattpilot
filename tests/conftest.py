@@ -44,6 +44,7 @@ class FakeWattpilot:
         self.connect_error: Exception | None = None
         self.set_error: Exception | None = None
         self.disconnect_error: Exception | None = None
+        self.disconnect_attempts = 0
         # Raised by every write path except set_property (which has its own
         # hook above), so one test can walk them all.
         self.write_error: Exception | None = None
@@ -88,6 +89,7 @@ class FakeWattpilot:
                 callback(key, value)
 
     async def disconnect(self) -> None:
+        self.disconnect_attempts += 1
         if self.disconnect_error is not None:
             raise self.disconnect_error
         self.connected = False

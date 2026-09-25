@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
-from homeassistant.exceptions import ConfigEntryError
+from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
@@ -19,6 +19,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from custom_components.wattpilot import async_migrate_entry, async_setup_entry
+from custom_components.wattpilot.api import WattpilotError
 from custom_components.wattpilot.const import (
     CONF_AWAITING_SERIAL,
     CONF_CONNECTION_TYPE,
@@ -287,6 +288,45 @@ async def test_the_serial_upgrade_permission_is_consumed_once(
     with patch_charger(swapped), pytest.raises(ConfigEntryError) as raised:
         await async_setup_entry(hass, entry)
     assert raised.value.translation_key == "wrong_charger"
+
+
+async def test_a_refused_charger_is_reported_even_if_disconnecting_fails(
+    hass: HomeAssistant,
+    device_properties: dict[str, Any],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The identity check shut the hub down before raising wrong_charger,
+    and the outer setup guard shut it down a second time. With a
+    disconnect that also fails, that cleanup error replaced the refusal:
+    the user saw "Failed to disconnect" instead of why setup was refused
+    (audit A14-03)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    entry.add_to_hass(hass)
+    swapped = FakeWattpilot(device_properties)
+    swapped.serial = "999999"
+    swapped.disconnect_error = WattpilotError("socket already gone")
+
+    with (
+        caplog.at_level(logging.DEBUG),
+        patch_charger(swapped),
+        pytest.raises(ConfigEntryError) as raised,
+    ):
+        await async_setup_entry(hass, entry)
+
+    assert raised.value.translation_key == "wrong_charger"
+    assert swapped.disconnect_attempts == 1, "the hub was shut down twice"
+    # Swallowed, not lost: the cleanup failure stays findable, with its trace.
+    cleanup = [
+        r
+        for r in caplog.records
+        if r.getMessage() == "Ignoring error while closing after failed setup"
+    ]
+    assert len(cleanup) == 1
+    # Not `is not None`: logging keeps exc_info=False as False.
+    assert cleanup[0].exc_info
+    assert isinstance(cleanup[0].exc_info[1], HomeAssistantError)
 
 
 async def test_duplicate_serial_fails_setup(

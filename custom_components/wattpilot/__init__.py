@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import callback
-from homeassistant.exceptions import ConfigEntryError
+from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
@@ -85,7 +85,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: WattpilotConfigEntry) ->
     try:
         await _finish_setup(hass, entry, hub)
     except BaseException:
-        await hub.async_shutdown()
+        # A failed disconnect must not replace the error that ended setup --
+        # that one says what the user has to fix (audit A14-03).
+        try:
+            await hub.async_shutdown()
+        except HomeAssistantError:
+            _LOGGER.debug(
+                "Ignoring error while closing after failed setup", exc_info=True
+            )
         raise
     return True
 
@@ -130,7 +137,7 @@ async def _finish_setup(
     """
     serial = hub.serial
     if entry.unique_id != serial:
-        await _adopt_serial(hass, entry, hub, serial)
+        _adopt_serial(hass, entry, serial)
     await async_migrate_legacy_unique_ids(hass, entry, serial, hub.variant)
 
     entry.runtime_data = hub
@@ -153,8 +160,8 @@ async def _finish_setup(
     )
 
 
-async def _adopt_serial(
-    hass: HomeAssistant, entry: WattpilotConfigEntry, hub: WattpilotHub, serial: str
+def _adopt_serial(
+    hass: HomeAssistant, entry: WattpilotConfigEntry, serial: str
 ) -> None:
     """
     Take the charger's serial as the entry's unique_id -- once, and only once.
@@ -169,7 +176,6 @@ async def _adopt_serial(
     error, no warning, just plausible readings from the wrong charger forever.
     """
     if not awaits_serial(entry):
-        await hub.async_shutdown()
         raise ConfigEntryError(
             translation_domain=DOMAIN,
             translation_key="wrong_charger",
@@ -179,7 +185,6 @@ async def _adopt_serial(
             },
         )
     if _serial_taken_by_other_entry(hass, entry, serial):
-        await hub.async_shutdown()
         raise ConfigEntryError(
             translation_domain=DOMAIN,
             translation_key="duplicate_device",
