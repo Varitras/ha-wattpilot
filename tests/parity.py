@@ -1,4 +1,20 @@
-"""Shared parity assertion against the frozen fork fixture."""
+"""
+Shared parity assertion against the frozen fork fixture: the uid freeze.
+
+Each platform test calls it with its own permitted extras; it also rejects
+duplicate uid suffixes. The fixture was extracted once, at the fork commit
+descriptions.py names (1decee7), and is not regenerated.
+
+It freezes what the package *declares*, not what a running install ends up
+with -- deleting the registry migration or breaking unique_id construction
+leaves it green. That part of the promise lives in test_registry_migration.py
+(legacy ids rewritten, including the variant-dependent "amp" case the fixture
+cannot express), test_e2e_smoke.py (what a real setup registers) and
+test_init.py (unique_id construction and the entry's identity).
+
+The permitted extras are additions this project chose. Do not "fix" a
+failure by widening them -- find the drift that caused the mismatch.
+"""
 
 from __future__ import annotations
 

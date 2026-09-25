@@ -29,8 +29,10 @@ if TYPE_CHECKING:
 
 ENTRY_ID = "entry1"
 ENERGY_SPLIT_UIDS = {"whs", "whb", "whg", "who"}
-# Kept in sync with tests/test_parity_capstone.py; see its docstring for why
-# each addition is there.
+# Additions this project chose on top of the frozen fork uids: the energy
+# split, the phase count (pnp), charging permission and current (alw, acu),
+# average power (tpa) and grid frequency (fhz). See tests/parity.py before
+# widening this to make a test pass.
 EXTRA_SENSOR_UIDS = ENERGY_SPLIT_UIDS | {"pnp", "alw", "acu", "tpa", "fhz"}
 
 
@@ -487,7 +489,7 @@ async def test_phases_in_use_reports_the_switched_phase_count(
 
 
 def test_new_sensors_declare_their_property_and_unit() -> None:
-    """The four charging-state sensors added on top of the fork's set."""
+    """The four readings added on top of the fork's set: alw, acu, tpa, fhz."""
     expected = {
         "alw": (None, None),
         "acu": (SensorDeviceClass.CURRENT, "A"),

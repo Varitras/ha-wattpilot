@@ -155,7 +155,9 @@ former builds on.
 - The Wattpilot client is part of this project
   (`custom_components/wattpilot/api/`), adopted from `wattpilot-api` 1.4.0
   (MIT) after upstream went quiet. Several defects could only be fixed inside
-  it, and its dependencies shrank from six to one in the process.
+  it, and it no longer pulls in the MQTT, shell and pydantic dependencies it
+  had: the client needs `websockets` and `bcrypt` (plus PyYAML, which Home
+  Assistant ships), and the manifest declares those two and `packaging`.
 
 ### Changed
 
