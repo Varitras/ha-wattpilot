@@ -13,7 +13,13 @@ the adopted parts stay distinguishable from ours.
 """
 
 from .client import Wattpilot
-from .exceptions import AuthenticationError, WattpilotError
+from .exceptions import AuthenticationError, DeviceIdentityError, WattpilotError
 from .models import CloudInfo
 
-__all__ = ["AuthenticationError", "CloudInfo", "Wattpilot", "WattpilotError"]
+__all__ = [
+    "AuthenticationError",
+    "CloudInfo",
+    "DeviceIdentityError",
+    "Wattpilot",
+    "WattpilotError",
+]

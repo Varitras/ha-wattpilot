@@ -18,11 +18,18 @@ from homeassistant.exceptions import (
     ConfigEntryNotReady,
     HomeAssistantError,
 )
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 from websockets.exceptions import WebSocketException
 
-from .api import AuthenticationError, CloudInfo, Wattpilot, WattpilotError
+from .api import (
+    AuthenticationError,
+    CloudInfo,
+    DeviceIdentityError,
+    Wattpilot,
+    WattpilotError,
+)
 from .const import DOMAIN, signal_availability, signal_property
 
 _LOGGER = logging.getLogger(__name__)
@@ -171,6 +178,8 @@ class WattpilotHub:
         close; one that starts later is refused.
         """
         self._retired = True
+        # It describes this hub's connection; a new setup finds out afresh.
+        ir.async_delete_issue(self._hass, DOMAIN, self._wrong_charger_issue)
         await self.async_disconnect()
 
     async def async_disconnect(self) -> None:
@@ -295,13 +304,29 @@ class WattpilotHub:
     @callback
     def _check_availability(self, _now: datetime) -> None:
         self._update_availability(available=self.available)
-        # The client stops for good on a refused password -- retrying would
-        # only repeat the refusal -- so the user has to be asked. Home
-        # Assistant starts no second reauth flow while one is open.
-        if self.charger.authentication_rejected:
+        # The client stops for good on either refusal -- retrying would only
+        # repeat it -- so the user has to be told, in the way that helps.
+        refusal = self.charger.refusal
+        if isinstance(refusal, AuthenticationError):
+            # Home Assistant starts no second reauth flow while one is open.
             entry = self._hass.config_entries.async_get_entry(self._entry_id)
             if entry is not None:
                 entry.async_start_reauth(self._hass)
+        elif isinstance(refusal, DeviceIdentityError):
+            # Not reauth: a new password would not bring this charger back.
+            ir.async_create_issue(
+                self._hass,
+                DOMAIN,
+                self._wrong_charger_issue,
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="wrong_charger",
+                translation_placeholders={"serial": self.serial},
+            )
+
+    @property
+    def _wrong_charger_issue(self) -> str:
+        return f"wrong_charger_{self._entry_id}"
 
     @callback
     def _update_availability(self, *, available: bool, expected: bool = False) -> None:

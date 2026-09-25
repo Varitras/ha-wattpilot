@@ -12,6 +12,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -19,7 +20,11 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from custom_components.wattpilot import async_migrate_entry, async_setup_entry
-from custom_components.wattpilot.api import WattpilotError
+from custom_components.wattpilot.api import (
+    AuthenticationError,
+    DeviceIdentityError,
+    WattpilotError,
+)
 from custom_components.wattpilot.const import (
     CONF_AWAITING_SERIAL,
     CONF_CONNECTION_TYPE,
@@ -87,17 +92,52 @@ async def test_a_password_rejected_while_running_asks_for_a_new_one(
     assert await setup_entry(hass, entry, fake_charger)
 
     fake_charger.connected = False
-    fake_charger.authentication_rejected = True
+    fake_charger.refusal = AuthenticationError("wrong password")
     for minutes in (1, 2):
         async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=minutes))
         await hass.async_block_till_done()
 
-    flows = [
+    assert len(reauth_flows(hass)) == 1, (
+        "no reauthentication was started, or a second one"
+    )
+
+
+def reauth_flows(hass: HomeAssistant) -> list[Any]:
+    return [
         flow
         for flow in hass.config_entries.flow.async_progress()
         if flow["context"].get("source") == "reauth"
     ]
-    assert len(flows) == 1, "no reauthentication was started, or a second one"
+
+
+async def test_another_charger_answering_while_running_is_reported(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The client stops for good when a different charger answers at the
+    address -- DHCP handed it on -- rather than show that charger's readings
+    as this one's. But nothing said so: the entities just stayed unavailable
+    (audit A15-04). A new password would not help, so this is a repair
+    notice, not reauthentication; it lasts as long as the loaded entry."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    issue_id = f"wrong_charger_{entry.entry_id}"
+
+    fake_charger.connected = False
+    fake_charger.refusal = DeviceIdentityError("Expected 123456, 999999 answered")
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=1))
+    await hass.async_block_till_done()
+
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, issue_id)
+    assert issue is not None, "the refusal was not reported"
+    assert issue.translation_key == "wrong_charger"
+    assert issue.translation_placeholders == {"serial": "123456"}
+    assert not reauth_flows(hass), "a new password cannot fix another charger"
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
 
 
 async def test_setup_creates_entities_and_unloads(

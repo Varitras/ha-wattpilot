@@ -26,6 +26,7 @@ from .exceptions import (
     DeviceIdentityError,
     PropertyError,
     WattpilotConnectionError,
+    WattpilotError,
 )
 from .models import AuthHashType, CloudInfo, DeviceInfo, LoadMode
 
@@ -221,9 +222,9 @@ class Wattpilot:
     # ---- Read-only properties ----
 
     @property
-    def authentication_rejected(self) -> bool:
-        """Return whether the charger refused the password for good."""
-        return isinstance(self._connection.fatal_error, AuthenticationError)
+    def refusal(self) -> WattpilotError | None:
+        """Return why the client stopped reconnecting for good, if it did."""
+        return self._connection.fatal_error
 
     @property
     def connected(self) -> bool:

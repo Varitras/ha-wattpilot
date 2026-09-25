@@ -32,7 +32,8 @@ class FakeWattpilot:
     def __init__(self, properties: dict[str, Any] | None = None) -> None:
         self._properties: dict[str, Any] = dict(properties or {})
         self.connected = False
-        self.authentication_rejected = False
+        # Why the real client stopped reconnecting for good, if it did.
+        self.refusal: Exception | None = None
         self.serial = "123456"
         self.name = "Wattpilot"
         self.manufacturer = "fronius"

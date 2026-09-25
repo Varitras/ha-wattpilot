@@ -85,6 +85,10 @@
     }
   },
   "issues": {
+    "wrong_charger": {
+      "title": "Unter der Adresse dieses Ladegeräts antwortet ein anderes",
+      "description": "Home Assistant hat unter der Adresse des Ladegeräts mit der Seriennummer {serial} ein anderes Ladegerät erreicht und die Verbindung eingestellt, damit dessen Werte nicht als die dieses Geräts erscheinen. Vermutlich wurde die Adresse an ein anderes Gerät vergeben.\n\nHat das Ladegerät jetzt eine andere Adresse, öffne die Integration und wähle **Neu konfigurieren**, um sie einzutragen. Dieser Hinweis verschwindet, wenn die Integration neu geladen wird."
+    },
     "migration_collision": {
       "title": "Einige Entitäten konnten nicht migriert werden",
       "description": "Diese Entitäten einer früher installierten Wattpilot-Integration behalten ihre alte Kennung, weil bereits eine Entität mit der neuen existiert: {entities}.\n\nEs wurde nichts gelöscht. Jede von ihnen trägt weiterhin ihre Historie, Entitäts-ID und Anpassungen, gehört aber zu keiner geladenen Integration mehr und erscheint deshalb als nicht verfügbar. Geladen ist jeweils die Entität, die bereits vorhanden war.\n\nEntscheide je Entität, welche bleiben soll: die nicht verfügbare löschen, wenn dir ihre Historie egal ist — oder die geladene löschen und Home Assistant neu starten, damit die alte an ihre Stelle tritt."

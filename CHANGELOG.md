@@ -21,6 +21,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A different charger answering at the address while Home Assistant is
+  running now raises a repair notice that points to Reconfigure. The
+  integration already stopped connecting, rightly, but said nothing: the
+  entities just stayed unavailable.
 - Error messages now appear in your Home Assistant language (English and
   German so far): a failed setting, a refused password, a lost connection.
   They used to be fixed English text.

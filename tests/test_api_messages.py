@@ -15,7 +15,10 @@ from typing import Any
 import pytest
 
 from custom_components.wattpilot.api.client import Wattpilot
-from custom_components.wattpilot.api.exceptions import AuthenticationError
+from custom_components.wattpilot.api.exceptions import (
+    AuthenticationError,
+    DeviceIdentityError,
+)
 
 
 @pytest.fixture
@@ -119,21 +122,18 @@ async def test_an_auth_error_is_remembered_for_connect(client: Wattpilot) -> Non
     assert "wrong password" in str(client._connection.fatal_error)
 
 
-async def test_only_a_refused_password_counts_as_rejected_credentials(
-    client: Wattpilot,
-) -> None:
-    """The hub asks for a new password on this flag alone, so it has to mean
-    exactly that. A different charger answering is also a permanent refusal,
-    but a new password would not fix it."""
-    assert not client.authentication_rejected
+async def test_the_refusal_says_which_one_it_was(client: Wattpilot) -> None:
+    """The hub answers the two refusals differently -- a new password for
+    one, a repair notice for the other -- so it has to be able to tell a
+    different charger from a refused password."""
+    assert client.refusal is None
 
     await send(client, {"type": "hello", "serial": "123456"})
     await send(client, {"type": "hello", "serial": "999999"})
-    assert client._connection.fatal_error is not None
-    assert not client.authentication_rejected
+    assert isinstance(client.refusal, DeviceIdentityError)
 
     await send(client, {"type": "authError", "message": "wrong password"})
-    assert client.authentication_rejected
+    assert isinstance(client.refusal, AuthenticationError)
 
 
 async def test_auth_success_opens_the_connection_gate(client: Wattpilot) -> None:

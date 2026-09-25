@@ -232,6 +232,7 @@ signalled at once.
 | **Invalid password** | The password is the **Wattpilot.Solar app** password, not your Wi-Fi or Fronius account password. |
 | **The charger at this address has a different serial number** | The address now belongs to another charger. Use **Reconfigure** on the right entry. |
 | **This entry belongs to charger X, but the charger at this address reports serial Y** | Setup refuses rather than silently moving this entry's history onto another device. If the address was reused, point the entry at the right one with **Reconfigure**. If you replaced the charger, delete the entry and add the new one — the serial is the entry's identity, so the old history cannot follow. |
+| **Repair notice: Another charger answers at this charger's address** | The same situation, found while running: the integration stops connecting instead of showing the other charger's readings. Point the entry at the right address with **Reconfigure**; the notice goes away with the reload that follows. |
 | **All entities unavailable** | The charger is offline or the connection dropped. It reconnects by itself — no restart needed. |
 | **Cloud connections are not supported yet** | An entry migrated from an older integration was configured for cloud. Reconfigure it with the local address. |
 | **Some entities are missing** | They are either firmware- or variant-gated (not offered by your charger), or disabled by default. Check the disabled entities on the device page. |
