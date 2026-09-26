@@ -27,7 +27,10 @@ dev = [
     "ruff>=0.15.0",
     "mypy>=1.16.0",
     "radon>=6.0.0",
-    "mutmut>=3.0.0",
+    # Exact, unlike the rest: a new mutmut makes new mutants, so a floor let
+    # CI judge with 3.8.0 while the local gate ran 3.7.0, and a release run
+    # failed on a mutant no local run had made. Dependabot proposes updates.
+    "mutmut==3.8.0",
     # The shell scripts are checked like the Python: a malformed directive
     # once made shellcheck skip the rest of check.sh without a word.
     "shellcheck-py>=0.11.0",
