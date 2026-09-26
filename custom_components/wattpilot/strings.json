@@ -142,7 +142,8 @@
       "allowed_current": {"name": "Allowed charging current"},
       "average_charging_power": {"name": "Average charging power"},
       "grid_frequency": {"name": "Grid frequency"},
-      "electricity_price": {"name": "Electricity price"}
+      "electricity_price": {"name": "Electricity price"},
+      "charging_duration": {"name": "Charging duration"}
     },
     "switch": {
       "lock_level_selection": {"name": "Button current change lock"},
@@ -174,7 +175,11 @@
       "pv_battery_discharges_until": {"name": "PV surplus discharges battery until"},
       "three_phase_power_level": {"name": "Three-phase power level"},
       "car_consumption": {"name": "Car consumption"},
-      "charging_energy_limit": {"name": "Energy limit per charge (0 = off)"}
+      "charging_energy_limit": {"name": "Energy limit per charge (0 = off)"},
+      "min_charge_pause": {"name": "Minimum charge pause (0 = off)"},
+      "min_charging_interval": {"name": "Minimum charging interval (0 = off)"},
+      "single_phase_duration": {"name": "Forced single-phase duration"},
+      "simulate_unplugging_duration": {"name": "Simulated unplugging duration"}
     },
     "select": {
       "access_control": {"name": "Access control"},

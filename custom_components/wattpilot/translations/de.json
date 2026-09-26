@@ -142,7 +142,8 @@
       "allowed_current": {"name": "Freigegebener Ladestrom"},
       "average_charging_power": {"name": "Mittlere Ladeleistung"},
       "grid_frequency": {"name": "Netzfrequenz"},
-      "electricity_price": {"name": "Strompreis"}
+      "electricity_price": {"name": "Strompreis"},
+      "charging_duration": {"name": "Ladedauer"}
     },
     "switch": {
       "lock_level_selection": {"name": "Sperre für Stromänderung per Taste"},
@@ -174,7 +175,11 @@
       "pv_battery_discharges_until": {"name": "PV-Überschuss entlädt Batterie bis"},
       "three_phase_power_level": {"name": "Dreiphasen-Leistungsstufe"},
       "car_consumption": {"name": "Fahrzeugverbrauch"},
-      "charging_energy_limit": {"name": "Energielimit pro Ladung (0 = aus)"}
+      "charging_energy_limit": {"name": "Energielimit pro Ladung (0 = aus)"},
+      "min_charge_pause": {"name": "Mindest-Ladepause (0 = aus)"},
+      "min_charging_interval": {"name": "Mindest-Ladeintervall (0 = aus)"},
+      "single_phase_duration": {"name": "Dauer erzwungener Einphasigkeit"},
+      "simulate_unplugging_duration": {"name": "Dauer des simulierten Absteckens"}
     },
     "select": {
       "access_control": {"name": "Zugriffskontrolle"},

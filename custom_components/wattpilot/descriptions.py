@@ -7,6 +7,7 @@ Pure data + filtering. Must not import the API module (architecture guard).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 from operator import eq, ge, gt, le, lt
 from typing import TYPE_CHECKING, Any
 
@@ -67,7 +68,7 @@ class WattpilotDescriptionMixin:
     requires_property: bool = True
     # A second property the entity reads; its pushes refresh the entity too.
     # What it means is the platform's to say: select, the list of allowed
-    # values; sensor, a price list shown as an attribute.
+    # values; sensor, whatever its companion_role names.
     companion_key: str | None = None
 
     @property
@@ -184,6 +185,14 @@ class WattpilotSensorEntityDescription(
     # threshold instead of being rejected outright, see sensor.py.
     reset_tolerant_monotonic: bool = False
     cards_index: int | None = None
+    companion_role: CompanionRole | None = None
+
+
+class CompanionRole(StrEnum):
+    """What a sensor's companion property is to it."""
+
+    PRICES = "prices"  # a price list, shown as an attribute
+    BOOT_CLOCK = "boot_clock"  # rbt, which a running cdi counts from
 
 
 _NRG_ATTRIBUTES = {
@@ -611,6 +620,7 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
         key="electricity_price",
         charger_key="awcp",
         companion_key="awpl",
+        companion_role=CompanionRole.PRICES,
         translation_key="electricity_price",
         namespace_value="marketprice",
         state_class=SensorStateClass.MEASUREMENT,
@@ -619,6 +629,16 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
         # ct/kWh: recorded days read ~0 at noon, 15-20 in the evening; awp is
         # in ct too. No MONETARY class: like awp, "ct" is no currency code.
         native_unit_of_measurement="ct/kWh",
+    ),
+    WattpilotSensorEntityDescription(
+        key="charging_duration",
+        charger_key="cdi",
+        companion_key="rbt",
+        companion_role=CompanionRole.BOOT_CLOCK,
+        translation_key="charging_duration",
+        device_class=SensorDeviceClass.DURATION,
+        # Whole minutes: one state change a minute, not one per push.
+        native_unit_of_measurement="min",
     ),
 )
 
@@ -793,7 +813,31 @@ class WattpilotNumberEntityDescription(
     wire_scale: int = 1
 
 
+MILLISECONDS_PER_SECOND = 1_000
 MILLISECONDS_PER_MINUTE = 60_000
+
+
+def _seconds_setting(key: str, charger_key: str) -> WattpilotNumberEntityDescription:
+    """
+    Return a charger timing kept in ms, set in seconds, off until enabled.
+
+    The vendor names no upper bound; a day is generous, and the charger
+    refuses what it cannot take, which the write then reports.
+    """
+    return WattpilotNumberEntityDescription(
+        key=key,
+        charger_key=charger_key,
+        translation_key=key,
+        set_as_int=True,
+        native_min_value=0,
+        native_max_value=86400,
+        mode=NumberMode.BOX,
+        device_class=NumberDeviceClass.DURATION,
+        native_unit_of_measurement="s",
+        wire_scale=MILLISECONDS_PER_SECOND,
+        entity_registry_enabled_default=False,
+        entity_category=EntityCategory.CONFIG,
+    )
 
 
 # Bounds/mode/set_as_int verified against the fork's NUMBER_DESCRIPTIONS at
@@ -999,6 +1043,10 @@ NUMBER_DESCRIPTIONS: tuple[WattpilotNumberEntityDescription, ...] = (
         # stands for null both ways, and cannot be sent by mistake.
         zero_means_null=True,
     ),
+    _seconds_setting("min_charge_pause", "mcpd"),
+    _seconds_setting("min_charging_interval", "mci"),
+    _seconds_setting("single_phase_duration", "psmd"),
+    _seconds_setting("simulate_unplugging_duration", "sumd"),
 )
 
 

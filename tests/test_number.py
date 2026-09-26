@@ -38,8 +38,9 @@ async def make_number(
 
 
 def test_number_parity_with_fork() -> None:
-    # Additions this project chose: car consumption and the energy limit.
-    assert_platform_parity("number", NUMBER_DESCRIPTIONS, {"cco", "dwo"})
+    # Additions this project chose: car consumption, the energy limit and
+    # the four timings set in seconds.
+    assert_platform_parity("number", NUMBER_DESCRIPTIONS, {"cco", "dwo", *SECOND_UIDS})
 
 
 def test_amp_variants_are_disjoint() -> None:
@@ -142,6 +143,8 @@ def test_car_consumption_is_there_but_not_created_unasked() -> None:
 # person looking for "15 minutes", and Home Assistant converts no units for
 # number entities, so the integration shows and takes minutes.
 MINUTE_UIDS = ("fmt", "mpwst", "mptwt")
+# The same for four more, short enough to be set in seconds.
+SECOND_UIDS = ("mcpd", "mci", "psmd", "sumd")
 
 
 @pytest.mark.parametrize("uid", MINUTE_UIDS)
@@ -181,3 +184,21 @@ async def test_a_fraction_of_a_minute_is_kept(
     number = await make_number(hass, fake_charger, "mpwst")
     await number.async_set_native_value(minutes)
     assert fake_charger.set_calls[-1] == ("mpwst", milliseconds)
+
+
+@pytest.mark.parametrize("uid", SECOND_UIDS)
+async def test_short_timings_are_set_in_seconds(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, uid: str
+) -> None:
+    fake_charger._properties[uid] = 120000
+    number = await make_number(hass, fake_charger, uid)
+    assert number.native_unit_of_measurement == "s"
+    assert number.native_value == 120.0
+    await number.async_set_native_value(90.5)
+    assert fake_charger.set_calls[-1] == (uid, 90500)
+
+
+@pytest.mark.parametrize("uid", SECOND_UIDS)
+def test_the_second_timings_wait_to_be_enabled(uid: str) -> None:
+    """Fine-tuning for a few; the owner's call: not created unasked."""
+    assert by_uid(uid).entity_registry_enabled_default is False

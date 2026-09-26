@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Charging duration**: minutes of the current charge, or of the last one
+  while no car is charging.
+- **Minimum charge pause**, **Minimum charging interval**, **Forced
+  single-phase duration** and **Simulated unplugging duration**, set in
+  seconds; disabled by default.
+
 ### Changed
 
 - **Breaking:** **Minimum charging time**, **Phase switch delay** and
