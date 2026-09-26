@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0b3] - 2026-09-26
+
+The third candidate for 0.2.0: durations in units people read, and the
+charging duration. **One breaking change:** three timings are now set in
+minutes, see below. Switching the energy limit off (0) has still not been
+seen to work on a real charger.
+
 ### Added
 
 - **Charging duration**: minutes of the current charge, or of the last one
@@ -280,7 +287,8 @@ former builds on.
 - `trx` starts at its real value: `null` is that property's "no
   transaction", not the absence of a value.
 
-[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0b2...HEAD
+[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0b3...HEAD
+[0.2.0b3]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0b2...v0.2.0b3
 [0.2.0b2]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0b1...v0.2.0b2
 [0.2.0b1]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2...v0.2.0b1
 [0.1.2]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2b1...v0.1.2
