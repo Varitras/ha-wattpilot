@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from ipaddress import IPv4Address
+from ipaddress import IPv4Address, ip_address
 from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
@@ -52,6 +52,42 @@ OPTIONS_SCHEMA = vol.Schema(
         )
     }
 )
+
+
+def _is_ipv4(host: str) -> bool:
+    try:
+        return isinstance(ip_address(host), IPv4Address)
+    except ValueError:
+        return False
+
+
+def _announced_ipv4(discovery_info: ZeroconfServiceInfo) -> str | None:
+    """
+    Return the announced IPv4 address, if there is one.
+
+    The client connects to ws://<host>/ws, which an IPv6 address does not
+    fit; the charger's own IPv6 is link-local anyway (measured).
+    """
+    return next(
+        (
+            str(address)
+            for address in discovery_info.ip_addresses
+            if isinstance(address, IPv4Address)
+        ),
+        None,
+    )
+
+
+def _address_update(known: ConfigEntry | None, ipv4: str) -> dict[str, str] | None:
+    """
+    Return what a known charger's entry takes from its announcement.
+
+    The new address -- unless the entry was set up by name, which follows
+    the charger by itself and would be lost to today's IP.
+    """
+    if known is not None and not _is_ipv4(known.data.get("host", "")):
+        return None
+    return {"host": ipv4}
 
 
 class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -130,7 +166,9 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
                 user_input["host"], user_input["password"]
             )
             if not errors:
-                await self.async_set_unique_id(serial)
+                # Not raise_on_progress: a discovery card for this charger
+                # must not stop adding it by hand; it goes once the entry exists.
+                await self.async_set_unique_id(serial, raise_on_progress=False)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=name,
@@ -148,24 +186,17 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
         self, discovery_info: ZeroconfServiceInfo
     ) -> ConfigFlowResult:
         """Handle a charger announcing itself: only the password is left."""
-        # The client connects to ws://<host>/ws, which an IPv6 address does
-        # not fit; the charger's own IPv6 is link-local anyway (measured).
-        ipv4 = next(
-            (
-                str(address)
-                for address in discovery_info.ip_addresses
-                if isinstance(address, IPv4Address)
-            ),
-            None,
-        )
+        ipv4 = _announced_ipv4(discovery_info)
         if ipv4 is None:
             return self.async_abort(reason="no_ipv4_address")
         serial = discovery_info.properties.get("serial")
         if not serial:
             return self.async_abort(reason="incomplete_discovery")
         await self.async_set_unique_id(serial)
-        # A known charger at a new address: the entry follows it.
-        self._abort_if_unique_id_configured(updates={"host": ipv4})
+        known = self.hass.config_entries.async_entry_for_domain_unique_id(
+            DOMAIN, serial
+        )
+        self._abort_if_unique_id_configured(updates=_address_update(known, ipv4))
         self._discovered_host = ipv4
         self.context["title_placeholders"] = {
             "name": discovery_info.properties.get("friendly_name", "Wattpilot")

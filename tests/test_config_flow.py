@@ -499,3 +499,41 @@ async def test_an_announcement_without_a_serial_is_not_offered(
     result = await start_discovery_flow(hass, no_serial)
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "incomplete_discovery"
+
+
+async def test_a_discovery_card_does_not_block_adding_by_hand(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """Someone who ignores the card and adds the charger by hand must get
+    it: the card waiting on the same serial made the manual flow abort as
+    already in progress. The card goes once the entry exists."""
+    card = await start_discovery_flow(hass)
+    result = await start_user_flow(hass)
+    with patch_charger(fake_charger):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], USER_INPUT
+        )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert card["flow_id"] not in {
+        flow["flow_id"] for flow in hass.config_entries.flow.async_progress()
+    }
+
+
+async def test_an_entry_set_up_by_name_keeps_its_name(hass: HomeAssistant) -> None:
+    """The name already follows the charger to its new address; replacing it
+    with today's IP would give that up."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="123456",
+        version=2,
+        data={
+            CONF_CONNECTION_TYPE: CONNECTION_LOCAL,
+            "host": "wattpilot.home.arpa",
+            "password": "secret",
+        },
+    )
+    entry.add_to_hass(hass)
+    result = await start_discovery_flow(hass)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.data["host"] == "wattpilot.home.arpa"
