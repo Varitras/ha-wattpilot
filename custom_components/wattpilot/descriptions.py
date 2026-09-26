@@ -472,6 +472,8 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
         entity_registry_enabled_default=False,
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement="ms",
+        suggested_unit_of_measurement="h",
+        suggested_display_precision=1,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     WattpilotSensorEntityDescription(
@@ -614,10 +616,8 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
         entity_registry_enabled_default=False,
-        # ct/kWh: the recorded day curves (about 0 at noon, 15-20 in the
-        # evening) fit nothing else, and awp, the limit eco mode compares it
-        # with, is in ct. No MONETARY class, for awp's reason: "ct" is no
-        # currency code.
+        # ct/kWh: recorded days read ~0 at noon, 15-20 in the evening; awp is
+        # in ct too. No MONETARY class: like awp, "ct" is no currency code.
         native_unit_of_measurement="ct/kWh",
     ),
 )

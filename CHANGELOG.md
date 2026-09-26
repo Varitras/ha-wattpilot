@@ -13,6 +13,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   milliseconds (15 instead of 900000). Automations and scripts that set
   them need their values divided by 60000. Fractions work: 0.5 is 30
   seconds. The charger itself still receives milliseconds.
+- **Uptime** (disabled by default) reads in hours instead of milliseconds
+  once you enable it. If you had enabled it already, it keeps milliseconds
+  until you pick hours in the entity's settings.
 
 ## [0.2.0b2] - 2026-09-26
 
