@@ -6,11 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0b2] - 2026-09-26
+
+The second candidate for 0.2.0: everything from 0.2.0b1, plus discovery. As
+before, switching the energy limit off (0) has not yet been seen to work on
+a real charger.
+
 ### Added
 
 - The charger is discovered on the network: Home Assistant offers it by
-  itself and asks only for the password. When a known charger announces
-  a new address, its entry follows.
+  itself and asks only for the password. When a known charger has lost its
+  connection and announces a new address, its entry follows. An entry that
+  is connected stays where it is, and an entry set up by name keeps the
+  name.
+
+### Changed
+
+- The German texts of the repair notice and of the setup dialog use the
+  same impersonal style as the rest of the integration.
 
 ## [0.2.0b1] - 2026-09-26
 
@@ -248,7 +261,8 @@ former builds on.
 - `trx` starts at its real value: `null` is that property's "no
   transaction", not the absence of a value.
 
-[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0b1...HEAD
+[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0b2...HEAD
+[0.2.0b2]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0b1...v0.2.0b2
 [0.2.0b1]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2...v0.2.0b1
 [0.1.2]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2b1...v0.1.2
 [0.1.2b1]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.1...v0.1.2b1
