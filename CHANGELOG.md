@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The charger is discovered on the network: Home Assistant offers it by
+  itself and asks only for the password. When a known charger announces
+  a new address, its entry follows.
+
 ## [0.2.0b1] - 2026-09-26
 
 A release candidate: new entities for the car state, for charging control and

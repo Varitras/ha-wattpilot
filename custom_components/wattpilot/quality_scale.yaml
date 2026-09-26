@@ -71,14 +71,12 @@ rules:
   devices: done
   diagnostics: done
   discovery:
-    status: todo
+    status: done
     comment: |
-      The charger advertises itself over mDNS, but nothing here listens: the
-      adopted client brought no discovery module along, and no HA discovery
-      step is implemented.
-  discovery-update-info:
-    status: todo
-    comment: Depends on discovery.
+      Zeroconf on _http._tcp, matched on the TXT property devicefamily --
+      the instance name is the owner's friendly name. Measured on firmware
+      42.5, which also announces a link-local IPv6; the flow takes the IPv4.
+  discovery-update-info: done
   docs-data-update: done
   docs-examples: done
   docs-known-limitations: done
