@@ -256,6 +256,9 @@ class WattpilotChargingDurationSensor(WattpilotSensor):
     """Charging duration: cdi counted against the boot clock beside it."""
 
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- charger payload
-        key = self.entity_description.companion_key
-        boot_clock = None if key is None else self._hub.get_property(key)
+        # Never None where a role is set (tests/test_descriptions.py holds
+        # that); a runtime check or cast here would only be a dead branch.
+        boot_clock = self._hub.get_property(
+            self.entity_description.companion_key  # type: ignore[arg-type]
+        )
         self._attr_native_value = _charging_minutes(value, boot_clock)

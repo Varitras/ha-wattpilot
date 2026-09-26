@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from custom_components.wattpilot.descriptions import (
+    SENSOR_DESCRIPTIONS,
     WattpilotDescriptionMixin,
     filter_supported,
     firmware_supported,
@@ -88,3 +89,11 @@ def test_filter_supported_against_device() -> None:
     )
     suffixes = [d.uid_suffix for d in kept]
     assert suffixes == ["amp", "ebe", "rst"]
+
+
+def test_a_companion_role_always_comes_with_its_companion() -> None:
+    """The sensor classes read the companion a role names without checking
+    for it; a role without a key would read nothing and show nothing."""
+    for description in SENSOR_DESCRIPTIONS:
+        if description.companion_role is not None:
+            assert description.companion_key, description.key
