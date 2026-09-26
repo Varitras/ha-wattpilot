@@ -54,7 +54,7 @@ class WattpilotNumber(WattpilotEntity, NumberEntity):
         if value is None and self.entity_description.zero_means_null:
             value = 0
         try:
-            self._attr_native_value = float(value)
+            self._attr_native_value = float(value) / self.entity_description.wire_scale
         except TypeError, ValueError:
             self._attr_native_value = None
 
@@ -75,4 +75,6 @@ def _wire_value(
     """Return what the charger is sent for the number the user set."""
     if description.zero_means_null and value == 0:
         return None
-    return int(value) if description.set_as_int else value
+    scaled = value * description.wire_scale
+    # Rounded, not cut: 2.01 min is 120599.99999999999 ms in floating point.
+    return round(scaled) if description.set_as_int else scaled

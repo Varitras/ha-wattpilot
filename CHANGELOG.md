@@ -6,6 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Charging duration**: minutes of the current charge, or of the last one
+  while no car is charging.
+- **Minimum charge pause**, **Minimum charging interval**, **Forced
+  single-phase duration** and **Simulated unplugging duration**, set in
+  seconds; disabled by default.
+
+### Changed
+
+- **Breaking:** **Minimum charging time**, **Phase switch delay** and
+  **Phase switch interval** are shown and set in minutes instead of
+  milliseconds (15 instead of 900000). Automations and scripts that set
+  them need their values divided by 60000. Fractions work: 0.5 is 30
+  seconds. The charger itself still receives milliseconds.
+- **Uptime** (disabled by default) reads in hours instead of milliseconds
+  once you enable it. If you had enabled it already, it keeps milliseconds
+  until you pick hours in the entity's settings.
+
 ## [0.2.0b2] - 2026-09-26
 
 The second candidate for 0.2.0: everything from 0.2.0b1, plus discovery. As

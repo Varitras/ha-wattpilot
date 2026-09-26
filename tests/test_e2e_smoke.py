@@ -12,13 +12,16 @@ lane where it belongs.)
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 import pytest
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.wattpilot.const import DOMAIN
+from custom_components.wattpilot.descriptions import SENSOR_DESCRIPTIONS
 
 from .test_init import V2_LOCAL_DATA, setup_entry
 
@@ -44,12 +47,12 @@ async def test_full_setup_registers_expected_entities(
     entities = er.async_entries_for_config_entry(registry, entry.entry_id)
     unique_ids = {entity.unique_id for entity in entities}
 
-    # 92 descriptions ship in total (75 fork uids + the 4 energy-split
-    # sensors + pnp, alw, acu, tpa, fhz, awcp + the ct car profile + the frc
-    # and preset selects + cco, dwo + the two car binary sensors). This
-    # fixture reports firmware 42.5 on an 11 kW charger, which gates away
-    # exactly the five asserted below.
-    assert len(entities) == 87
+    # 97 descriptions ship in total (75 fork uids + the 4 energy-split
+    # sensors + pnp, alw, acu, tpa, fhz, awcp, cdi + the ct car profile + the
+    # frc and preset selects + cco, dwo, mcpd, mci, psmd, sumd + the two car
+    # binary sensors). This fixture reports firmware 42.5 on an 11 kW
+    # charger, which gates away exactly the five asserted below.
+    assert len(entities) == 92
     assert {
         f"{SERIAL}-wh",
         f"{SERIAL}-whs",
@@ -66,3 +69,33 @@ async def test_full_setup_registers_expected_entities(
     # tells them apart -- 42.5 must land on the select.
     by_unique_id = {entity.unique_id: entity for entity in entities}
     assert by_unique_id[f"{SERIAL}-bac"].domain == "select"
+
+
+async def test_the_uptime_reads_in_hours(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """rbt is milliseconds since boot: 2887124198 said nothing at a glance.
+    The charger's unit stays; Home Assistant converts a duration sensor to
+    the suggested unit when it registers the entity."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id=SERIAL
+    )
+    fake_charger._properties["rbt"] = 2887124198
+    # Disabled by default; enabled here so it gets a state at all.
+    enabled = tuple(
+        replace(d, entity_registry_enabled_default=True)
+        if d.charger_key == "rbt"
+        else d
+        for d in SENSOR_DESCRIPTIONS
+    )
+    with patch("custom_components.wattpilot.sensor.SENSOR_DESCRIPTIONS", enabled):
+        assert await setup_entry(hass, entry, fake_charger)
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor", DOMAIN, f"{SERIAL}-rbt"
+    )
+    assert entity_id is not None
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert state.attributes["unit_of_measurement"] == "h"
+    assert float(state.state) == pytest.approx(2887124198 / 3_600_000, abs=0.01)

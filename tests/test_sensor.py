@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
+import pytest
 from homeassistant.components.sensor import SensorDeviceClass
 
 from custom_components.wattpilot import sensor as sensor_platform
@@ -22,7 +23,6 @@ from custom_components.wattpilot.sensor import WattpilotSensor
 from .parity import assert_platform_parity
 
 if TYPE_CHECKING:
-    import pytest
     from homeassistant.core import HomeAssistant
 
     from .conftest import FakeWattpilot
@@ -31,9 +31,18 @@ ENTRY_ID = "entry1"
 ENERGY_SPLIT_UIDS = {"whs", "whb", "whg", "who"}
 # Additions this project chose on top of the frozen fork uids: the energy
 # split, the phase count (pnp), charging permission and current (alw, acu),
-# average power (tpa), grid frequency (fhz) and the electricity price (awcp).
+# average power (tpa), grid frequency (fhz), the electricity price (awcp)
+# and the charging duration (cdi).
 # See tests/parity.py before widening this to make a test pass.
-EXTRA_SENSOR_UIDS = ENERGY_SPLIT_UIDS | {"pnp", "alw", "acu", "tpa", "fhz", "awcp"}
+EXTRA_SENSOR_UIDS = ENERGY_SPLIT_UIDS | {
+    "pnp",
+    "alw",
+    "acu",
+    "tpa",
+    "fhz",
+    "awcp",
+    "cdi",
+}
 
 
 def by_uid(uid: str) -> Any:
@@ -46,7 +55,9 @@ async def make_sensor(
     hub = WattpilotHub(hass, ENTRY_ID, charger)  # type: ignore[arg-type]
     await hub.async_connect()
     hub.start_dispatch()  # required: pushes route through the hub's dispatch
-    sensor = WattpilotSensor(hub, ENTRY_ID, by_uid(uid))
+    # The class setup picks, so a special sensor is tested as it runs.
+    description = by_uid(uid)
+    sensor = sensor_platform._sensor_class(description)(hub, ENTRY_ID, description)
     sensor.hass = hass
     sensor.entity_id = f"sensor.test_{uid}"
     await sensor.async_added_to_hass()
@@ -590,3 +601,60 @@ async def test_no_tariff_no_price(
 def test_the_price_list_stays_out_of_the_recorder() -> None:
     assert "prices" in WattpilotSensor._unrecorded_attributes
     assert by_uid("awcp").entity_registry_enabled_default is False
+
+
+# cdi as recorded on firmware 42.5 on 2026-09-25, with the rbt beside it.
+# While charging it holds the boot clock at the start, not a duration.
+@pytest.mark.parametrize(
+    ("cdi", "rbt", "minutes"),
+    [
+        ({"type": 0, "value": 2217901}, 19322632, 285),  # charging
+        ({"type": 0, "value": -8301127}, 41170, 139),  # charging, after a reboot
+        ({"type": 1, "value": 17465940}, 19683841, 291),  # finished
+        ({"type": 1, "value": 0}, 14857, 0),  # after a power cut
+        (None, 14857, None),
+        ({"type": 7, "value": 1}, 14857, None),
+    ],
+)
+async def test_charging_duration_in_minutes(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    cdi: Any,
+    rbt: int,
+    minutes: int | None,
+) -> None:
+    fake_charger._properties.update({"cdi": cdi, "rbt": rbt})
+    sensor = await make_sensor(hass, fake_charger, "cdi")
+    assert sensor.native_value == minutes
+    assert sensor.native_unit_of_measurement == "min"
+
+
+async def test_a_running_charge_counts_up_with_the_boot_clock(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """cdi does not change while charging; only the clock beside it does."""
+    fake_charger._properties.update(
+        {"cdi": {"type": 0, "value": 2217901}, "rbt": 19322632}
+    )
+    sensor = await make_sensor(hass, fake_charger, "cdi")
+    fake_charger.push("rbt", 19322632 + 10 * 60_000)
+    assert sensor.native_value == 295
+
+
+def test_the_charging_duration_is_created_without_being_asked() -> None:
+    assert by_uid("cdi").entity_registry_enabled_default is True
+
+
+async def test_only_a_price_companion_becomes_the_prices_attribute(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The boot clock beside cdi is a companion too; read as a price list it
+    would put rbt into a "prices" attribute."""
+    fake_charger._properties.update({"cdi": {"type": 1, "value": 60000}, "rbt": 14857})
+    hub = WattpilotHub(hass, ENTRY_ID, fake_charger)  # type: ignore[arg-type]
+    await hub.async_connect()
+    sensor = WattpilotSensor(hub, ENTRY_ID, by_uid("cdi"))
+    sensor.hass = hass
+    sensor.entity_id = "sensor.test_cdi_plain"
+    await sensor.async_added_to_hass()
+    assert "prices" not in (sensor.extra_state_attributes or {})

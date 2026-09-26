@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import pytest
+
 from custom_components.wattpilot.descriptions import NUMBER_DESCRIPTIONS
 from custom_components.wattpilot.hub import WattpilotHub
 from custom_components.wattpilot.number import WattpilotNumber
@@ -36,8 +38,9 @@ async def make_number(
 
 
 def test_number_parity_with_fork() -> None:
-    # Additions this project chose: car consumption and the energy limit.
-    assert_platform_parity("number", NUMBER_DESCRIPTIONS, {"cco", "dwo"})
+    # Additions this project chose: car consumption, the energy limit and
+    # the four timings set in seconds.
+    assert_platform_parity("number", NUMBER_DESCRIPTIONS, {"cco", "dwo", *SECOND_UIDS})
 
 
 def test_amp_variants_are_disjoint() -> None:
@@ -134,3 +137,68 @@ def test_car_consumption_is_there_but_not_created_unasked() -> None:
     description = by_uid("cco")
     assert description.entity_registry_enabled_default is False
     assert description.native_unit_of_measurement == "kWh/100km"
+
+
+# The charger keeps these three in milliseconds; 900000 said nothing to a
+# person looking for "15 minutes", and Home Assistant converts no units for
+# number entities, so the integration shows and takes minutes.
+MINUTE_UIDS = ("fmt", "mpwst", "mptwt")
+# The same for four more, short enough to be set in seconds.
+SECOND_UIDS = ("mcpd", "mci", "psmd", "sumd")
+
+
+@pytest.mark.parametrize("uid", MINUTE_UIDS)
+async def test_durations_are_shown_in_minutes(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, uid: str
+) -> None:
+    fake_charger._properties[uid] = 900000
+    number = await make_number(hass, fake_charger, uid)
+    assert number.native_unit_of_measurement == "min"
+    assert number.native_value == 15.0
+
+
+@pytest.mark.parametrize("uid", MINUTE_UIDS)
+async def test_minutes_reach_the_charger_as_milliseconds(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, uid: str
+) -> None:
+    fake_charger._properties[uid] = 900000
+    number = await make_number(hass, fake_charger, uid)
+    await number.async_set_native_value(20.0)
+    assert fake_charger.set_calls[-1] == (uid, 1200000)
+    assert isinstance(fake_charger.set_calls[-1][1], int)
+
+
+@pytest.mark.parametrize(
+    ("minutes", "milliseconds"), [(0.5, 30000), (0.1, 6000), (2.01, 120600)]
+)
+async def test_a_fraction_of_a_minute_is_kept(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    minutes: float,
+    milliseconds: int,
+) -> None:
+    """An automation may send 0.5 -- Home Assistant checks only the range,
+    not the step. Cutting to whole numbers before scaling sends 0 ms, and
+    cutting after it turns 2.01 min (120599.99999999999 ms) into 120599."""
+    fake_charger._properties["mpwst"] = 300000
+    number = await make_number(hass, fake_charger, "mpwst")
+    await number.async_set_native_value(minutes)
+    assert fake_charger.set_calls[-1] == ("mpwst", milliseconds)
+
+
+@pytest.mark.parametrize("uid", SECOND_UIDS)
+async def test_short_timings_are_set_in_seconds(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, uid: str
+) -> None:
+    fake_charger._properties[uid] = 120000
+    number = await make_number(hass, fake_charger, uid)
+    assert number.native_unit_of_measurement == "s"
+    assert number.native_value == 120.0
+    await number.async_set_native_value(90.5)
+    assert fake_charger.set_calls[-1] == (uid, 90500)
+
+
+@pytest.mark.parametrize("uid", SECOND_UIDS)
+def test_the_second_timings_wait_to_be_enabled(uid: str) -> None:
+    """Fine-tuning for a few; the owner's call: not created unasked."""
+    assert by_uid(uid).entity_registry_enabled_default is False

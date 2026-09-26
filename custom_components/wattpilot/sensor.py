@@ -10,7 +10,9 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.util import dt as dt_util
 
 from .descriptions import (
+    MILLISECONDS_PER_MINUTE,
     SENSOR_DESCRIPTIONS,
+    CompanionRole,
     WattpilotSensorEntityDescription,
     filter_supported,
 )
@@ -46,9 +48,17 @@ async def async_setup_entry(
         properties=hub.properties,
     )
     async_add_entities(
-        WattpilotSensor(hub, entry.entry_id, description)
+        _sensor_class(description)(hub, entry.entry_id, description)
         for description in descriptions
     )
+
+
+def _sensor_class(
+    description: WattpilotSensorEntityDescription,
+) -> type[WattpilotSensor]:
+    if description.companion_role is CompanionRole.BOOT_CLOCK:
+        return WattpilotChargingDurationSensor
+    return WattpilotSensor
 
 
 def _describe_shape(value: object) -> str:
@@ -158,7 +168,9 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
     def _apply_price_list(self) -> None:
         """Show the companion price list, for the one sensor that has one."""
         key = self.entity_description.companion_key
-        if key is None:
+        if key is None or self.entity_description.companion_role is not (
+            CompanionRole.PRICES
+        ):
             return
         self._attr_extra_state_attributes = {
             "prices": _price_list(self._hub.get_property(key))
@@ -215,3 +227,35 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
         return dt_util.parse_datetime(value) or dt_util.parse_datetime(
             value.replace(" +", "+").replace(" -", "-")
         )
+
+
+# cdi's "type" as measured on firmware 42.5 (2026-09-25 recordings).
+_CHARGING = 0  # value: the boot clock (rbt) when charging began
+_STOPPED = 1  # value: the duration in ms
+
+
+def _charging_minutes(cdi: Any, boot_clock: Any) -> int | None:  # noqa: ANN401 -- charger payloads
+    """
+    Return the whole minutes of the current or last charging session.
+
+    A reboot mid-session makes the start negative, so the subtraction holds
+    across it (recorded: -8301127 at rbt 41170, the minutes carried on).
+    """
+    kind = _namespace_get(cdi, "type")
+    value = _namespace_get(cdi, "value")
+    if not isinstance(value, int | float):
+        return None
+    if kind == _CHARGING and isinstance(boot_clock, int | float):
+        return int(boot_clock - value) // MILLISECONDS_PER_MINUTE
+    if kind == _STOPPED:
+        return int(value) // MILLISECONDS_PER_MINUTE
+    return None
+
+
+class WattpilotChargingDurationSensor(WattpilotSensor):
+    """Charging duration: cdi counted against the boot clock beside it."""
+
+    def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- charger payload
+        key = self.entity_description.companion_key
+        boot_clock = None if key is None else self._hub.get_property(key)
+        self._attr_native_value = _charging_minutes(value, boot_clock)

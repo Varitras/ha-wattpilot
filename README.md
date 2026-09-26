@@ -60,10 +60,10 @@ firmware and power variant.
 
 | Platform | What it covers |
 | --- | --- |
-| `sensor` | Charging power, session and total energy, car state and connection, phases in use, charging reason, charger temperature, cable-unlock and lock feedback, Wi-Fi and inverter diagnostics, reboot counters, the ten ID-chip energy counters, electricity price |
+| `sensor` | Charging power, session and total energy, car state and connection, phases in use, charging reason, charger temperature, cable-unlock and lock feedback, Wi-Fi and inverter diagnostics, reboot counters, the ten ID-chip energy counters, electricity price, charging duration |
 | `binary_sensor` | Car plugged in, car charging |
 | `switch` | PV surplus charging, charge pause, load balancing, eco mode, battery boost, LED energy saving, NTP, hotspot auto-disable and more |
-| `number` | Max charging current, PV-surplus start threshold, minimum charging time, next-trip energy, PV-battery thresholds, phase-switch timings, aWATTar price limit, energy limit per charge, car consumption |
+| `number` | Max charging current, PV-surplus start threshold, minimum charging time, next-trip energy, PV-battery thresholds, phase-switch timings, aWATTar price limit, energy limit per charge, car consumption, charge-pause, charging-interval, single-phase and simulated-unplugging durations |
 | `select` | Charging mode, access control, phase switching, cable unlock, aWATTar country, lock level, boost type, daylight saving, car profile, forced charging state, charging current preset |
 | `button` | Start / stop / force charging, restart, authenticate |
 | `time` | Next-trip departure |
@@ -109,6 +109,8 @@ And a few that make existing settings usable from Home Assistant:
 | **Energy limit per charge** | `dwo` | Stops the charge after this much energy. **0 means no limit** |
 | **Electricity price** | `awcp`, `awpl` | The current market price of a dynamic tariff in ct/kWh, with the charger's price list as the `prices` attribute. **Disabled by default** |
 | **Car consumption** | `cco` | kWh per 100 km, which the app uses to show range. **Disabled by default** |
+| **Charging duration** | `cdi`, `rbt` | Minutes of the current charge, or of the last one while no car charges |
+| **Minimum charge pause**, **Minimum charging interval**, **Forced single-phase duration**, **Simulated unplugging duration** | `mcpd`, `mci`, `psmd`, `sumd` | Timings from the app, in seconds. 0 switches the first two off. **Disabled by default** |
 
 ### Energy Dashboard
 
