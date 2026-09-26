@@ -434,6 +434,34 @@ def test_expensive_hashing_never_runs_on_the_event_loop() -> None:
     assert not offenders, f"key derivation called on the event loop: {offenders}"
 
 
+# Home Assistant calls that still exist but report as deprecated at runtime,
+# each with the replacement the message names.
+DEPRECATED_HA_CALLS = {
+    # 2026.9: identifiers are no longer unique across config entries.
+    "async_get_device": "async_get_device_by_identifier / _by_connection",
+}
+
+
+def test_no_deprecated_home_assistant_call() -> None:
+    """
+    A deprecated call works until the release that removes it, then setup
+    breaks for everyone at once. Home Assistant reports it at runtime, but
+    only on the path that runs -- this finds it in code nobody exercised.
+
+    Tests are scanned too: they are where such a call last lived here.
+    """
+    tests_directory = Path(__file__).parent
+    offenders = [
+        f"{path.name}:{node.lineno} {node.func.attr}"
+        for path in [*iter_python_files(), *sorted(tests_directory.rglob("*.py"))]
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in DEPRECATED_HA_CALLS
+    ]
+    assert not offenders, f"deprecated Home Assistant calls: {offenders}"
+
+
 def test_the_client_never_names_its_own_install_path() -> None:
     """
     The client must not spell out where it is mounted.
@@ -808,6 +836,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         "test_domain_literal_only_in_const": "domain string lives in const.py only",
         "test_domain_literal_confined_to_known_carriers": "no fourth domain carrier",
         "test_manifest_is_consistent": "manifest metadata stays as declared",
+        "test_no_deprecated_home_assistant_call": (
+            "no Home Assistant call that reports as deprecated"
+        ),
         "test_every_user_facing_error_is_translated": (
             "every error a user reads is translated, with matching placeholders"
         ),
