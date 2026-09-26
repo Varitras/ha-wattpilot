@@ -1,9 +1,14 @@
 {
   "config": {
+    "flow_title": "{name}",
     "step": {
       "user": {
         "description": "Verbindung zum Wattpilot im lokalen Netzwerk herstellen. Das Passwort ist dasselbe wie in der Wattpilot.Solar-App.",
         "data": {"host": "Host", "password": "Passwort"}
+      },
+      "zeroconf_confirm": {
+        "description": "Das Ladegerät wurde im Netzwerk unter {host} gefunden. Gib das Passwort aus der Wattpilot.Solar-App ein.",
+        "data": {"password": "Passwort"}
       },
       "reauth_confirm": {
         "description": "Das Ladegerät hat das gespeicherte Passwort abgelehnt. Aktuelles Passwort eingeben.",
@@ -20,6 +25,8 @@
       "wrong_device": "Das Ladegerät unter dieser Adresse hat eine andere Seriennummer"
     },
     "abort": {
+      "no_ipv4_address": "Das Ladegerät hat keine IPv4-Adresse angekündigt; füge es von Hand mit seiner Adresse hinzu",
+      "incomplete_discovery": "Die Ankündigung des Ladegeräts enthielt keine Seriennummer; füge es von Hand mit seiner Adresse hinzu",
       "already_configured": "Dieses Ladegerät ist bereits konfiguriert",
       "reauth_successful": "Passwort aktualisiert",
       "reconfigure_successful": "Konfiguration aktualisiert"

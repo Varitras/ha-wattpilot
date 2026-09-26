@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
@@ -38,6 +39,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from homeassistant.config_entries import ConfigEntry
+    from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,6 +58,8 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle the local setup, reauth and reconfigure flows."""
 
     VERSION = 2
+
+    _discovered_host: str
 
     @staticmethod
     @callback
@@ -138,6 +142,63 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
         return self.async_show_form(
             step_id="user", data_schema=USER_SCHEMA, errors=errors
+        )
+
+    async def async_step_zeroconf(
+        self, discovery_info: ZeroconfServiceInfo
+    ) -> ConfigFlowResult:
+        """Handle a charger announcing itself: only the password is left."""
+        # The client connects to ws://<host>/ws, which an IPv6 address does
+        # not fit; the charger's own IPv6 is link-local anyway (measured).
+        ipv4 = next(
+            (
+                str(address)
+                for address in discovery_info.ip_addresses
+                if isinstance(address, IPv4Address)
+            ),
+            None,
+        )
+        if ipv4 is None:
+            return self.async_abort(reason="no_ipv4_address")
+        serial = discovery_info.properties.get("serial")
+        if not serial:
+            return self.async_abort(reason="incomplete_discovery")
+        await self.async_set_unique_id(serial)
+        # A known charger at a new address: the entry follows it.
+        self._abort_if_unique_id_configured(updates={"host": ipv4})
+        self._discovered_host = ipv4
+        self.context["title_placeholders"] = {
+            "name": discovery_info.properties.get("friendly_name", "Wattpilot")
+        }
+        return await self.async_step_zeroconf_confirm()
+
+    async def async_step_zeroconf_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Ask for the password of the discovered charger."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors, serial, name = await self._async_validate(
+                self._discovered_host, user_input["password"]
+            )
+            # The announcement is unauthenticated; the serial the charger
+            # proves after the password is the one the entry is keyed on.
+            if not errors and serial != self.unique_id:
+                errors = {"base": "wrong_device"}
+            if not errors:
+                return self.async_create_entry(
+                    title=name,
+                    data={
+                        CONF_CONNECTION_TYPE: CONNECTION_LOCAL,
+                        "host": self._discovered_host,
+                        "password": user_input["password"],
+                    },
+                )
+        return self.async_show_form(
+            step_id="zeroconf_confirm",
+            data_schema=PASSWORD_SCHEMA,
+            errors=errors,
+            description_placeholders={"host": self._discovered_host},
         )
 
     async def async_step_reauth(

@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import json
+from ipaddress import ip_address
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.wattpilot.api import AuthenticationError
@@ -26,6 +30,9 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 USER_INPUT = {"host": "192.168.1.50", "password": "secret"}
+MANIFEST = (
+    Path(__file__).parent.parent / "custom_components" / "wattpilot" / "manifest.json"
+)
 
 
 def patch_charger(charger: FakeWattpilot) -> Any:
@@ -354,3 +361,141 @@ async def test_probe_shutdown_failure_does_not_mask_auth_error(
         )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_auth"}
+
+
+# What a charger on firmware 42.5 announces, measured (serial and address
+# replaced): the instance name is the owner's friendly name, so only the TXT
+# properties identify it -- and the link-local IPv6 comes first.
+DISCOVERY = ZeroconfServiceInfo(
+    ip_address=ip_address("192.168.1.60"),
+    ip_addresses=[ip_address("fe80::1"), ip_address("192.168.1.60")],
+    port=80,
+    hostname="Wattpilot_123456.local.",
+    type="_http._tcp.local.",
+    name="Wattpilot._http._tcp.local.",
+    properties={
+        "proto": "3",
+        "protocol": "2",
+        "version": "42.5",
+        "devicetype": "wattpilot_V2",
+        "devicefamily": "wattpilot",
+        "manufacturer": "fronius",
+        "friendly_name": "Wattpilot",
+        "serial": "123456",
+    },
+)
+
+
+async def start_discovery_flow(
+    hass: HomeAssistant, discovery: ZeroconfServiceInfo = DISCOVERY
+) -> Any:
+    return await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=discovery
+    )
+
+
+async def test_a_discovered_charger_only_asks_for_the_password(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    result = await start_discovery_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "zeroconf_confirm"
+    with patch_charger(fake_charger):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"password": "secret"}
+        )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == {
+        CONF_CONNECTION_TYPE: CONNECTION_LOCAL,
+        "host": "192.168.1.60",
+        "password": "secret",
+    }
+    assert result["result"].unique_id == "123456"
+
+
+async def test_a_known_charger_announcing_a_new_address_updates_the_entry(
+    hass: HomeAssistant,
+) -> None:
+    """DHCP moved the charger: the entry follows instead of trying the old
+    address -- where another device may answer by now (audit A15-04)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="123456",
+        version=2,
+        data={CONF_CONNECTION_TYPE: CONNECTION_LOCAL, **USER_INPUT},
+    )
+    entry.add_to_hass(hass)
+    result = await start_discovery_flow(hass)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.data["host"] == "192.168.1.60"
+    assert entry.data["password"] == "secret"  # noqa: S105 -- test value
+
+
+async def test_a_charger_without_ipv4_is_not_offered(hass: HomeAssistant) -> None:
+    """The client connects to ws://<host>/ws, which an IPv6 address does not
+    fit, and the charger's own IPv6 is link-local anyway."""
+    only_ipv6 = ZeroconfServiceInfo(
+        ip_address=ip_address("2001:db8::5"),
+        ip_addresses=[ip_address("fe80::1"), ip_address("2001:db8::5")],
+        port=80,
+        hostname=DISCOVERY.hostname,
+        type=DISCOVERY.type,
+        name=DISCOVERY.name,
+        properties=DISCOVERY.properties,
+    )
+    result = await start_discovery_flow(hass, only_ipv6)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "no_ipv4_address"
+
+
+async def test_the_answering_charger_must_be_the_announced_one(
+    hass: HomeAssistant, device_properties: dict[str, Any]
+) -> None:
+    """The announcement is unauthenticated; the entry is keyed on the serial
+    the charger proves after the password, not on the one it claimed."""
+    claims_another = ZeroconfServiceInfo(
+        ip_address=DISCOVERY.ip_address,
+        ip_addresses=DISCOVERY.ip_addresses,
+        port=80,
+        hostname=DISCOVERY.hostname,
+        type=DISCOVERY.type,
+        name=DISCOVERY.name,
+        properties={**DISCOVERY.properties, "serial": "999999"},
+    )
+    result = await start_discovery_flow(hass, claims_another)
+    with patch_charger(FakeWattpilot(device_properties)):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"password": "secret"}
+        )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "wrong_device"}
+
+
+def test_the_manifest_matcher_fits_the_measured_announcement() -> None:
+    """Home Assistant only starts the flow if the manifest matches; the
+    instance name is the owner's choice, so the match is on TXT properties."""
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    (matcher,) = manifest["zeroconf"]
+    assert matcher["type"] == DISCOVERY.type
+    for key, value in matcher["properties"].items():
+        assert DISCOVERY.properties[key].lower() == value
+
+
+async def test_an_announcement_without_a_serial_is_not_offered(
+    hass: HomeAssistant,
+) -> None:
+    """The serial is what a discovered charger is recognised by later."""
+    properties = {k: v for k, v in DISCOVERY.properties.items() if k != "serial"}
+    no_serial = ZeroconfServiceInfo(
+        ip_address=DISCOVERY.ip_address,
+        ip_addresses=DISCOVERY.ip_addresses,
+        port=80,
+        hostname=DISCOVERY.hostname,
+        type=DISCOVERY.type,
+        name=DISCOVERY.name,
+        properties=properties,
+    )
+    result = await start_discovery_flow(hass, no_serial)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "incomplete_discovery"

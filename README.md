@@ -138,6 +138,10 @@ directory and restart.
 
 ## Configuration
 
+Home Assistant finds the charger on your network by itself (mDNS) and offers
+it under **Settings → Devices & Services** as discovered; only the password is
+left to enter. To add it by hand instead:
+
 **Settings → Devices & Services → Add Integration → Fronius Wattpilot.**
 
 | Field | Value |
@@ -145,9 +149,11 @@ directory and restart.
 | Host | The charger's IP address or hostname on your network |
 | Password | The charger password you use in the **Wattpilot.Solar** app |
 
-Give the charger a DHCP reservation or a static address. If it does move, use
-**Reconfigure** on the entry rather than deleting and re-adding it — that keeps
-the history. If the charger later rejects the stored password, Home Assistant
+A charger that gets a new address is followed on its own: when it announces
+itself at the new one, the entry is updated and reloaded. A DHCP reservation
+still does no harm. If it moved without announcing itself, use
+**Reconfigure** on the entry rather than deleting and re-adding it — that
+keeps the history. If the charger later rejects the stored password, Home Assistant
 starts a re-authentication flow on its own.
 
 ### Options

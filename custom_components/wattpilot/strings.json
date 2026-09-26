@@ -1,9 +1,14 @@
 {
   "config": {
+    "flow_title": "{name}",
     "step": {
       "user": {
         "description": "Connect to the Wattpilot on your local network. The password is the one used in the Wattpilot.Solar app.",
         "data": {"host": "Host", "password": "Password"}
+      },
+      "zeroconf_confirm": {
+        "description": "The charger was found on your network at {host}. Enter the password used in the Wattpilot.Solar app.",
+        "data": {"password": "Password"}
       },
       "reauth_confirm": {
         "description": "The charger rejected the stored password. Enter the current one.",
@@ -20,6 +25,8 @@
       "wrong_device": "The charger at this address has a different serial number"
     },
     "abort": {
+      "no_ipv4_address": "The charger announced no IPv4 address; add it by hand with its address",
+      "incomplete_discovery": "The charger's announcement had no serial number; add it by hand with its address",
       "already_configured": "This charger is already configured",
       "reauth_successful": "Password updated",
       "reconfigure_successful": "Configuration updated"
