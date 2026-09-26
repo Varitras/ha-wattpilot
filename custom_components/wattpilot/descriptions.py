@@ -789,12 +789,17 @@ class WattpilotNumberEntityDescription(
     set_as_int: bool = False
     # For a property whose null means "off": it reads and writes as 0.
     zero_means_null: bool = False
+    # Wire units per shown unit; Home Assistant converts none for numbers.
+    wire_scale: int = 1
+
+
+MILLISECONDS_PER_MINUTE = 60_000
 
 
 # Bounds/mode/set_as_int verified against the fork's NUMBER_DESCRIPTIONS at
-# pinned commit 1decee7 (AST-level diff, not transcription): all 13 entries
-# match on native_min_value/native_max_value/native_step/mode/device_class/
-# unit/variant/firmware/entity_category/enabled_default. The fork's own
+# pinned commit 1decee7 (AST-level diff, not transcription): its 13 entries
+# match on bounds/step/mode/device_class/unit/variant/firmware/category/
+# enabled_default, but for the deviations tests/parity.py lists. The fork's own
 # runtime never reads its equivalent per-entry type hint (set_type is
 # assigned to an attribute and never consulted again); it forwards the raw
 # float to the vendor client, which coerces by its own property schema. Our
@@ -879,10 +884,11 @@ NUMBER_DESCRIPTIONS: tuple[WattpilotNumberEntityDescription, ...] = (
         set_as_int=True,
         translation_key="min_charging_time",
         device_class=NumberDeviceClass.DURATION,
-        native_min_value=60000,
-        native_max_value=3600000,
-        native_step=60000,
-        native_unit_of_measurement="ms",
+        native_min_value=1,
+        native_max_value=60,
+        native_step=1,
+        native_unit_of_measurement="min",
+        wire_scale=MILLISECONDS_PER_MINUTE,
         entity_category=EntityCategory.CONFIG,
     ),
     WattpilotNumberEntityDescription(
@@ -924,8 +930,9 @@ NUMBER_DESCRIPTIONS: tuple[WattpilotNumberEntityDescription, ...] = (
         set_as_int=True,
         translation_key="phase_switch_delay",
         native_min_value=0,
-        native_max_value=99999999,
-        native_unit_of_measurement="ms",
+        native_max_value=1666,
+        native_unit_of_measurement="min",
+        wire_scale=MILLISECONDS_PER_MINUTE,
         entity_category=EntityCategory.CONFIG,
     ),
     WattpilotNumberEntityDescription(
@@ -934,8 +941,9 @@ NUMBER_DESCRIPTIONS: tuple[WattpilotNumberEntityDescription, ...] = (
         set_as_int=True,
         translation_key="phase_switch_interval",
         native_min_value=0,
-        native_max_value=99999999,
-        native_unit_of_measurement="ms",
+        native_max_value=1666,
+        native_unit_of_measurement="min",
+        wire_scale=MILLISECONDS_PER_MINUTE,
         entity_category=EntityCategory.CONFIG,
     ),
     WattpilotNumberEntityDescription(

@@ -44,7 +44,16 @@ _CHARGER_KEY_EXCEPTIONS: dict[str, str] = {
 # (vendor schema: "awattarMaxPrice in ct") and we pass it through unscaled, so
 # our unit is ct -- otherwise a value of 50 (0.50 EUR) would read as 50 EUR.
 # A deliberate, documented deviation from the fork; see the awp description.
-_UNIT_EXCEPTIONS: dict[str, str] = {"awp": "ct"}
+#
+# The three timings below are kept in ms by the charger and shown in minutes
+# here: Home Assistant converts no units for number entities, and 900000 is
+# not how anyone thinks of 15 minutes. The wire value is unchanged.
+_UNIT_EXCEPTIONS: dict[str, str] = {
+    "awp": "ct",
+    "fmt": "min",
+    "mpwst": "min",
+    "mptwt": "min",
+}
 
 # Six entities the fork ships disabled and this project ships enabled, on the
 # owner's decision: the three PV/phase-switch knobs are what you reach for

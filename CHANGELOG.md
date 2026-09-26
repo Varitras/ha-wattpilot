@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** **Minimum charging time**, **Phase switch delay** and
+  **Phase switch interval** are shown and set in minutes instead of
+  milliseconds (15 instead of 900000). Automations and scripts that set
+  them need their values divided by 60000. Fractions work: 0.5 is 30
+  seconds. The charger itself still receives milliseconds.
+
 ## [0.2.0b2] - 2026-09-26
 
 The second candidate for 0.2.0: everything from 0.2.0b1, plus discovery. As
