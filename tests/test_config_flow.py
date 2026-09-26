@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from ipaddress import ip_address
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
@@ -468,8 +469,9 @@ async def test_the_answering_charger_must_be_the_announced_one(
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {"password": "secret"}
         )
-    assert result["type"] is FlowResultType.FORM
-    assert result["errors"] == {"base": "wrong_device"}
+    # Retrying the password cannot help: the announcement was wrong.
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "announcement_mismatch"
 
 
 def test_the_manifest_matcher_fits_the_measured_announcement() -> None:
@@ -537,3 +539,125 @@ async def test_an_entry_set_up_by_name_keeps_its_name(hass: HomeAssistant) -> No
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
     assert entry.data["host"] == "wattpilot.home.arpa"
+
+
+def announcement(**changes: Any) -> ZeroconfServiceInfo:
+    """DISCOVERY with some fields replaced."""
+    fields = {
+        "ip_address": DISCOVERY.ip_address,
+        "ip_addresses": DISCOVERY.ip_addresses,
+        "port": 80,
+        "hostname": DISCOVERY.hostname,
+        "type": DISCOVERY.type,
+        "name": DISCOVERY.name,
+        "properties": DISCOVERY.properties,
+    }
+    return ZeroconfServiceInfo(**{**fields, **changes})
+
+
+async def test_a_card_finished_after_the_entry_learned_its_serial_changes_nothing(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A fork entry learns its serial only on its first connect, so a card for
+    the same charger can be open when it does. Finishing the card then made
+    a second entry with the same unique id -- and Home Assistant resolves
+    that by deleting the older one, entities and all."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="192.168.1.50",
+        version=2,
+        data={
+            CONF_CONNECTION_TYPE: CONNECTION_LOCAL,
+            **USER_INPUT,
+            CONF_AWAITING_SERIAL: True,
+        },
+    )
+    entry.add_to_hass(hass)
+    card = await start_discovery_flow(hass)
+    assert card["type"] is FlowResultType.FORM
+    hass.config_entries.async_update_entry(entry, unique_id="123456")
+
+    with patch_charger(fake_charger):
+        result = await hass.config_entries.flow.async_configure(
+            card["flow_id"], {"password": "secret"}
+        )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert hass.config_entries.async_get_entry(entry.entry_id) is not None
+
+
+async def test_a_connected_entry_does_not_move_to_another_announced_address(
+    hass: HomeAssistant,
+) -> None:
+    """Anyone on the network can announce the charger's serial -- the charger
+    broadcasts it. While the entry is talking to its charger, that is proof
+    of where it is, and an announcement elsewhere is stale or foreign."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="123456",
+        version=2,
+        data={CONF_CONNECTION_TYPE: CONNECTION_LOCAL, **USER_INPUT},
+    )
+    entry.add_to_hass(hass)
+    entry.mock_state(hass, ConfigEntryState.LOADED)
+    entry.runtime_data = SimpleNamespace(available=True)
+    result = await start_discovery_flow(hass)
+    assert result["reason"] == "already_configured"
+    assert entry.data["host"] == "192.168.1.50"
+    entry.mock_state(hass, ConfigEntryState.NOT_LOADED)  # no hub to unload
+
+
+async def test_an_entry_that_lost_its_charger_follows_it_and_reloads(
+    hass: HomeAssistant,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="123456",
+        version=2,
+        data={CONF_CONNECTION_TYPE: CONNECTION_LOCAL, **USER_INPUT},
+    )
+    entry.add_to_hass(hass)
+    entry.mock_state(hass, ConfigEntryState.LOADED)
+    entry.runtime_data = SimpleNamespace(available=False)
+    with patch.object(hass.config_entries, "async_schedule_reload") as reload:
+        result = await start_discovery_flow(hass)
+    assert result["reason"] == "already_configured"
+    assert entry.data["host"] == "192.168.1.60"
+    reload.assert_called_once_with(entry.entry_id)
+    entry.mock_state(hass, ConfigEntryState.NOT_LOADED)  # no hub to unload
+
+
+async def test_a_link_local_ipv4_is_not_taken(hass: HomeAssistant) -> None:
+    """169.254.x.x is what a device gives itself without DHCP; Home
+    Assistant skips it for ip_address, and so does the flow."""
+    result = await start_discovery_flow(
+        hass,
+        announcement(
+            ip_addresses=[ip_address("169.254.3.4"), ip_address("192.168.1.60")]
+        ),
+    )
+    assert result["description_placeholders"] == {"host": "192.168.1.60"}
+
+
+async def test_the_card_names_the_charger_and_its_address(
+    hass: HomeAssistant,
+) -> None:
+    result = await start_discovery_flow(
+        hass,
+        announcement(properties={**DISCOVERY.properties, "friendly_name": "Garage"}),
+    )
+    assert result["description_placeholders"] == {"host": "192.168.1.60"}
+    (flow,) = hass.config_entries.flow.async_progress()
+    assert flow["context"]["title_placeholders"] == {"name": "Garage"}
+
+
+async def test_a_charger_announced_without_a_name_is_still_named(
+    hass: HomeAssistant,
+) -> None:
+    """A TXT key can be present with no value; the card must not go blank."""
+    await start_discovery_flow(
+        hass,
+        announcement(properties={**DISCOVERY.properties, "friendly_name": None}),
+    )
+    (flow,) = hass.config_entries.flow.async_progress()
+    assert flow["context"]["title_placeholders"] == {"name": "Wattpilot"}

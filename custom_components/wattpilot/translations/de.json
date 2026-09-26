@@ -7,7 +7,7 @@
         "data": {"host": "Host", "password": "Passwort"}
       },
       "zeroconf_confirm": {
-        "description": "Das Ladegerät wurde im Netzwerk unter {host} gefunden. Gib das Passwort aus der Wattpilot.Solar-App ein.",
+        "description": "Das Ladegerät wurde im Netzwerk unter {host} gefunden. Passwort aus der Wattpilot.Solar-App eingeben.",
         "data": {"password": "Passwort"}
       },
       "reauth_confirm": {
@@ -25,8 +25,10 @@
       "wrong_device": "Das Ladegerät unter dieser Adresse hat eine andere Seriennummer"
     },
     "abort": {
-      "no_ipv4_address": "Das Ladegerät hat keine IPv4-Adresse angekündigt; füge es von Hand mit seiner Adresse hinzu",
-      "incomplete_discovery": "Die Ankündigung des Ladegeräts enthielt keine Seriennummer; füge es von Hand mit seiner Adresse hinzu",
+      "announcement_mismatch": "Das Ladegerät unter der angekündigten Adresse meldet eine andere Seriennummer als angekündigt; Ladegerät von Hand mit seiner Adresse hinzufügen",
+      "already_in_progress": "Dieses Ladegerät wird bereits eingerichtet",
+      "no_ipv4_address": "Das Ladegerät hat keine nutzbare IPv4-Adresse angekündigt; Ladegerät von Hand mit seiner Adresse hinzufügen",
+      "incomplete_discovery": "Die Ankündigung des Ladegeräts enthielt keine Seriennummer; Ladegerät von Hand mit seiner Adresse hinzufügen",
       "already_configured": "Dieses Ladegerät ist bereits konfiguriert",
       "reauth_successful": "Passwort aktualisiert",
       "reconfigure_successful": "Konfiguration aktualisiert"
@@ -94,7 +96,7 @@
   "issues": {
     "wrong_charger": {
       "title": "Unter der Adresse dieses Ladegeräts antwortet ein anderes",
-      "description": "Home Assistant hat unter der Adresse des Ladegeräts mit der Seriennummer {serial} ein anderes Ladegerät erreicht und die Verbindung eingestellt, damit dessen Werte nicht als die dieses Geräts erscheinen. Vermutlich wurde die Adresse an ein anderes Gerät vergeben.\n\nHat das Ladegerät jetzt eine andere Adresse, öffne die Integration und wähle **Neu konfigurieren**, um sie einzutragen. Dieser Hinweis verschwindet, wenn die Integration neu geladen wird."
+      "description": "Home Assistant hat unter der Adresse des Ladegeräts mit der Seriennummer {serial} ein anderes Ladegerät erreicht und die Verbindung eingestellt, damit dessen Werte nicht als die dieses Geräts erscheinen. Vermutlich wurde die Adresse an ein anderes Gerät vergeben.\n\nHat das Ladegerät jetzt eine andere Adresse, in der Integration **Neu konfigurieren** wählen und sie eintragen. Dieser Hinweis verschwindet, wenn die Integration neu geladen wird."
     },
     "migration_collision": {
       "title": "Einige Entitäten konnten nicht migriert werden",

@@ -25,7 +25,9 @@
       "wrong_device": "The charger at this address has a different serial number"
     },
     "abort": {
-      "no_ipv4_address": "The charger announced no IPv4 address; add it by hand with its address",
+      "announcement_mismatch": "The charger at the announced address reports a different serial number than it announced; add it by hand with its address",
+      "already_in_progress": "This charger is already being set up",
+      "no_ipv4_address": "The charger announced no usable IPv4 address; add it by hand with its address",
       "incomplete_discovery": "The charger's announcement had no serial number; add it by hand with its address",
       "already_configured": "This charger is already configured",
       "reauth_successful": "Password updated",
