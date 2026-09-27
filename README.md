@@ -55,8 +55,12 @@ domain.
 
 Every one of the 75 unique IDs `ruaan-deysel/ha-wattpilot` shipped is
 reproduced, plus the additions described below, across eight platforms.
-The reference device ends up with 87 entities — the rest are gated away by its
+The reference device ends up with 92 entities — the rest are gated away by its
 firmware and power variant.
+
+> **Until 0.2.0 is released**, most of what this section describes ships in the
+> 0.2.0 betas, not in the stable 0.1.2 that HACS installs by default. See
+> [HACS](#hacs-recommended) for how to get the beta.
 
 | Platform | What it covers |
 | --- | --- |
@@ -132,6 +136,11 @@ run against on every change, not just the newest one.
 2. Repository `https://github.com/Varitras/ha-wattpilot`, type
    **Integration**.
 3. Install **Fronius Wattpilot**, then restart Home Assistant.
+
+To try a beta (currently 0.2.0bN): on the HACS device for *Fronius Wattpilot*,
+enable its pre-release switch — HACS ships it disabled — and turn it on. The
+update entity then offers the newest beta; turn the switch off again to stay on
+stable releases.
 
 ### Manual
 
@@ -250,8 +259,9 @@ signalled at once.
 
 For a bug report, attach the entry's **Download diagnostics** output. It is
 redacted before it reaches you: serial number, host address, passwords, cloud
-API tokens, MAC addresses, IP addresses, Wi-Fi SSIDs and the log of
-neighbouring networks are dropped or replaced.
+API tokens, MAC addresses, IP addresses, Wi-Fi SSIDs, the log of
+neighbouring networks and free-text fields such as a load group name or a
+Wi-Fi error message are dropped or replaced.
 
 ## Removing the integration
 

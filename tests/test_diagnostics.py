@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.wattpilot.const import DOMAIN
@@ -206,3 +207,14 @@ def test_unexpected_card_and_companion_shapes_are_safe() -> None:
     for shape in (None, "OWNER-CARD-1234", 42, {}):
         cleaned = sanitize_snapshot({"cards": shape})
         assert cleaned["cards"] == UNEXPECTED_SHAPE
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("log", "Garage, 12 Example Street"), ("wsm", "cannot join 'Example-Home'")],
+)
+def test_free_text_a_charger_may_fill_is_not_passed_on(field: str, value: str) -> None:
+    """Empty on the reference device, but nothing bounds what goes in: a load
+    group can be named after a place, a WiFi error can quote a network name."""
+    sanitized = sanitize_snapshot({field: value})
+    assert value not in json.dumps(sanitized)

@@ -994,7 +994,7 @@ class Wattpilot:
         if not known or known == serial:
             return True
         msg = f"Expected charger {known}, but {serial} answered at {self._host}"
-        await self._connection.reject(DeviceIdentityError(msg))
+        await self._connection.reject(DeviceIdentityError(msg, found=serial))
         return False
 
     async def _on_auth_required(self, msg: SimpleNamespace) -> None:

@@ -125,7 +125,7 @@ async def test_another_charger_answering_while_running_is_reported(
     issue_id = f"wrong_charger_{entry.entry_id}"
 
     fake_charger.connected = False
-    fake_charger.refusal = DeviceIdentityError("Expected 123456, 999999 answered")
+    fake_charger.refusal = DeviceIdentityError("refused", found="999999")
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=1))
     await hass.async_block_till_done()
 
@@ -177,7 +177,11 @@ async def test_setup_wires_credentials_and_pushes_end_to_end(
     with patch_charger(fake_charger) as client:
         assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
-    assert client.call_args.kwargs == {"host": "192.168.1.50", "password": "secret"}
+    assert client.call_args.kwargs == {
+        "host": "192.168.1.50",
+        "password": "secret",
+        "serial": "123456",
+    }
 
     entity_id = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, "123456-wh")
     assert entity_id is not None
@@ -637,3 +641,52 @@ async def test_a_firmware_change_reloads_the_entry(
         fake_charger.push("fwv", "43.1")
         await hass.async_block_till_done()
         assert reload.called, "a firmware jump must rebuild the entity set"
+
+
+@pytest.mark.parametrize(
+    ("data", "unique_id", "expected"),
+    [
+        (V2_LOCAL_DATA, "123456", "123456"),
+        (V2_AWAITING_SERIAL, "192.168.1.50", None),
+    ],
+)
+async def test_the_known_serial_is_checked_before_the_password_is_sent(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    data: dict[str, Any],
+    unique_id: str,
+    expected: str | None,
+) -> None:
+    """The entry knows its charger's serial; the client checks hello against
+    it before answering the authentication challenge. It used to learn the
+    serial from whatever answered, so a wrong device got the password proof
+    first and was refused only afterwards (audit A17-01). An entry still
+    awaiting its serial has none to give."""
+    entry = MockConfigEntry(domain=DOMAIN, data=data, version=2, unique_id=unique_id)
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.wattpilot.hub.Wattpilot", return_value=fake_charger
+    ) as constructor:
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert constructor.call_args.kwargs["serial"] == expected
+
+
+async def test_a_charger_refused_before_the_password_is_named(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """Refused at hello, setup says which charger answered -- the same
+    message as a refusal after connecting, not a generic connect failure."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    entry.add_to_hass(hass)
+    fake_charger.connect_error = DeviceIdentityError("refused", found="999999")
+    with patch_charger(fake_charger), pytest.raises(ConfigEntryError) as raised:
+        await async_setup_entry(hass, entry)
+    assert raised.value.translation_domain == DOMAIN, "untranslated without it"
+    assert raised.value.translation_key == "wrong_charger"
+    assert raised.value.translation_placeholders == {
+        "expected": "123456",
+        "found": "999999",
+    }

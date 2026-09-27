@@ -69,6 +69,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: WattpilotConfigEntry) ->
         entry.data["host"],
         entry.data["password"],
         update_interval,
+        serial=None if awaits_serial(entry) else entry.unique_id,
     )
     await hub.async_connect()
 

@@ -97,7 +97,7 @@ REGISTER: dict[str, str] = {
     "grp": "readable (hardware model name, not the owner's name)",
     "imi": "readable (numeric counter carried as a string)",
     "loc": "readable (local time; the offset reveals only the time zone)",
-    "log": "readable (load group id, free text -- empty here; see note below)",
+    "log": REPLACED,
     "nif": "readable (default route name such as 'st', not an address)",
     "ocm": "readable (OTA status message)",
     "ocppd": "readable (dummy card id, a device-side constant)",
@@ -109,16 +109,15 @@ REGISTER: dict[str, str] = {
     "imp": "readable (mDNS service protocol, a protocol constant)",
     "ims": "readable (mDNS service type of the paired inverter)",
     "los": "readable (load balancing status word, no address in it)",
-    "wsm": "readable (WiFi error text; the SSID has its own fields, see note)",
+    "wsm": REPLACED,
     # Was the one known gap (audit VA-07); replaced since e6aec24's follow-up.
     "ts": REPLACED,
 }
 
-# `log` (load group id) and `wsm` (WiFi error text) are the two free-text
-# fields whose contents nobody controls. Both are empty or absent on the
-# reference device, so there is nothing to observe and no decision to derive
-# from measurement; if either is ever seen populated with something
-# identifying, it belongs with `ts`.
+# `log` (load group id) and `wsm` (WiFi error text) are free text whose
+# contents nobody controls. Both are empty or absent on the reference device,
+# which proves nothing about the next one: unknown free text is replaced until
+# shown harmless, not the other way round (audit A17-02).
 
 
 def _actual_fields() -> set[str]:
