@@ -58,6 +58,11 @@ REPLACE: dict[str, Any] = {
     "hsts": "Wattpilot_123456",
     "wae": True,
     "ct": "default",  # carType free text identifies the owner's specific vehicle model
+    # Free text nobody bounds: a load group named after a place, a WiFi error
+    # quoting a network name. Empty on the reference device, which proves
+    # nothing about the next (audit A17-02).
+    "log": "<redacted>",
+    "wsm": "<redacted>",
 }
 # Both separators, colon and hyphen, each consistent across the address.
 # The sentinel below is intentionally non-hex so it is never re-matched here.
