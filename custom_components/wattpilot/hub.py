@@ -15,6 +15,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
+    ConfigEntryError,
     ConfigEntryNotReady,
     HomeAssistantError,
 )
@@ -35,14 +36,9 @@ from .const import DOMAIN, signal_availability, signal_property
 _LOGGER = logging.getLogger(__name__)
 
 _AVAILABILITY_CHECK_INTERVAL = timedelta(seconds=30)
-# Transport-error roots the client is expected to raise:
-# WattpilotError: the vendor library's own errors.
-# WebSocketException: raw websockets errors the vendor doesn't wrap.
-# OSError: socket failures (also covers builtin ConnectionError/TimeoutError).
-# Not only transport any more: since the vendored client waits for the
-# charger's acknowledgement, a write can also fail because the device
-# refused it (CommandError, a WattpilotError). Both end as the same
-# HomeAssistantError -- the action did not take effect either way.
+# The client's own errors, raw websockets errors it does not wrap, and socket
+# failures. A write the charger refused (CommandError) lands here too: either
+# way the action did not take effect.
 _WRITE_ERRORS = (WattpilotError, WebSocketException, OSError)
 
 type WattpilotConfigEntry = ConfigEntry[WattpilotHub]
@@ -74,18 +70,19 @@ class WattpilotHub:
         self._retired = False
 
     @classmethod
-    def create_local(
+    def create_local(  # noqa: PLR0913 -- one per piece of the entry it is built from
         cls,
         hass: HomeAssistant,
         entry_id: str,
         host: str,
         password: str,
         update_interval: timedelta = timedelta(0),
+        *,
+        serial: str | None = None,
     ) -> WattpilotHub:
-        """Build a hub for a local WebSocket connection."""
-        return cls(
-            hass, entry_id, Wattpilot(host=host, password=password), update_interval
-        )
+        """Build a hub; a known serial is checked before the password is sent."""
+        charger = Wattpilot(host=host, password=password, serial=serial)
+        return cls(hass, entry_id, charger, update_interval)
 
     # ---- lifecycle ----
 
@@ -100,6 +97,12 @@ class WattpilotHub:
         self._torn_down = False
         try:
             await self.charger.connect()
+        except DeviceIdentityError as err:
+            raise ConfigEntryError(
+                translation_domain=DOMAIN,
+                translation_key="wrong_charger",
+                translation_placeholders={"expected": self.serial, "found": err.found},
+            ) from err
         except AuthenticationError as err:
             raise ConfigEntryAuthFailed(
                 translation_domain=DOMAIN,

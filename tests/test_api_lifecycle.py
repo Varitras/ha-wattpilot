@@ -330,8 +330,9 @@ async def test_an_explicit_reconnect_to_a_different_charger_is_refused(
     )
     client._connection.connect_timeout = 0.5
 
-    with pytest.raises(DeviceIdentityError, match="222222"):
+    with pytest.raises(DeviceIdentityError, match="222222") as raised:
         await client.connect()
+    assert raised.value.found == "222222", "the setup error names it"
     assert socket.closed
     assert client.serial == "111111"
 

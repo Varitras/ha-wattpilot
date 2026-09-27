@@ -86,7 +86,11 @@ async def test_create_local_builds_client_with_host_and_password(
     with patch("custom_components.wattpilot.hub.Wattpilot") as client:
         hub = WattpilotHub.create_local(hass, ENTRY_ID, "192.168.1.50", "secret")
     assert client.call_args.args == ()
-    assert client.call_args.kwargs == {"host": "192.168.1.50", "password": "secret"}
+    assert client.call_args.kwargs == {
+        "host": "192.168.1.50",
+        "password": "secret",
+        "serial": None,
+    }
     # Not cosmetic: every dispatcher signal is namespaced by this id, so a
     # wrong one silently detaches every entity from its pushes.
     assert hub._entry_id == ENTRY_ID

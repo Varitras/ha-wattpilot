@@ -29,3 +29,8 @@ class CommandError(WattpilotError):
 
 class DeviceIdentityError(WattpilotError):
     """Raised when the charger that answered is not the one this client knows."""
+
+    def __init__(self, message: str, *, found: str) -> None:
+        """Keep the serial that answered, for a message that names it."""
+        super().__init__(message)
+        self.found = found
