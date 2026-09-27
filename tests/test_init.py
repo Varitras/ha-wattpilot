@@ -684,6 +684,7 @@ async def test_a_charger_refused_before_the_password_is_named(
     fake_charger.connect_error = DeviceIdentityError("refused", found="999999")
     with patch_charger(fake_charger), pytest.raises(ConfigEntryError) as raised:
         await async_setup_entry(hass, entry)
+    assert raised.value.translation_domain == DOMAIN, "untranslated without it"
     assert raised.value.translation_key == "wrong_charger"
     assert raised.value.translation_placeholders == {
         "expected": "123456",
