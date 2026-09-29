@@ -6,6 +6,83 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-29
+
+Everything from the three 0.2.0 candidates, tried on a real charger, plus
+what an independent audit of the last one found. Coming from 0.1.2, read
+**Changed** first: three timings are now set in minutes.
+
+### Added
+
+- **Car plugged in** and **Car charging**, two yes/no sensors.
+- **Forced charging state**: what the three charging buttons set, now
+  readable and settable in one place.
+- **Charging current preset**: sets the current to one of the presets from
+  the app, so the app's slider stays in step with Home Assistant.
+- **Energy limit per charge**: stops the charge after a set amount of
+  energy; 0 switches the limit off.
+- **Charging duration**: minutes of the current charge, or of the last one
+  while no car is charging.
+- **Electricity price** and **Car consumption**, both disabled by default:
+  the market price of a dynamic tariff, with the day's prices as an
+  attribute, and the consumption the app uses to show range.
+- **Minimum charge pause**, **Minimum charging interval**, **Forced
+  single-phase duration** and **Simulated unplugging duration**, set in
+  seconds; disabled by default.
+- The charger is discovered on the network: Home Assistant offers it by
+  itself and asks only for the password. When a known charger has lost its
+  connection and announces a new address, its entry follows. An entry that
+  is connected stays where it is, and an entry set up by name keeps the
+  name.
+
+### Changed
+
+- **Breaking:** **Minimum charging time**, **Phase switch delay** and
+  **Phase switch interval** are shown and set in minutes instead of
+  milliseconds (15 instead of 900000). Automations and scripts that set
+  them need their values divided by 60000. Fractions work: 0.5 is 30
+  seconds. The charger itself still receives milliseconds.
+- **Uptime** (disabled by default) reads in hours instead of milliseconds
+  once you enable it. If you had enabled it already, it keeps milliseconds
+  until you pick hours in the entity's settings.
+- Error messages now appear in your Home Assistant language (English and
+  German so far): a failed setting, a refused password, a lost connection.
+  They used to be fixed English text.
+
+### Fixed
+
+- A charger the entry already knows must announce the expected serial
+  number before it is sent anything derived from the password. A different
+  charger at the address used to receive that answer first and be refused
+  only afterwards.
+- A diagnostics download hides the load-balancing group ID and the Wi-Fi
+  error message. Both are free text a charger may fill with something that
+  identifies you; they were left readable because the reference charger
+  sent them empty.
+- A different charger answering at the address while Home Assistant is
+  running now raises a repair notice that points to Reconfigure. The
+  integration already stopped connecting, rightly, but said nothing: the
+  entities just stayed unavailable.
+- A password the charger refuses while Home Assistant is running now asks
+  for a new one. The integration stopped reconnecting, as it should, but
+  never said why: the charger just stayed unavailable until a reload.
+- Reconnecting and disconnecting no longer trip over each other. A
+  reconnect under way when the integration was unloaded or disconnected
+  could open a connection after the teardown had finished, and a reconnect
+  during a slow disconnect could report success for the very connection
+  being closed. An unloaded integration now refuses a late reconnect
+  instead of coming back to life behind it.
+- When setup refuses a charger (a different device at the address, or one
+  already set up), that reason is what you see, even if closing the
+  connection fails as well. The closing error used to take its place.
+- Entities can no longer go missing when the integration connects. The
+  charger sends its first status in several pieces, and a live update
+  arriving between two of them used to count as "all properties known" --
+  whatever came later got no entity until the integration was reloaded.
+- The restart button no longer reports a failure on every press. The
+  charger restarts without ever answering the command, and waiting for that
+  answer ran into a timeout each time.
+
 ## [0.2.0b3] - 2026-09-26
 
 The third candidate for 0.2.0: durations in units people read, and the
@@ -287,7 +364,8 @@ former builds on.
 - `trx` starts at its real value: `null` is that property's "no
   transaction", not the absence of a value.
 
-[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0b3...HEAD
+[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2...v0.2.0
 [0.2.0b3]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0b2...v0.2.0b3
 [0.2.0b2]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0b1...v0.2.0b2
 [0.2.0b1]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2...v0.2.0b1
