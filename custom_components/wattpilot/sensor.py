@@ -11,6 +11,7 @@ from homeassistant.util import dt as dt_util
 
 from .descriptions import (
     MILLISECONDS_PER_MINUTE,
+    NRG_ATTRIBUTES,
     SENSOR_DESCRIPTIONS,
     CompanionRole,
     WattpilotSensorEntityDescription,
@@ -94,9 +95,10 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
     """One charger property as a sensor."""
 
     entity_description: WattpilotSensorEntityDescription
-    # A day or two of hourly prices, rewritten every hour: history of it
-    # would only fill the recorder.
-    _unrecorded_attributes = frozenset({"prices"})
+    # A day or two of hourly prices, rewritten every hour, and per-phase
+    # readings that differ in nearly every update while charging: history
+    # of either would only fill the recorder.
+    _unrecorded_attributes = frozenset({"prices", *NRG_ATTRIBUTES})
 
     def __init__(self, *args: Any) -> None:  # noqa: ANN401 -- forwards WattpilotEntity's args unchanged
         """Set the ID-chip index placeholder, if this sensor has one."""
