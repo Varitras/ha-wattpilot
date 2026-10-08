@@ -12,6 +12,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   replaced its schema library in 2026.9, and the integration now uses the
   new one directly instead of relying on the alias for the old name.
 
+### Fixed
+
+- An answer from the charger that carries no request ID is no longer
+  thrown away as unreadable. A refusal now shows its reason in the log,
+  and an acceptance applies the state that came with it.
+
 ## [0.2.0] - 2026-09-29
 
 Everything from the three 0.2.0 candidates, tried on a real charger, plus
