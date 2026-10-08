@@ -110,6 +110,8 @@ PROVIDED_BY_HOME_ASSISTANT = {
     # the old name at runtime, which type checking does not see.
     "probatio": "config-flow and action schemas; a core HA dependency since 2026.9",
     "yaml": "PyYAML, used to read the bundled API definition; core HA dependency",
+    "bcrypt": "the charger's password hash in api/auth.py; core HA dependency",
+    "packaging": "firmware version comparisons; core HA dependency",
 }
 
 
@@ -181,6 +183,21 @@ def test_no_manifest_requirement_is_unused() -> None:
     )
 
 
+def test_manifest_does_not_declare_what_home_assistant_ships() -> None:
+    """
+    hassfest rejects a requirement that is a dependency of HA itself.
+
+    The manifest listed bcrypt and packaging, both pinned by HA; hassfest
+    began failing on that in October 2026 while every other gate stayed
+    green. Fix: drop the requirement and record the module in
+    PROVIDED_BY_HOME_ASSISTANT.
+    """
+    duplicated = sorted(_declared_distributions() & set(PROVIDED_BY_HOME_ASSISTANT))
+    assert not duplicated, (
+        f"manifest.json declares {duplicated}, which Home Assistant ships itself"
+    )
+
+
 def test_the_test_environment_installs_what_the_manifest_declares() -> None:
     """
     Every declared requirement has to be present where the tests run.
@@ -209,14 +226,10 @@ def test_manifest_is_consistent() -> None:
     manifest = json.loads((PACKAGE / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["domain"] == "wattpilot"
     assert manifest["iot_class"] == "local_push"
-    # No wattpilot-api: the client lives in api/ now. bcrypt is what auth.py
-    # needs; mqtt/shell/discovery were never adopted, and with them neither
-    # aiomqtt, prompt-toolkit nor pydantic.
-    assert manifest["requirements"] == [
-        "packaging>=23.0",
-        "websockets>=14.0",
-        "bcrypt>=4.0",
-    ]
+    # No wattpilot-api: the client lives in api/ now; mqtt/shell/discovery
+    # were never adopted, and with them neither aiomqtt, prompt-toolkit nor
+    # pydantic. bcrypt and packaging come with Home Assistant.
+    assert manifest["requirements"] == ["websockets>=14.0"]
     assert manifest["config_flow"] is True
     assert manifest["version"] == "0.2.0"
     assert manifest["codeowners"] == ["@Varitras"]
@@ -856,6 +869,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         ),
         "test_no_manifest_requirement_is_unused": (
             "no dependency is installed for nothing"
+        ),
+        "test_manifest_does_not_declare_what_home_assistant_ships": (
+            "hassfest accepts the requirements"
         ),
         "test_the_two_declared_versions_agree": "one release, one number",
         "test_device_fixture_is_anonymized": "snapshot carries no owner identifiers",
