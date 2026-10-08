@@ -201,7 +201,7 @@ class CompanionRole(StrEnum):
     BOOT_CLOCK = "boot_clock"  # rbt, which a running cdi counts from
 
 
-_NRG_ATTRIBUTES = {
+NRG_ATTRIBUTES = {
     "L1_Voltage": 0,
     "L2_Voltage": 1,
     "L3_Voltage": 2,
@@ -463,7 +463,7 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="W",
         value_index=11,
-        index_attributes=_NRG_ATTRIBUTES,
+        index_attributes=NRG_ATTRIBUTES,
     ),
     WattpilotSensorEntityDescription(
         key="webserver_queue",

@@ -603,6 +603,19 @@ def test_the_price_list_stays_out_of_the_recorder() -> None:
     assert by_uid("awcp").entity_registry_enabled_default is False
 
 
+def test_per_phase_readings_stay_out_of_the_recorder() -> None:
+    """The per-phase readings differ in nearly every update while
+    charging, so the recorder stored a new attribute row for nearly every
+    state row. Their history is what the dedicated sensors are for."""
+    indexed = {
+        name
+        for description in SENSOR_DESCRIPTIONS
+        for name in (description.index_attributes or {})
+    }
+    assert indexed
+    assert indexed <= WattpilotSensor._unrecorded_attributes
+
+
 # cdi as recorded on firmware 42.5 on 2026-09-25, with the rbt beside it.
 # While charging it holds the boot clock at the start, not a duration.
 @pytest.mark.parametrize(

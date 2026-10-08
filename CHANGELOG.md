@@ -12,6 +12,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   replaced its schema library in 2026.9, and the integration now uses the
   new one directly instead of relying on the alias for the old name.
 
+### Fixed
+
+- **Charging power** no longer fills the recorder database. Its sixteen
+  per-phase attributes differ in nearly every update while a car charges,
+  and each update stored a new attribute row. They stay visible and usable in
+  templates and automations; only their history is no longer kept.
+
 ## [0.2.0] - 2026-09-29
 
 Everything from the three 0.2.0 candidates, tried on a real charger, plus
