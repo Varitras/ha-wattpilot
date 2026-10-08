@@ -123,7 +123,7 @@ reset to zero at the start of every session by design.
 
 ## Installation
 
-Requires **Home Assistant 2026.8.0** or newer — the version the test suite is
+Requires **Home Assistant 2026.9.0** or newer — the version the test suite is
 run against on every change, not just the newest one.
 
 ### HACS (recommended)

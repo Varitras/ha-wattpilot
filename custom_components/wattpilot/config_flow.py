@@ -6,7 +6,7 @@ import logging
 from ipaddress import IPv4Address, ip_address
 from typing import TYPE_CHECKING, Any
 
-import voluptuous as vol
+import probatio
 from homeassistant.config_entries import (
     ConfigEntryState,
     ConfigFlow,
@@ -44,11 +44,13 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-USER_SCHEMA = vol.Schema({vol.Required("host"): str, vol.Required("password"): str})
-PASSWORD_SCHEMA = vol.Schema({vol.Required("password"): str})
-OPTIONS_SCHEMA = vol.Schema(
+USER_SCHEMA = probatio.Schema(
+    {probatio.Required("host"): str, probatio.Required("password"): str}
+)
+PASSWORD_SCHEMA = probatio.Schema({probatio.Required("password"): str})
+OPTIONS_SCHEMA = probatio.Schema(
     {
-        vol.Required(CONF_UPDATE_INTERVAL): NumberSelector(
+        probatio.Required(CONF_UPDATE_INTERVAL): NumberSelector(
             NumberSelectorConfig(min=0, max=60, step=1, mode=NumberSelectorMode.BOX)
         )
     }

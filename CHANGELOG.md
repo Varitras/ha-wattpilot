@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Requires Home Assistant 2026.9.0 or newer (was 2026.8.0). Home Assistant
+  replaced its schema library in 2026.9, and the integration now uses the
+  new one directly instead of relying on the alias for the old name.
+
 ## [0.2.0] - 2026-09-29
 
 Everything from the three 0.2.0 candidates, tried on a real charger, plus

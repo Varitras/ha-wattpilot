@@ -106,7 +106,9 @@ def test_domain_literal_confined_to_known_carriers() -> None:
 # installation. Anything else has to appear in manifest.json: an undeclared
 # import is a module that simply is not there on a user's system.
 PROVIDED_BY_HOME_ASSISTANT = {
-    "voluptuous": "config-flow and action schemas; a core HA dependency",
+    # Not voluptuous: HA replaced it with probatio in 2026.9 and only aliases
+    # the old name at runtime, which type checking does not see.
+    "probatio": "config-flow and action schemas; a core HA dependency since 2026.9",
     "yaml": "PyYAML, used to read the bundled API definition; core HA dependency",
 }
 
