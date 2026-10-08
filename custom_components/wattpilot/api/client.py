@@ -1035,8 +1035,10 @@ class Wattpilot:
 
     def _on_response(self, msg: SimpleNamespace) -> None:
         # wattpilot: resolve the waiting command (audit VA-03). An answer
-        # without a waiter is still applied and logged, as before.
-        future = self._pending_commands.get(_correlation_key(msg.requestId))
+        # without a waiter -- or without an id at all -- is still applied
+        # and logged.
+        request_id = getattr(msg, "requestId", None)
+        future = self._pending_commands.get(_correlation_key(request_id))
         if msg.success:
             # Nothing in the protocol promises a status on every acceptance.
             status = getattr(msg, "status", SimpleNamespace())
@@ -1048,10 +1050,10 @@ class Wattpilot:
         reason = getattr(msg, "message", "unknown")
         if future is not None and not future.done():
             future.set_exception(
-                CommandError(f"Charger rejected command {msg.requestId}: {reason}")
+                CommandError(f"Charger rejected command {request_id}: {reason}")
             )
             return
-        _LOGGER.error("Command failed (requestId=%s): %s", msg.requestId, reason)
+        _LOGGER.error("Command failed (requestId=%s): %s", request_id, reason)
 
     # The charger's key-to-attribute table, written as a match. Every arm is
     # two lines and independent of the others -- splitting it would turn one

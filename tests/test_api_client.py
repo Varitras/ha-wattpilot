@@ -235,6 +235,35 @@ async def test_an_acknowledgement_without_status_still_answers_the_command() -> 
     await task
 
 
+async def test_a_rejection_without_request_id_is_reported_with_its_reason(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A failed response may arrive without a requestId. Reading it
+    unconditionally raised, the frame was dropped as unreadable, and the
+    charger's reason for the failure never reached the log."""
+    client = make_client(FakeSocket())
+    caplog.set_level(logging.ERROR)
+
+    await client._handle_message(
+        json.dumps({"type": "response", "success": False, "message": "busy"})
+    )
+
+    assert "Command failed" in caplog.text
+    assert "busy" in caplog.text
+
+
+async def test_an_acceptance_without_request_id_still_applies_its_status() -> None:
+    """Same omission on the success side: the state the charger reported
+    was lost with the dropped frame."""
+    client = make_client(FakeSocket())
+
+    await client._handle_message(
+        json.dumps({"type": "response", "success": True, "status": {"amp": 12}})
+    )
+
+    assert client.all_properties["amp"] == 12
+
+
 async def test_a_restart_does_not_wait_for_an_answer_that_never_comes() -> None:
     """Recorded on firmware 42.5: the charger never answers rst=1. It goes
     silent and closes the socket about 17 s later to reboot. Waiting for the
