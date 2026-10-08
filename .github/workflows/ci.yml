@@ -47,8 +47,8 @@ jobs:
       - name: Install the declared minimum Home Assistant
         run: |
           pip install --group dev \
-            "homeassistant==2026.8.0" \
-            "pytest-homeassistant-custom-component==0.13.354"
+            "homeassistant==2026.9.0" \
+            "pytest-homeassistant-custom-component==0.13.363"
       - name: Run the test suite against it
         run: python3 -m pytest
 

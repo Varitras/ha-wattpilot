@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import voluptuous as vol
+import probatio
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
@@ -18,9 +18,9 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-_DEVICE_SCHEMA = vol.Schema({vol.Required("device_id"): cv.string})
-_NEXT_TRIP_SCHEMA = _DEVICE_SCHEMA.extend({vol.Required("trigger_time"): cv.time})
-_CLOUD_SCHEMA = _DEVICE_SCHEMA.extend({vol.Required("cloud_api"): cv.boolean})
+_DEVICE_SCHEMA = probatio.Schema({probatio.Required("device_id"): cv.string})
+_NEXT_TRIP_SCHEMA = _DEVICE_SCHEMA.extend({probatio.Required("trigger_time"): cv.time})
+_CLOUD_SCHEMA = _DEVICE_SCHEMA.extend({probatio.Required("cloud_api"): cv.boolean})
 
 
 def _hub_for_device(hass: HomeAssistant, device_id: str) -> WattpilotHub:

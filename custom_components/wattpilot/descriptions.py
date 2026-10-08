@@ -11,11 +11,17 @@ from enum import StrEnum
 from operator import eq, ge, gt, le, lt
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.binary_sensor import (
+# HA 2026.10 moved both device classes to `.const` and re-exports them
+# implicitly; 2026.9, the minimum, has no binary_sensor `.const` yet. Import
+# from `.const` once the minimum reaches 2026.10.
+from homeassistant.components.binary_sensor import (  # type: ignore[attr-defined]
     BinarySensorDeviceClass,
     BinarySensorEntityDescription,
 )
-from homeassistant.components.button import ButtonDeviceClass, ButtonEntityDescription
+from homeassistant.components.button import (  # type: ignore[attr-defined]
+    ButtonDeviceClass,
+    ButtonEntityDescription,
+)
 from homeassistant.components.number import (
     NumberDeviceClass,
     NumberEntityDescription,
