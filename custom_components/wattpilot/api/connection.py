@@ -304,10 +304,10 @@ class Connection:
                     await task
                 except asyncio.CancelledError:
                     pass
-                except Exception:
-                    # wattpilot: awaiting a loop that already failed used to
-                    # re-raise here, before the socket was closed (A11-06).
-                    _LOGGER.debug("Message loop ended with an error", exc_info=True)
+                except Exception as err:  # noqa: BLE001 -- whatever ended the loop
+                    # A failed loop re-raised here, before the socket closed
+                    # (A11-06). No traceback: it can quote the address (PC-02).
+                    _LOGGER.debug("Message loop ended: %s", describe_error(err))
         finally:
             # Reset even when close() raises, or `connected` stays True with
             # the reader already cancelled (audit VA-04).

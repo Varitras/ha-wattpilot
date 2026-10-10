@@ -90,9 +90,23 @@ OWN_ERRORS = frozenset(
     )
     if isinstance(node, ast.ClassDef)
 )
-# Errors whose text can quote the charger's address: a refused connect does.
+# Catches that can hold an error quoting the charger's address, as a refused
+# connect's does: socket errors by any of their names, and the broad catches.
 TRANSPORT_ERRORS = frozenset(
-    {"OSError", "ConnectionError", "WebSocketException", "_WRITE_ERRORS"}
+    {
+        "OSError",
+        "ConnectionError",
+        "ConnectionRefusedError",
+        "ConnectionResetError",
+        "ConnectionAbortedError",
+        "BrokenPipeError",
+        "WebSocketException",
+        "InvalidURI",
+        "InvalidHandshake",
+        "_WRITE_ERRORS",
+        "Exception",
+        "BaseException",
+    }
 )
 
 
@@ -179,7 +193,11 @@ def _catches_transport_errors(handler: ast.ExceptHandler) -> bool:
 def _shows_traceback(node: ast.AST, error: str | None) -> bool:
     """A raise that chains *error*, or a log call that prints the traceback."""
     if isinstance(node, ast.Raise):
-        return error is not None and getattr(node.cause, "id", None) == error
+        # A bare raise passes the error itself on; whoever catches it is
+        # checked there. Without `from`, the caught error is chained too.
+        reraised = node.exc is None
+        chained = node.cause is None or getattr(node.cause, "id", None) == error
+        return not reraised and chained
     if not _is_logger_call(node):
         return False
     with_traceback = any(
@@ -188,6 +206,20 @@ def _shows_traceback(node: ast.AST, error: str | None) -> bool:
         for keyword in node.keywords  # type: ignore[attr-defined]
     )
     return with_traceback or node.func.attr == "exception"  # type: ignore[attr-defined]
+
+
+def _own_nodes(handler: ast.ExceptHandler) -> list[ast.AST]:
+    """The handler's nodes, without nested handlers: those log their own error."""
+    nodes, pending = [], list(handler.body)
+    while pending:
+        node = pending.pop()
+        nodes.append(node)
+        pending.extend(
+            child
+            for child in ast.iter_child_nodes(node)
+            if not isinstance(child, ast.ExceptHandler)
+        )
+    return nodes
 
 
 def _traceback_leaks(source: str) -> list[str]:
@@ -201,7 +233,7 @@ def _traceback_leaks(source: str) -> list[str]:
         f"{inner.lineno} traceback of {handler.name or 'the error'}"
         for handler in ast.walk(ast.parse(source))
         if isinstance(handler, ast.ExceptHandler) and _catches_transport_errors(handler)
-        for inner in ast.walk(handler)
+        for inner in _own_nodes(handler)
         if _shows_traceback(inner, handler.name)
     ]
 
@@ -229,6 +261,9 @@ def _log_leaks(source: str) -> list[str]:
         "try: pass\nexcept (ValueError, OSError): _LOGGER.exception('failed')",
         "try: pass\nexcept _WRITE_ERRORS as err: _LOGGER.debug('x', exc_info=err)",
         "try: pass\nexcept ws.WebSocketException: _LOGGER.info('x', exc_info=True)",
+        "try: pass\nexcept _WRITE_ERRORS: raise ConfigEntryNotReady()",
+        "try: pass\nexcept Exception: _LOGGER.debug('x', exc_info=True)",
+        "try: pass\nexcept ConnectionRefusedError as err: raise X() from err",
     ],
 )
 def test_the_identifier_guard_can_actually_fail(snippet: str) -> None:
@@ -246,6 +281,7 @@ def test_the_identifier_guard_can_actually_fail(snippet: str) -> None:
         "try: pass\nexcept OSError as err: raise ConfigEntryNotReady() from None",
         "try: pass\nexcept TimeoutError as err: raise CommandError(msg) from err",
         "try: pass\nexcept OSError: _LOGGER.debug('x', exc_info=False)",
+        "try: pass\nexcept BaseException: raise",
     ],
 )
 def test_the_identifier_guard_lets_masked_values_through(snippet: str) -> None:
