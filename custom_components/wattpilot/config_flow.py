@@ -192,6 +192,7 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle the initial setup step: host and password."""
         errors: dict[str, str] = {}
         if user_input is not None:
+            self._abort_if_awaiting_entry_at(user_input["host"])
             errors, serial, name = await self._async_validate(
                 user_input["host"], user_input["password"]
             )
@@ -237,7 +238,9 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
         Abort for an entry at this address that has yet to learn its serial.
 
         Keyed on its address until it connects, it was not found by the
-        serial, and an entry made from the card locked it out (reaudit R1-14).
+        serial, and an entry made from a card or the form locked it out
+        (R1-14, PC-04). shortcut: the address is compared as written, so a
+        host name against an IP goes unnoticed; resolve both if that occurs.
         """
         awaiting = next(
             (entry for entry in self._awaiting_entries() if entry.data["host"] == host),
