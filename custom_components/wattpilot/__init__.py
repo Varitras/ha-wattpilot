@@ -70,12 +70,20 @@ class _SerialMask(logging.Filter):
         except TypeError, ValueError:
             return True  # a malformed record is logging's to report
         masked = message
-        for entry in self._hass.config_entries.async_entries(DOMAIN):
-            if entry.unique_id:
-                masked = masked.replace(entry.unique_id, mask_serial(entry.unique_id))
+        for serial in self._serials():
+            masked = masked.replace(serial, mask_serial(serial))
         if masked != message:
             record.msg, record.args = masked, None
         return True
+
+    def _serials(self) -> list[str]:
+        # A serial is all digits; an entry awaiting it is keyed on a name or
+        # address, which got masked in every other title as well (R1-17).
+        return [
+            entry.unique_id
+            for entry in self._hass.config_entries.async_entries(DOMAIN)
+            if entry.unique_id and entry.unique_id.isdigit()
+        ]
 
 
 async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:

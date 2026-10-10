@@ -805,6 +805,20 @@ async def test_another_integrations_unique_id_is_left_alone(
     assert record.getMessage() == "Config entry 'Other_777777' not ready"
 
 
+async def test_an_entry_awaiting_its_serial_masks_nothing(
+    hass: HomeAssistant,
+) -> None:
+    """An entry carried over from the earlier integration is keyed on its
+    name or address until it connects. Masked as a serial, that name turned
+    every other title holding it into `*******ot` (R1-17)."""
+    MockConfigEntry(domain=DOMAIN, unique_id="Wattpilot").add_to_hass(hass)
+    record = _record("Config entry '%s' not ready", "Wattpilot meter")
+
+    assert _SerialMask(hass).filter(record)
+
+    assert record.getMessage() == "Config entry 'Wattpilot meter' not ready"
+
+
 async def test_a_setup_cancelled_by_the_stop_is_logged_masked(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
