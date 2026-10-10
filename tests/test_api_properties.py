@@ -18,24 +18,7 @@ from custom_components.wattpilot.api.exceptions import PropertyError
 
 # charger key -> (pushed value, property name on the client, expected value)
 SIMPLE_PROPERTIES: list[tuple[str, Any, str, Any]] = [
-    ("acs", 1, "access_state", 1),
-    ("cbl", 20, "cable_type", 20),
-    ("fhz", 50.01, "frequency", 50.01),
-    (
-        "pha",
-        [False, False, False, True, True, True],
-        "phases",
-        [False] * 3 + [True] * 3,
-    ),
-    ("wh", 1234.5, "energy_counter_since_start", 1234.5),
-    ("err", 0, "error_state", 0),
-    ("ust", 2, "cable_lock", 2),
-    ("eto", 2494780, "energy_counter_total", 2494780),
-    ("cae", True, "cae", True),
-    ("cak", "key", "cak", "key"),
-    ("lmo", 4, "mode", 4),
-    ("car", 2, "car_connected", 2),
-    ("alw", True, "allow_charging", True),
+    ("cak", "key", "cloud_api_key", "key"),
     ("amp", 16, "amp", 16),
     ("version", "1.2.3", "version", "1.2.3"),
     ("fwv", "42.5", "firmware", "42.5"),

@@ -617,8 +617,9 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # (ledger L-016): the connection lifecycle moved to connection.py and
     # this budget came back down with it (measured: 1192). Nudged to 1230 on
     # 2026-09-06 for the audit round's connect cleanup and firmware deadline
-    # (measured: 1221).
-    "client.py": 1130,
+    # (measured: 1221). Down on 2026-10-11 with the 45 accessors nothing read
+    # (audit A18-37), keeping room for the refusal in the firmware wait.
+    "client.py": 862,
     # Past the default on 2026-09-25 by the open/close coordination (audits
     # A15-01, A16-01): shared attempts, a close that cancels instead of
     # waiting, and one visible transition at a time (measured: 406).
@@ -644,8 +645,9 @@ CLUSTER_BUDGET = {
     # measured 1567 lines. Raised a second time on 2026-09-25, after about
     # forty lines of comment had already been condensed to make room: the
     # open/close coordination (A13-01, A14-01, A15-01) and the refused-
-    # password flag (A14-02), at a measured 1607 lines.
-    "api client": (("client.py", "connection.py"), 1570),
+    # password flag (A14-02), at a measured 1607 lines. Down with client.py
+    # on 2026-10-11 (A18-37).
+    "api client": (("client.py", "connection.py"), 1302),
 }
 
 
@@ -952,7 +954,7 @@ def test_complexity_ratchet() -> None:
         "connection.py::Connection._message_loop": 6,
         "client.py::Wattpilot._handle_message": 11,
         "client.py::Wattpilot._on_response": 6,
-        "client.py::Wattpilot._update_property": 23,
+        "client.py::Wattpilot._update_property": 11,
         "definition.py::validate_api_definition": 12,
         "definition.py::load_api_definition": 8,
     }

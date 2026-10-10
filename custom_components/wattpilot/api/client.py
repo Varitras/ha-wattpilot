@@ -164,18 +164,6 @@ class Wattpilot:
         self._version: str | None = None
         self._firmware: str | None = None
         self._wifi_ssid: str | None = None
-        self._mode: int | None = None
-        self._car_connected: int | None = None
-        self._allow_charging: bool | None = None
-        self._access_state: int | None = None
-        self._cable_type: int | None = None
-        self._cable_lock: int | None = None
-        self._frequency: float | None = None
-        self._phases: Any = None
-        self._energy_counter_since_start: float | None = None
-        self._energy_counter_total: float | None = None
-        self._error_state: int | None = None
-        self._cae: bool | None = None
         self._cak: str | None = None
 
         # Lazy-loaded API definition for type coercion
@@ -286,74 +274,9 @@ class Wattpilot:
         return self._amp
 
     @property
-    def mode(self) -> int | None:
-        """Return the load mode (see LoadMode)."""
-        return self._mode
-
-    @property
-    def car_connected(self) -> int | None:
-        """Return the vehicle state (see the `car` property)."""
-        return self._car_connected
-
-    @property
-    def allow_charging(self) -> bool | None:
-        """Return whether the charger currently allows charging."""
-        return self._allow_charging
-
-    @property
-    def access_state(self) -> int | None:
-        """Return the access control state (open / authentication required)."""
-        return self._access_state
-
-    @property
-    def cable_type(self) -> int | None:
-        """Return the cable's current rating in A."""
-        return self._cable_type
-
-    @property
-    def cable_lock(self) -> int | None:
-        """Return the cable lock state."""
-        return self._cable_lock
-
-    @property
-    def frequency(self) -> float | None:
-        """Return the grid frequency in Hz, or 0 if unknown."""
-        return self._frequency
-
-    @property
-    def phases(self) -> Any:  # noqa: ANN401 -- charger values are dynamically typed
-        """Return the raw per-phase flags the charger reports."""
-        return self._phases
-
-    @property
-    def energy_counter_since_start(self) -> float | None:
-        """Return the energy charged this session in Wh."""
-        return self._energy_counter_since_start
-
-    @property
-    def energy_counter_total(self) -> float | None:
-        """Return the charger's lifetime energy counter in Wh."""
-        return self._energy_counter_total
-
-    @property
-    def error_state(self) -> int | None:
-        """Return the internal error code (0 = none)."""
-        return self._error_state
-
-    @property
     def wifi_ssid(self) -> str | None:
         """Return the SSID the charger is connected to."""
         return self._wifi_ssid
-
-    @property
-    def cae(self) -> bool | None:
-        """Return whether the go-e cloud API is enabled."""
-        return self._cae
-
-    @property
-    def cak(self) -> str | None:
-        """Return the go-e cloud API key."""
-        return self._cak
 
     @property
     def all_properties(self) -> dict[str, Any]:
@@ -379,162 +302,7 @@ class Wattpilot:
         """Device model / type string."""
         return self._all_props.get("typ")
 
-    # Charging state
-
-    @property
-    def car_state(self) -> int | None:
-        """Car connection state (use :class:`CarStatus` enum)."""
-        return self._all_props.get("car")
-
-    @property
-    def cable_unlock_status(self) -> int | None:
-        """Cable unlock status."""
-        return self._all_props.get("cus")
-
-    @property
-    def charging_reason(self) -> int | None:
-        """Detailed charging reason / model status."""
-        return self._all_props.get("modelStatus")
-
-    @property
-    def force_state(self) -> int | None:
-        """Force charging state (use :class:`ForceState` enum)."""
-        return self._all_props.get("frc")
-
-    @property
-    def active_transaction_chip(self) -> int | None:
-        """Active RFID transaction chip ID."""
-        return self._all_props.get("trx")
-
-    # Configuration
-
-    @property
-    def button_lock(self) -> int | None:
-        """Button / access lock level."""
-        return self._all_props.get("bac")
-
-    @property
-    def daylight_saving(self) -> int | None:
-        """Daylight saving time mode (``1`` = enabled)."""
-        return self._all_props.get("tds")
-
-    @property
-    def phase_switch_mode(self) -> int | None:
-        """Phase switching mode (use :class:`PhaseSwitchMode` enum)."""
-        return self._all_props.get("psm")
-
-    # Diagnostics
-
-    @property
-    def inverter_info(self) -> Any:  # noqa: ANN401 -- charger values are dynamically typed
-        """Connected inverter information."""
-        return self._all_props.get("cci")
-
-    @property
-    def wifi_connection_info(self) -> Any:  # noqa: ANN401 -- charger values are dynamically typed
-        """WiFi connection details (SSID, IP, netmask, etc.)."""
-        return self._all_props.get("ccw")
-
-    @property
-    def lock_feedback(self) -> int | None:
-        """Lock feedback status."""
-        return self._all_props.get("ffb")
-
-    @property
-    def effective_lock_setting(self) -> int | None:
-        """Effective lock setting."""
-        return self._all_props.get("lck")
-
-    @property
-    def local_time(self) -> str | None:
-        """Local time as reported by the charger."""
-        return self._all_props.get("loc")
-
-    @property
-    def wifi_signal_strength(self) -> int | None:
-        """WiFi signal strength (RSSI in dBm)."""
-        return self._all_props.get("rssi")
-
-    @property
-    def temperature(self) -> Any:  # noqa: ANN401 -- charger values are dynamically typed
-        """Temperature sensor readings."""
-        return self._all_props.get("tma")
-
-    @property
-    def uptime_ms(self) -> int | None:
-        """Device uptime in milliseconds."""
-        return self._all_props.get("rbt")
-
-    @property
-    def reboot_count(self) -> int | None:
-        """Number of device reboots."""
-        return self._all_props.get("rbc")
-
-    @property
-    def websocket_queue_size(self) -> int | None:
-        """WebSocket send queue size."""
-        return self._all_props.get("qsw")
-
-    @property
-    def http_clients(self) -> int | None:
-        """Number of connected HTTP clients."""
-        return self._all_props.get("wcch")
-
-    @property
-    def websocket_clients(self) -> int | None:
-        """Number of connected WebSocket clients."""
-        return self._all_props.get("wccw")
-
-    @property
-    def wifi_status(self) -> int | None:
-        """WiFi connection status."""
-        return self._all_props.get("wst")
-
-    # RFID
-
-    @property
-    def rfid_cards(self) -> Any:  # noqa: ANN401 -- charger values are dynamically typed
-        """Configured RFID cards."""
-        return self._all_props.get("cards")
-
-    # PV / Solar
-
-    @property
-    def pv_surplus_enabled(self) -> bool | None:
-        """Whether PV surplus charging is enabled."""
-        return self._all_props.get("fup")
-
-    @property
-    def pv_surplus_start_power(self) -> float | None:
-        """PV surplus start power threshold in watts."""
-        return self._all_props.get("fst")
-
-    @property
-    def pv_battery_threshold(self) -> float | None:
-        """PV battery minimum threshold."""
-        return self._all_props.get("fam")
-
-    @property
-    def min_charging_time(self) -> int | None:
-        """Minimum charging time in seconds."""
-        return self._all_props.get("fmt")
-
-    @property
-    def next_trip_energy(self) -> float | None:
-        """Planned energy for next trip in Wh."""
-        return self._all_props.get("fte")
-
-    @property
-    def next_trip_time(self) -> int | None:
-        """Planned departure time for next trip (seconds since midnight)."""
-        return self._all_props.get("ftt")
-
     # Firmware
-
-    @property
-    def installed_firmware_version(self) -> str | None:
-        """Currently installed firmware version."""
-        return self._firmware
 
     @property
     def available_firmware_versions(self) -> list[str]:
@@ -546,35 +314,12 @@ class Wattpilot:
             return [val]
         return []
 
-    @property
-    def firmware_update_available(self) -> bool:
-        """Whether a firmware update is available."""
-        available = self.available_firmware_versions
-        if not available:
-            return False
-        installed = self.firmware
-        if not installed:
-            return bool(available)
-        return any(v != installed for v in available)
-
     # Cloud API
-
-    @property
-    def cloud_enabled(self) -> bool | None:
-        """Whether the go-e Cloud API is enabled."""
-        return self._cae
 
     @property
     def cloud_api_key(self) -> str | None:
         """Cloud API key (available when cloud is enabled)."""
         return self._cak
-
-    @property
-    def cloud_api_url(self) -> str | None:
-        """Cloud API base URL for this device."""
-        if not self._cae or not self.serial:
-            return None
-        return f"{CLOUD_API_BASE_URL}/{self.serial}"
 
     # ---- Commands ----
 
@@ -1019,7 +764,7 @@ class Wattpilot:
     # The charger's key-to-attribute table, written as a match. Every arm is
     # two lines and independent of the others -- splitting it would turn one
     # readable table into several partial ones.
-    def _update_property(  # noqa: C901, PLR0912
+    def _update_property(
         self,
         name: str,
         value: Any,  # noqa: ANN401 -- charger values are dynamically typed
@@ -1031,32 +776,8 @@ class Wattpilot:
         self._all_props[name] = value
 
         match name:
-            case "acs":
-                self._access_state = value
-            case "cbl":
-                self._cable_type = value
-            case "fhz":
-                self._frequency = value
-            case "pha":
-                self._phases = value
-            case "wh":
-                self._energy_counter_since_start = value
-            case "err":
-                self._error_state = value
-            case "ust":
-                self._cable_lock = value
-            case "eto":
-                self._energy_counter_total = value
-            case "cae":
-                self._cae = value
             case "cak":
                 self._cak = value
-            case "lmo":
-                self._mode = value
-            case "car":
-                self._car_connected = value
-            case "alw":
-                self._allow_charging = value
             case "amp":
                 self._amp = value
             case "version":

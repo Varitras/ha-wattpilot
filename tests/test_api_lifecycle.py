@@ -33,9 +33,9 @@ def client() -> Wattpilot:
 
 
 def read_only_properties() -> list[str]:
-    """Derived, not listed: the client has 75 of these and the list would be
-    stale by the next property. The count assertion below is what keeps the
-    sweep from silently becoming empty."""
+    """Derived, not listed: a list would be stale by the next property. The
+    count assertion below is what keeps the sweep from silently becoming
+    empty."""
     return sorted(
         name
         for name in dir(Wattpilot)
@@ -48,7 +48,7 @@ def test_every_getter_answers_on_a_fresh_client(client: Wattpilot) -> None:
     builds its entities from these while the charger is still connecting,
     and one AttributeError there takes the whole platform down."""
     names = read_only_properties()
-    assert len(names) > 50, "the introspection found almost nothing -- it broke"
+    assert len(names) > 15, "the introspection found almost nothing -- it broke"
 
     for name in names:
         getattr(client, name)
