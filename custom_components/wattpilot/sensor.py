@@ -303,7 +303,7 @@ def _charging_minutes(cdi: Any, boot_clock: Any) -> int | None:  # noqa: ANN401 
 class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):
     """A total that never falls, also across a reload or restart."""
 
-    _holding_restored = False
+    _restored_total: float | None = None
 
     async def async_added_to_hass(self) -> None:
         """Seed the hold against a step back with the last reported total."""
@@ -312,21 +312,19 @@ class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):
         # triggers -- reported the lower total (audit A18-25).
         last = await self.async_get_last_sensor_data()
         if last is not None and isinstance(last.native_value, (int, float)):
-            self._attr_native_value = last.native_value
-            self._holding_restored = True
+            self._attr_native_value = self._restored_total = last.native_value
         await super().async_added_to_hass()
 
     def _should_suppress_decrease(
         self, description: WattpilotSensorEntityDescription, value: float
     ) -> bool:
-        if not self._holding_restored:
-            return super()._should_suppress_decrease(description, value)
-        self._holding_restored = False
+        restored, self._restored_total = self._restored_total, None
         # A restored total can be another charger's: a replacement that took
         # over this entity ID was held at the old total for years (R1-03).
         # Only a step back as small as a restart's is held.
-        previous = self._attr_native_value
-        return previous * _RESET_THRESHOLD_RATIO <= value < previous  # type: ignore[operator]
+        if restored is not None and value < restored * _RESET_THRESHOLD_RATIO:
+            return False
+        return super()._should_suppress_decrease(description, value)
 
 
 class WattpilotChargingDurationSensor(WattpilotSensor):

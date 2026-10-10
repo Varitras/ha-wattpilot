@@ -170,6 +170,9 @@ async def test_a_charger_asking_for_an_unknown_sign_in_is_reported(
     issue = ir.async_get(hass).async_get_issue(DOMAIN, issue_id)
     assert issue is not None, "the refusal was not reported"
     assert issue.translation_key == "charger_refused"
+    # Nothing in Home Assistant can fix it; a Fix button would lead nowhere.
+    assert issue.is_fixable is False
+    assert issue.severity is ir.IssueSeverity.ERROR
     assert issue.translation_placeholders == {"error": "Unsupported password hash: x9"}
     assert not reauth_flows(hass), "a new password cannot fix this"
 
@@ -994,8 +997,21 @@ async def test_total_energy_does_not_fall_across_a_reload(
     assert total == 2681214
 
 
-async def test_a_restored_total_from_another_charger_does_not_freeze_it(
+async def test_a_restored_total_holds_a_step_back_down_to_its_limit(
     hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """Exactly at 90 % of the restored total it is still a step back."""
+    _, total = await _total_energy_after_restore(
+        hass, fake_charger, restored=1000, reported=900
+    )
+
+    assert total == 1000
+
+
+async def test_a_restored_total_from_another_charger_does_not_freeze_it(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A replacement charger that took over the old entity ID restored the
     old charger's total and held it until its own passed it -- years at
@@ -1016,3 +1032,9 @@ async def test_a_restored_total_from_another_charger_does_not_freeze_it(
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=60))
     await hass.async_block_till_done()
     assert _total_energy_wh(hass, entity_id) == 1300
+    assert not [
+        record
+        for record in caplog.records
+        if record.name.startswith("custom_components.wattpilot")
+        and record.levelno >= logging.WARNING
+    ], "every reading must be read without complaint"
