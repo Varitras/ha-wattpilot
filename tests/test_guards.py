@@ -33,8 +33,8 @@ def iter_python_files() -> list[Path]:
 # Names whose value identifies a device or a network. Logs are what users
 # attach to public issues, and nothing redacts them.
 # err/exc: a socket error's text quotes the charger's address and port.
-# entity_id: the device is named after its host name, Wattpilot_<serial>,
-# on purpose, so its entity IDs carry the serial (R1-02).
+# entity_id: installations set up with 0.2.0 or earlier name the device after
+# its host name, Wattpilot_<serial>, so their entity IDs carry the serial.
 IDENTIFYING_NAMES = frozenset(
     {
         "serial",

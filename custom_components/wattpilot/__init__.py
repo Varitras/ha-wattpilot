@@ -7,7 +7,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from homeassistant import config_entries
-from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.const import CONF_NAME, EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import callback
 from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
 from homeassistant.helpers import config_validation as cv
@@ -52,8 +52,9 @@ class _SerialMask(logging.Filter):
     """
     Mask this integration's serials in what Home Assistant logs about it.
 
-    The entry title is the charger's host name, Wattpilot_<serial>, on
-    purpose, and Home Assistant logs it on every failed setup attempt: to
+    Entries created before new ones were named Wattpilot are titled after
+    the charger's host name, Wattpilot_<serial>, and Home Assistant logs
+    the title on every failed setup attempt: to
     its config_entries logger, or to this package's logger once it has
     loaded the integration itself (retries, reloads). Only records logged on
     those two loggers pass here; this package's modules mask their own.
@@ -117,6 +118,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: WattpilotConfigEntry) ->
         entry.data["password"],
         update_interval,
         serial=None if awaits_serial(entry) else entry.unique_id,
+        # None for entries from before new ones were named Wattpilot: their
+        # device keeps the host name their entity IDs were made from.
+        name=entry.data.get(CONF_NAME),
     )
     await hub.async_connect()
 

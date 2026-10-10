@@ -114,9 +114,9 @@ And a few that make existing settings usable from Home Assistant:
 
 ### Energy Dashboard
 
-Use **Total energy** (`sensor.wattpilot_<serial>_total_energy`, the device
-being named after its host name `Wattpilot_<serial>` unless you renamed it)
-as the device's consumption source. It is a
+Use **Total energy** (`sensor.wattpilot_total_energy`; on an installation set
+up with 0.2.0 or earlier `sensor.wattpilot_<serial>_total_energy`) as the
+device's consumption source. It is a
 `total_increasing` energy sensor and survives charger reboots, also across a
 reload or restart of Home Assistant.
 
@@ -189,8 +189,7 @@ automations keep working.
 ### Example
 
 Restrict charging to solar surplus while the sun is up, and set tomorrow's
-departure every evening. The entity IDs start with the device name, here a
-charger with the serial 123456; put in yours:
+departure every evening, with the entity IDs of a new installation:
 
 ```yaml
 automation:
@@ -201,7 +200,7 @@ automation:
     actions:
       - action: switch.turn_on
         target:
-          entity_id: switch.wattpilot_123456_pv_surplus_charging
+          entity_id: switch.wattpilot_pv_surplus_charging
 
   - alias: Wattpilot solar surplus off at sunset
     triggers:
@@ -210,7 +209,7 @@ automation:
     actions:
       - action: switch.turn_off
         target:
-          entity_id: switch.wattpilot_123456_pv_surplus_charging
+          entity_id: switch.wattpilot_pv_surplus_charging
 
   - alias: Wattpilot next trip at 07:30
     triggers:
@@ -219,7 +218,7 @@ automation:
     actions:
       - action: wattpilot.set_next_trip
         data:
-          device_id: "{{ device_id('sensor.wattpilot_123456_car_state') }}"
+          device_id: "{{ device_id('sensor.wattpilot_car_state') }}"
           trigger_time: "07:30:00"
 ```
 
@@ -265,11 +264,11 @@ appear inside other text. Still look over the file before posting it.
 
 The log is masked as far as this integration reaches: its own messages and
 Home Assistant's messages about setting up the entry show only the last two
-digits of the serial number. Entity IDs contain the serial number -- the
-device is named after its host name, `Wattpilot_<serial>` -- so the
-integration's own messages name an entity by its key instead. Other parts of
-Home Assistant log entity IDs, though, recorder warnings for example. Look
-over a log before posting it.
+digits of the serial number, and its own messages name an entity by its key.
+On an installation set up with 0.2.0 or earlier, entity IDs contain the serial
+number -- the device is named after its host name, `Wattpilot_<serial>` -- and
+other parts of Home Assistant log entity IDs, recorder warnings for example.
+Look over a log before posting it.
 
 ## Removing the integration
 

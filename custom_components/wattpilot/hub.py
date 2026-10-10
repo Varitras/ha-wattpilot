@@ -43,8 +43,7 @@ _AVAILABILITY_CHECK_INTERVAL = timedelta(seconds=30)
 # way the action did not take effect. Raised `from None`: a setup traceback
 # shows the cause, and a refused connect quotes the address (R1-01).
 _WRITE_ERRORS = (WattpilotError, WebSocketException, OSError)
-# Repair issues for a refusal, named after their translation key.
-_REFUSAL_ISSUES = ("wrong_charger", "charger_refused")
+_REFUSAL_ISSUES = ("wrong_charger", "charger_refused")  # also translation keys
 
 type WattpilotConfigEntry = ConfigEntry[WattpilotHub]
 
@@ -58,9 +57,11 @@ class WattpilotHub:
         entry_id: str,
         charger: Wattpilot,
         update_interval: timedelta = timedelta(0),
+        name: str | None = None,
     ) -> None:
         """Wrap an already-constructed client; see create_local for the usual path."""
         self._hass = hass
+        self._name = name
         self._entry_id = entry_id
         self.charger = charger
         self._update_interval = update_interval
@@ -84,10 +85,11 @@ class WattpilotHub:
         update_interval: timedelta = timedelta(0),
         *,
         serial: str | None = None,
+        name: str | None = None,
     ) -> WattpilotHub:
         """Build a hub; a known serial is checked before the password is sent."""
         charger = Wattpilot(host=host, password=password, serial=serial)
-        return cls(hass, entry_id, charger, update_interval)
+        return cls(hass, entry_id, charger, update_interval, name)
 
     # ---- lifecycle ----
 
@@ -129,9 +131,7 @@ class WattpilotHub:
         initial value, so starting early cannot lose a push, while starting
         late loses any push that lands between an entity's read and this call
         (see async_setup_entry). Availability signalling does not run until
-        this runs. Idempotent: reconnect_charger calls it again after
-        reconnecting, and a second call must not register a second set of
-        callbacks.
+        this runs. Idempotent: reconnect_charger calls it again.
         """
         if self._unsubscribe_properties is not None:
             return
@@ -256,8 +256,8 @@ class WattpilotHub:
 
     @property
     def name(self) -> str:
-        """Return the charger's device name."""
-        return self.charger.name
+        """Return the device name: the entry's, or for older entries the host name."""
+        return self._name or self.charger.name
 
     @property
     def available(self) -> bool:
