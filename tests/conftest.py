@@ -32,6 +32,8 @@ class FakeWattpilot:
     def __init__(self, properties: dict[str, Any] | None = None) -> None:
         self._properties: dict[str, Any] = dict(properties or {})
         self.connected = False
+        # The real client's full-status flag; tests of a replay clear it.
+        self.properties_initialized = True
         # Why the real client stopped reconnecting for good, if it did.
         self.refusal: Exception | None = None
         self.serial = "123456"

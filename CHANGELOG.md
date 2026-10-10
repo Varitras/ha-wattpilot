@@ -35,6 +35,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reconnect action failed while it was away, or a firmware update took
   longer than the integration waits for it. Either used to leave nothing
   retrying, so the charger stayed unavailable until a reload.
+- After an outage the entities come back with the charger's current
+  readings. They used to show their readings from before the outage --
+  charging at 11 kW, say -- for up to the update interval, which the
+  recorder kept and `to: charging` automations reacted to.
 - A single value the integration cannot read no longer takes the rest of
   the charger's update with it, and no longer stalls the first connection
   until it times out. A message that is not valid text is skipped instead
