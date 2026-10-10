@@ -723,7 +723,9 @@ class Wattpilot:
         authentication wait without spending any of it (audit A12-08).
         """
         loop = asyncio.get_running_loop()
-        while True:
+        # Another close (an unload) ends the wait; reconnecting outlived it (R1-11).
+        closes = self._connection.close_count
+        while self._connection.close_count == closes:
             remaining = deadline - loop.time()
             if remaining <= 0:
                 break

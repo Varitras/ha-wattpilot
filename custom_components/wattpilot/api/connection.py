@@ -79,6 +79,8 @@ class Connection:
         # and an open() during a close() waits for a fresh connection.
         self._opening: asyncio.Task[None] | None = None
         self._closing: asyncio.Task[None] | None = None
+        self._stopped = False  # a deliberate close, until the next open
+        self.close_count = 0
 
     # ---- What the outside asks ----
 
@@ -174,21 +176,21 @@ class Connection:
             raise WattpilotConnectionError(msg) from None
 
     async def _open(self) -> None:
-        if self.connected:
-            await self._finish_initialization()
-            return
-
-        # A reader still sitting out its retry backoff owns a socket; replacing
-        # it without stopping it left two readers racing (audit A12-01).
-        replaced_reader = self.message_loop_task is not None
-        if replaced_reader:
-            await self._close()
+        self._stopped = False
+        had_reader = self.message_loop_task is not None
         try:
+            if self.connected:
+                await self._finish_initialization()
+                return
+            # A reader still sitting out its retry backoff owns a socket;
+            # replacing it without stopping it left two readers racing (A12-01).
+            if had_reader:
+                await self._close()
             await self._open_socket()
-        except Exception:
-            # The reader just stopped was the one thing retrying; without it
-            # a charger that comes back is never reached again (A18-05).
-            if replaced_reader:
+        except BaseException:
+            # That reader was the one retrying; failed, timed out or cancelled,
+            # nothing reached the charger again (A18-05, R1-12).
+            if had_reader:
                 self.resume_reconnecting()
             raise
 
@@ -220,10 +222,22 @@ class Connection:
 
     def resume_reconnecting(self) -> None:
         """Restart the reconnect loop after a failed attempt -- not after a refusal."""
-        refused = self.fatal_error is not None
-        if not self._auto_reconnect or refused or self.message_loop_task is not None:
+        # Nor after a close: an unload in a firmware wait was overridden (R1-11).
+        if self._stopped or self.fatal_error is not None or self._reader_owned():
             return
-        self.message_loop_task = asyncio.create_task(self._message_loop())
+        if self._auto_reconnect:
+            self.message_loop_task = asyncio.create_task(self._message_loop())
+
+    def _reader_owned(self) -> bool:
+        """Whether a reader runs, or an open elsewhere is about to start one."""
+        if self.message_loop_task is not None:
+            return True
+        opening = self._opening
+        return (
+            opening is not None
+            and not opening.done()
+            and opening is not asyncio.current_task()
+        )
 
     def begin(self) -> None:
         """
@@ -249,6 +263,8 @@ class Connection:
         """Stop the reader and close the socket, however either of them ended."""
         # Visible before anything is awaited: while it cancelled the pending
         # attempt unannounced, a new open() started and was torn down (A16-01).
+        self._stopped = True
+        self.close_count += 1
         self._closing = self._ongoing(self._closing, self._cancel_and_close)
         await asyncio.shield(self._closing)
 

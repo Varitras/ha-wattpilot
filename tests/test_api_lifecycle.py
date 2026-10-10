@@ -894,3 +894,112 @@ async def test_a_firmware_update_outlasting_its_budget_keeps_recovering(
         assert client._connection.message_loop_task is not None
     finally:
         await client._connection.close()
+
+
+async def _a_loop_in_backoff(connection: Any) -> None:
+    connection.socket = FakeSocket([])
+    connection.message_loop_task = asyncio.create_task(connection._message_loop())
+    await connection.socket.close()
+    await _settle(lambda: not connection.connected)
+
+
+async def test_a_close_during_the_firmware_wait_is_not_overridden(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The update reconnects by itself and, at its deadline, handed recovery
+    back to a reconnect loop -- even when the entry had been unloaded in the
+    meantime, so a session outlived its integration (reaudit R1-11)."""
+    connector = RefusingConnector()
+    monkeypatch.setattr(CONNECT, connector)
+    client._all_props["onv"] = ["42.6"]
+    monkeypatch.setattr(client, "set_property", lambda *_a, **_k: asyncio.sleep(0))
+    client._connection._reconnect_delay_min = 0.01
+
+    install = asyncio.create_task(client.install_firmware_update(timeout=0.3))
+    await asyncio.sleep(0.05)
+    await client.disconnect()
+    with pytest.raises(WattpilotConnectionError):
+        await install
+    tried = connector.attempts
+    await asyncio.sleep(0.1)
+
+    assert client._connection.message_loop_task is None
+    assert connector.attempts == tried, "it kept connecting after the close"
+
+
+async def test_no_second_reader_while_an_open_is_pending(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An open in progress starts its own reader; a resume beside it made a
+    second one on a second socket, and the first outlived close()."""
+    release = asyncio.Event()
+
+    async def blocked_connect(_url: str) -> FakeSocket:
+        await release.wait()
+        return FakeSocket([])
+
+    monkeypatch.setattr(CONNECT, blocked_connect)
+    connection = client._connection
+    connection.connect_timeout = 0.01
+    opening = asyncio.create_task(connection.open())
+    await asyncio.sleep(0)
+
+    connection.resume_reconnecting()
+
+    assert connection.message_loop_task is None, "the pending open owns the reader"
+    release.set()
+    with contextlib.suppress(WattpilotConnectionError):
+        await opening
+    await connection.close()
+
+
+async def test_a_cancelled_reconnect_action_keeps_recovering(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sibling of A18-05: an action cancelled while connecting (an automation
+    restarted) stopped the loop that was retrying (reaudit R1-12)."""
+
+    connecting = asyncio.Event()
+
+    async def hanging_connect(_url: str) -> FakeSocket:
+        connecting.set()
+        await asyncio.sleep(3600)
+        raise AssertionError
+
+    monkeypatch.setattr(CONNECT, hanging_connect)
+    connection = client._connection
+    connection._reconnect_delay_min = 3600
+    await _a_loop_in_backoff(connection)
+
+    caller = asyncio.create_task(connection.open())
+    await connecting.wait()  # the old loop is gone, the new socket not there
+    caller.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await caller
+
+    try:
+        assert connection.message_loop_task is not None, "nobody is left to retry"
+    finally:
+        await connection.close()
+
+
+async def test_an_open_into_a_stalled_handshake_keeps_recovering(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reconnect had authenticated but the full status stalled; an open
+    then timed out and closed the only loop (reaudit R1-12)."""
+    monkeypatch.setattr(CONNECT, RefusingConnector())
+    connection = client._connection
+    connection._reconnect_delay_min = 3600
+    connection.init_timeout = 0.01
+    connection.socket = FakeSocket([])  # type: ignore[assignment]
+    connection.message_loop_task = asyncio.create_task(connection._message_loop())
+    connection.mark_authenticated()
+
+    with pytest.raises(WattpilotConnectionError, match="property initialization"):
+        await connection.open()
+
+    try:
+        assert connection.message_loop_task is not None, "nobody is left to retry"
+    finally:
+        await connection.close()
