@@ -998,11 +998,22 @@ def test_a_release_is_only_cut_from_main() -> None:
     assert checkout.get("with", {}).get("fetch-depth") == 0, (
         "no history to check against"
     )
-    assert any(
-        "git merge-base --is-ancestor" in step.get("run", "")
+    ancestry = [
+        index
+        for index, step in enumerate(steps)
+        if "git merge-base --is-ancestor" in step.get("run", "")
         and "origin/main" in step.get("run", "")
-        for step in steps
-    ), "the release job does not check the tag is on main"
+    ]
+    assert ancestry, "the release job does not check the tag is on main"
+    publish = next(
+        index
+        for index, step in enumerate(steps)
+        if str(step.get("uses", "")).startswith("softprops/action-gh-release")
+    )
+    # After the publish step, or allowed to fail, it would check nothing.
+    assert ancestry[0] < publish, "the tag is checked after it is published"
+    assert not steps[ancestry[0]].get("continue-on-error"), "the check may fail"
+    assert not release.get("continue-on-error"), "the release job may fail"
 
 
 def test_ci_runs_the_same_gates_as_check_sh() -> None:
