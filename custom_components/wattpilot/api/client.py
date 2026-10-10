@@ -455,7 +455,7 @@ class Wattpilot:
             msg = "Charger did not disconnect for firmware update"
             raise WattpilotConnectionError(msg)
 
-        await self.disconnect()
+        # No disconnect() of its own: it counted as an unload (PC-01).
         await self._reconnect_before(deadline)
 
     async def _reconnect_before(self, deadline: float) -> None:
@@ -481,8 +481,8 @@ class Wattpilot:
                 break
             await asyncio.sleep(min(_REBOOT_RETRY_PAUSE, remaining))
 
-        # The update closed the connection to reconnect by itself; giving up
-        # without handing it back left the updated charger unreached (A18-06).
+        # Giving up without a reader left the updated charger unreached
+        # (A18-06); a failed attempt may have stopped the one there was.
         self._connection.resume_reconnecting()
         msg = "Timeout reconnecting after firmware update"
         raise WattpilotConnectionError(msg)
@@ -494,8 +494,7 @@ class Wattpilot:
                 await self.connect()
         except Exception:
             if self.refusal is not None:
-                # Retried, it ran into the deadline and was reported as a
-                # timeout (reaudit R1-13).
+                # Retried, it ended up reported as a timeout (R1-13).
                 raise
             return False
         return True

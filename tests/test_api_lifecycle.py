@@ -915,6 +915,61 @@ async def test_a_refusal_ends_the_firmware_wait_with_its_reason(
             await client.install_firmware_update(timeout=30)
 
 
+async def test_a_firmware_wait_with_no_time_for_an_attempt_keeps_recovering(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The charger dropped the socket only as the budget ran out, so no
+    attempt ran. The update's own disconnect still counted as an unload, and
+    the hand-back at the deadline was refused: nothing retried (post-check
+    PC-01)."""
+    monkeypatch.setattr(CONNECT, RefusingConnector())
+    client._all_props["onv"] = ["42.6"]
+    monkeypatch.setattr(client, "set_property", lambda *_a, **_k: asyncio.sleep(0))
+    client._connection._reconnect_delay_min = 3600  # park it; it only has to exist
+
+    async def dropped_late() -> None:
+        await asyncio.sleep(1)
+
+    monkeypatch.setattr(client._connection, "wait_disconnected", dropped_late)
+    with pytest.raises(WattpilotConnectionError, match="Timeout reconnecting"):
+        await client.install_firmware_update(timeout=0.05)
+
+    try:
+        assert client._connection.message_loop_task is not None
+    finally:
+        await client._connection.close()
+
+
+async def test_a_close_before_the_attempt_runs_is_not_undone(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The attempt cleared the stop flag as its first line, so a close that
+    landed between open() starting the attempt and the attempt running was
+    undone, and a later hand-back reconnected after an unload (PC-01)."""
+    release = asyncio.Event()
+
+    async def blocked_connect(_url: str) -> FakeSocket:
+        await release.wait()
+        return FakeSocket([])
+
+    monkeypatch.setattr(CONNECT, blocked_connect)
+    connection = client._connection
+    opening = asyncio.create_task(connection.open())
+    # One pass: open() starts its attempt, which has not run yet when the
+    # close below begins (asyncio runs ready tasks in order).
+    await asyncio.sleep(0)
+    await connection.close()
+    with contextlib.suppress(WattpilotConnectionError, asyncio.CancelledError):
+        await opening
+
+    connection.resume_reconnecting()
+    try:
+        assert connection.message_loop_task is None, "reconnecting after a close"
+    finally:
+        release.set()
+        await connection.close()
+
+
 async def _a_loop_in_backoff(connection: Any) -> None:
     connection.socket = FakeSocket([])
     connection.message_loop_task = asyncio.create_task(connection._message_loop())

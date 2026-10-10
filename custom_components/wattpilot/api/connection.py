@@ -164,6 +164,7 @@ class Connection:
         # Every close in progress, not just the first: one can start as another ends.
         while self._closing is not None and not self._closing.done():
             await asyncio.wait({self._closing})
+        self._stopped = False  # not in the attempt, which undid a close (PC-01)
         attempt = self._opening = self._ongoing(self._opening, self._open)
         try:
             # Not shielded: a caller Home Assistant gives up on takes the
@@ -176,7 +177,6 @@ class Connection:
             raise WattpilotConnectionError(msg) from None
 
     async def _open(self) -> None:
-        self._stopped = False
         had_reader = self.message_loop_task is not None
         try:
             if self.connected:
