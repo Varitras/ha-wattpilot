@@ -14,6 +14,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Ignoring a discovery card no longer deletes the charger's entry. An entry
+  carried over from the earlier integration learns its charger's serial only
+  once it connects, so a card for the same charger could still be open;
+  ignoring it made Home Assistant replace the entry, with its entities and
+  entity IDs, by an ignored one. Such a card now closes once the entry has
+  its serial, and an ignored card no longer blocks that entry from setting
+  up. Reconfigure and re-authentication refuse to move such an entry onto a
+  charger that already has an entry of its own, instead of reporting success
+  and failing afterwards.
 - Diagnostics from a Wattpilot Flex on Ethernet no longer contain the
   serial number in the Ethernet host name, the Ethernet addresses, the name
   servers and search domain, or the charger's address in the last cloud

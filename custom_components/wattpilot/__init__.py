@@ -23,6 +23,7 @@ from .const import (
     DOMAIN,
     PLATFORMS,
     awaits_serial,
+    serial_taken_by_other_entry,
     signal_property,
 )
 from .hub import WattpilotConfigEntry, WattpilotHub, mask_serial
@@ -183,7 +184,7 @@ async def _finish_setup(
     """
     serial = hub.serial
     if entry.unique_id != serial:
-        _adopt_serial(hass, entry, serial)
+        await _adopt_serial(hass, entry, serial)
     await async_migrate_legacy_unique_ids(hass, entry, serial, hub.variant)
 
     entry.runtime_data = hub
@@ -206,7 +207,7 @@ async def _finish_setup(
     )
 
 
-def _adopt_serial(
+async def _adopt_serial(
     hass: HomeAssistant, entry: WattpilotConfigEntry, serial: str
 ) -> None:
     """
@@ -230,12 +231,13 @@ def _adopt_serial(
                 "found": mask_serial(serial),
             },
         )
-    if _serial_taken_by_other_entry(hass, entry, serial):
+    if serial_taken_by_other_entry(hass, entry, serial):
         raise ConfigEntryError(
             translation_domain=DOMAIN,
             translation_key="duplicate_device",
             translation_placeholders={"serial": mask_serial(serial)},
         )
+    await _remove_ignored_card(hass, serial)
     hass.config_entries.async_update_entry(
         entry,
         unique_id=serial,
@@ -245,20 +247,38 @@ def _adopt_serial(
             if key != CONF_AWAITING_SERIAL
         },
     )
+    _close_open_cards(hass, serial)
 
 
-def _serial_taken_by_other_entry(
-    hass: HomeAssistant, entry: ConfigEntry, serial: str
-) -> bool:
+async def _remove_ignored_card(hass: HomeAssistant, serial: str) -> None:
     """
-    Return whether another entry already claims this charger's serial.
+    Drop an ignored card for the charger this entry is about to own.
 
-    A second entry for the same charger would fight over the device.
+    It only kept the card from coming back, which the entry does now; left
+    in place it would share this entry's unique_id (audit A18-07).
     """
-    return any(
-        other.entry_id != entry.entry_id and other.unique_id == serial
-        for other in hass.config_entries.async_entries(DOMAIN)
-    )
+    for ignored in hass.config_entries.async_entries(DOMAIN):
+        if (
+            ignored.source == config_entries.SOURCE_IGNORE
+            and ignored.unique_id == serial
+        ):
+            await hass.config_entries.async_remove(ignored.entry_id)
+
+
+@callback
+def _close_open_cards(hass: HomeAssistant, serial: str) -> None:
+    """
+    Close the discovery cards still offering the charger just adopted.
+
+    One opened before the entry knew its serial stays up otherwise, and
+    ignoring it makes Home Assistant replace the entry (audit A18-01).
+    """
+    flows = hass.config_entries.flow
+    for card in flows.async_progress_by_handler(
+        DOMAIN,
+        match_context={"source": config_entries.SOURCE_ZEROCONF, "unique_id": serial},
+    ):
+        flows.async_abort(card["flow_id"])
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: WattpilotConfigEntry) -> bool:
