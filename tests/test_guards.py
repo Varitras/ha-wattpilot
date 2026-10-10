@@ -882,6 +882,34 @@ def test_complexity_ratchet() -> None:
 
 CI_WORKFLOW = Path(__file__).parent.parent / ".github" / "workflows" / "ci.yml"
 HACS_MANIFEST = Path(__file__).parent.parent / "hacs.json"
+RELEASE_WORKFLOW = CI_WORKFLOW.parent / "release.yml"
+
+
+def test_a_release_is_only_cut_from_main() -> None:
+    """
+    Tags come from main only -- a project rule the workflow did not check.
+
+    A tag pushed from a branch before its merge published code main does
+    not contain, and HACS offers that to everyone (audit A18-31). Fix: keep
+    the ancestry check in the release job, with the full history checked out.
+    """
+    release = yaml.safe_load(RELEASE_WORKFLOW.read_text(encoding="utf-8"))["jobs"][
+        "release"
+    ]
+    steps = release["steps"]
+    checkout = next(
+        step
+        for step in steps
+        if str(step.get("uses", "")).startswith("actions/checkout")
+    )
+    assert checkout.get("with", {}).get("fetch-depth") == 0, (
+        "no history to check against"
+    )
+    assert any(
+        "git merge-base --is-ancestor" in step.get("run", "")
+        and "origin/main" in step.get("run", "")
+        for step in steps
+    ), "the release job does not check the tag is on main"
 
 
 def test_ci_runs_the_same_gates_as_check_sh() -> None:
@@ -1072,6 +1100,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         ),
         "test_the_snapshot_helper_sees_what_the_ratchet_sees": (
             "regenerating the complexity table keeps every entry"
+        ),
+        "test_a_release_is_only_cut_from_main": (
+            "a tag that is not on main publishes nothing"
         ),
         "test_the_identifier_guard_can_actually_fail": (
             "the identifier guard flags each kind of leak it claims to"
