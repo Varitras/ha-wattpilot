@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import datetime
 import inspect
 import json
 import logging
 from collections.abc import Callable
+from datetime import datetime, time
 from types import SimpleNamespace
 from typing import Any, Self
 
@@ -661,7 +661,7 @@ class Wattpilot:
 
     async def set_next_trip(
         self,
-        departure_time: datetime.time | datetime.datetime,
+        departure_time: time | datetime,
     ) -> None:
         """
         Schedule the next trip departure time, as plain local wall-clock time.
@@ -669,7 +669,7 @@ class Wattpilot:
         No daylight-saving adjustment: the charger stores ``ftt`` as seconds
         since local midnight and reads it back the same way.
         """
-        if isinstance(departure_time, datetime.datetime):
+        if isinstance(departure_time, datetime):
             departure_time = departure_time.time()
 
         timestamp = (
