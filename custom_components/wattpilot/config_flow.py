@@ -34,6 +34,7 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     awaits_serial,
+    entry_awaiting_serial_at,
     serial_taken_by_other_entry,
 )
 from .hub import WattpilotHub
@@ -242,23 +243,13 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
         (R1-14, PC-04). shortcut: the address is compared as written, so a
         host name against an IP goes unnoticed; resolve both if that occurs.
         """
-        awaiting = next(
-            (entry for entry in self._awaiting_entries() if entry.data["host"] == host),
-            None,
-        )
+        awaiting = entry_awaiting_serial_at(self.hass, host)
         if awaiting is None:
             return
         if awaiting.state is ConfigEntryState.SETUP_RETRY:
-            # Its charger just announced itself: no need to wait for the retry.
+            # Its charger is in reach right now: no need to wait for the retry.
             self.hass.config_entries.async_schedule_reload(awaiting.entry_id)
         raise AbortFlow("already_configured")
-
-    def _awaiting_entries(self) -> list[ConfigEntry]:
-        return [
-            entry
-            for entry in self._async_current_entries(include_ignore=False)
-            if awaits_serial(entry) and "host" in entry.data
-        ]
 
     async def async_step_zeroconf_confirm(
         self, user_input: dict[str, Any] | None = None

@@ -69,6 +69,18 @@ def awaits_serial(entry: ConfigEntry) -> bool:
     )
 
 
+def entry_awaiting_serial_at(hass: HomeAssistant, host: str) -> ConfigEntry | None:
+    """Return the entry at this address that has yet to learn its serial."""
+    return next(
+        (
+            entry
+            for entry in hass.config_entries.async_entries(DOMAIN, include_ignore=False)
+            if awaits_serial(entry) and entry.data.get("host") == host
+        ),
+        None,
+    )
+
+
 def signal_property(entry_id: str, key: str) -> str:
     """Dispatcher signal for one charger property of one config entry."""
     return f"{DOMAIN}_{entry_id}_{key}"
