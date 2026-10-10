@@ -897,13 +897,10 @@ async def test_only_the_adopted_charger_s_ignored_card_is_removed(
     assert hass.config_entries.async_get_entry(other_integration.entry_id) is not None
 
 
-async def test_total_energy_does_not_fall_across_a_reload(
-    hass: HomeAssistant, fake_charger: FakeWattpilot
-) -> None:
-    """After a restart the charger reported 21 Wh less (replay fixture). The
-    sensor held its value -- in memory only, so a reload in that window, as
-    the one after a firmware update, reported the lower total and the energy
-    dashboard got a negative hour (audit A18-25)."""
+async def _total_energy_after_restore(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, restored: int, reported: int
+) -> tuple[str, int]:
+    """Set the entry up with *restored* Wh saved and *reported* Wh live."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )
@@ -923,17 +920,58 @@ async def test_total_energy_does_not_fall_across_a_reload(
         hass,
         [
             (
-                State(entity_id, "2681214"),
-                {"native_value": 2681214, "native_unit_of_measurement": "Wh"},
+                State(entity_id, str(restored)),
+                {"native_value": restored, "native_unit_of_measurement": "Wh"},
             )
         ],
     )
-    fake_charger._properties["eto"] = 2681193
+    fake_charger._properties["eto"] = reported
 
     with patch_charger(fake_charger):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
+    return entity_id, _total_energy_wh(hass, entity_id)
 
+
+def _total_energy_wh(hass: HomeAssistant, entity_id: str) -> int:
     state = hass.states.get(entity_id)
     factor = 1000 if state.attributes["unit_of_measurement"] == "kWh" else 1
-    assert round(float(state.state) * factor) == 2681214
+    return round(float(state.state) * factor)
+
+
+async def test_total_energy_does_not_fall_across_a_reload(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """After a restart the charger reported 21 Wh less (replay fixture). The
+    sensor held its value -- in memory only, so a reload in that window, as
+    the one after a firmware update, reported the lower total and the energy
+    dashboard got a negative hour (audit A18-25)."""
+    _, total = await _total_energy_after_restore(
+        hass, fake_charger, restored=2681214, reported=2681193
+    )
+
+    assert total == 2681214
+
+
+async def test_a_restored_total_from_another_charger_does_not_freeze_it(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A replacement charger that took over the old entity ID restored the
+    old charger's total and held it until its own passed it -- years at
+    zero in the energy dashboard (R1-03). Only a step back as small as a
+    restart's is held; a drop this large is a different meter."""
+    entity_id, total = await _total_energy_after_restore(
+        hass, fake_charger, restored=2681214, reported=1200
+    )
+    assert total == 1200
+
+    fake_charger.push("eto", 1300)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+    await hass.async_block_till_done()
+    assert _total_energy_wh(hass, entity_id) == 1300
+
+    # From the first live reading on, the hold is the strict one again.
+    fake_charger.push("eto", 100)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=60))
+    await hass.async_block_till_done()
+    assert _total_energy_wh(hass, entity_id) == 1300

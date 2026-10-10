@@ -21,7 +21,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Assistant. After a charger restart it can report a few Wh less, which the
   sensor held back -- but only until the integration reloaded, as it does
   after a firmware update, and the energy dashboard then got a negative
-  hour.
+  hour. Only a step back that small is held across a reload: a replacement
+  charger that takes over the entity ID starts from its own total.
 - Diagnostics keep an empty value empty. An empty car profile showed up
   as "default", a real profile, contradicting the entity's unknown state.
 - The notice about entities that could not be migrated goes away with

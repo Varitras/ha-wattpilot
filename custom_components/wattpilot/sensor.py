@@ -303,6 +303,8 @@ def _charging_minutes(cdi: Any, boot_clock: Any) -> int | None:  # noqa: ANN401 
 class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):
     """A total that never falls, also across a reload or restart."""
 
+    _holding_restored = False
+
     async def async_added_to_hass(self) -> None:
         """Seed the hold against a step back with the last reported total."""
         # In memory only, the hold ended with the entity: a reload in the
@@ -311,7 +313,20 @@ class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):
         last = await self.async_get_last_sensor_data()
         if last is not None and isinstance(last.native_value, (int, float)):
             self._attr_native_value = last.native_value
+            self._holding_restored = True
         await super().async_added_to_hass()
+
+    def _should_suppress_decrease(
+        self, description: WattpilotSensorEntityDescription, value: float
+    ) -> bool:
+        if not self._holding_restored:
+            return super()._should_suppress_decrease(description, value)
+        self._holding_restored = False
+        # A restored total can be another charger's: a replacement that took
+        # over this entity ID was held at the old total for years (R1-03).
+        # Only a step back as small as a restart's is held.
+        previous = self._attr_native_value
+        return previous * _RESET_THRESHOLD_RATIO <= value < previous  # type: ignore[operator]
 
 
 class WattpilotChargingDurationSensor(WattpilotSensor):
