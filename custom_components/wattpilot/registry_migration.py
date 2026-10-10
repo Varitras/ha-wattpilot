@@ -28,8 +28,10 @@ from .descriptions import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
     from homeassistant.config_entries import ConfigEntry
-    from homeassistant.core import HomeAssistant
+    from homeassistant.core import Event, HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -151,14 +153,40 @@ def _report_collisions(
     hass: HomeAssistant, entry: ConfigEntry, collisions: list[str]
 ) -> None:
     """Raise (or clear) the repair issue for entities left unmigrated."""
+    _show_collisions(hass, entry, collisions)
+    if not collisions:
+        return
+    remaining = set(collisions)
+
+    @callback
+    def _is_listed_removal(data: er.EventEntityRegistryUpdatedData) -> bool:
+        return data["action"] == "remove" and data["entity_id"] in remaining
+
+    @callback
+    def _forget_removed(event: Event[er.EventEntityRegistryUpdatedData]) -> None:
+        # Deleting what the notice lists left it up until a reload (R1-19).
+        remaining.discard(event.data["entity_id"])
+        _show_collisions(hass, entry, remaining)
+
+    entry.async_on_unload(
+        hass.bus.async_listen(
+            er.EVENT_ENTITY_REGISTRY_UPDATED,
+            _forget_removed,
+            event_filter=_is_listed_removal,
+        )
+    )
+
+
+def _show_collisions(
+    hass: HomeAssistant, entry: ConfigEntry, collisions: Collection[str]
+) -> None:
     if not collisions:
         async_clear_collisions(hass, entry)
         return
-    issue_id = _collision_issue_id(entry)
     ir.async_create_issue(
         hass,
         DOMAIN,
-        issue_id,
+        _collision_issue_id(entry),
         is_fixable=False,
         severity=ir.IssueSeverity.WARNING,
         translation_key="migration_collision",

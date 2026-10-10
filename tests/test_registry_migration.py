@@ -207,6 +207,32 @@ async def test_the_migration_log_names_no_entity_id(
     assert not any("123456" in message for message in ours)
 
 
+async def test_the_collision_notice_follows_the_entities_deleted_from_it(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The notice says to delete the entities it lists. Doing so left it up,
+    naming them, until the next reload (reaudit R1-19)."""
+    entry = MockConfigEntry(domain=DOMAIN, data=V2_LOCAL_DATA, version=2)
+    entry.add_to_hass(hass)
+    seed(hass, entry, "number", "123456-amp")
+    seed(hass, entry, "sensor", "123456-access_state")
+    first = seed(hass, entry, "number", "Wattpilot-amp")
+    second = seed(hass, entry, "sensor", "Wattpilot-AccessState")
+    assert await setup_entry(hass, entry, fake_charger)
+    issue_id = f"migration_collision_{entry.entry_id}"
+    registry = er.async_get(hass)
+
+    registry.async_remove(first.entity_id)
+    await hass.async_block_till_done()
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, issue_id)
+    assert issue is not None
+    assert issue.translation_placeholders == {"entities": second.entity_id}
+
+    registry.async_remove(second.entity_id)
+    await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
 async def test_no_repair_issue_without_a_collision(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
