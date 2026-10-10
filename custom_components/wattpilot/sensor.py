@@ -6,7 +6,11 @@ import html
 import logging
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import (
+    RestoreSensor,
+    SensorDeviceClass,
+    SensorEntity,
+)
 from homeassistant.util import dt as dt_util
 
 from .descriptions import (
@@ -59,6 +63,8 @@ def _sensor_class(
 ) -> type[WattpilotSensor]:
     if description.companion_role is CompanionRole.BOOT_CLOCK:
         return WattpilotChargingDurationSensor
+    if description.monotonic:
+        return WattpilotTotalSensor
     return WattpilotSensor
 
 
@@ -291,6 +297,20 @@ def _charging_minutes(cdi: Any, boot_clock: Any) -> int | None:  # noqa: ANN401 
     if kind == _STOPPED:
         return int(value) // MILLISECONDS_PER_MINUTE
     return None
+
+
+class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):
+    """A total that never falls, also across a reload or restart."""
+
+    async def async_added_to_hass(self) -> None:
+        """Seed the hold against a step back with the last reported total."""
+        # In memory only, the hold ended with the entity: a reload in the
+        # window after a charger restart -- the one a firmware update
+        # triggers -- reported the lower total (audit A18-25).
+        last = await self.async_get_last_sensor_data()
+        if last is not None and isinstance(last.native_value, (int, float)):
+            self._attr_native_value = last.native_value
+        await super().async_added_to_hass()
 
 
 class WattpilotChargingDurationSensor(WattpilotSensor):

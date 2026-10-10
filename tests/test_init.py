@@ -11,6 +11,7 @@ import pytest
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import State
 from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
@@ -18,6 +19,7 @@ from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
+    mock_restore_cache_with_extra_data,
 )
 
 from custom_components.wattpilot import (
@@ -867,3 +869,45 @@ async def test_only_the_adopted_charger_s_ignored_card_is_removed(
 
     assert hass.config_entries.async_get_entry(other_charger.entry_id) is not None
     assert hass.config_entries.async_get_entry(other_integration.entry_id) is not None
+
+
+async def test_total_energy_does_not_fall_across_a_reload(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """After a restart the charger reported 21 Wh less (replay fixture). The
+    sensor held its value -- in memory only, so a reload in that window, as
+    the one after a firmware update, reported the lower total and the energy
+    dashboard got a negative hour (audit A18-25)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    entry.add_to_hass(hass)
+    entity_id = (
+        er.async_get(hass)
+        .async_get_or_create(
+            "sensor",
+            DOMAIN,
+            "123456-eto",
+            config_entry=entry,
+            suggested_object_id="wattpilot_total_energy",
+        )
+        .entity_id
+    )
+    mock_restore_cache_with_extra_data(
+        hass,
+        [
+            (
+                State(entity_id, "2681214"),
+                {"native_value": 2681214, "native_unit_of_measurement": "Wh"},
+            )
+        ],
+    )
+    fake_charger._properties["eto"] = 2681193
+
+    with patch_charger(fake_charger):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    state = hass.states.get(entity_id)
+    factor = 1000 if state.attributes["unit_of_measurement"] == "kWh" else 1
+    assert round(float(state.state) * factor) == 2681214

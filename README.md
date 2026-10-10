@@ -116,7 +116,8 @@ And a few that make existing settings usable from Home Assistant:
 
 Use **Total energy** (`sensor.wattpilot_total_energy`, assuming the device is
 named "Wattpilot") as the device's consumption source. It is a
-`total_increasing` energy sensor and survives charger reboots.
+`total_increasing` energy sensor and survives charger reboots, also across a
+reload or restart of Home Assistant.
 
 Session energy sensors are *not* suitable as an Energy Dashboard source: they
 reset to zero at the start of every session by design.
