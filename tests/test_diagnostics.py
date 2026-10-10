@@ -263,6 +263,14 @@ def test_a_flex_on_ethernet_keeps_no_identifier_in_the_diagnostics() -> None:
     assert not leaked, f"identifiers in the diagnostics: {leaked}"
 
 
+def test_the_serial_is_replaced_also_where_sse_is_not_in_the_map() -> None:
+    """A delta or a later chunk of the full status carries no `sse`, so a
+    recording kept the serial a new key embedded (R1-09)."""
+    sanitized = sanitize_snapshot({"newKey": "Wattpilot-91234567"}, serial="91234567")
+
+    assert "91234567" not in json.dumps(sanitized)
+
+
 def test_the_flex_chip_readings_survive_the_redaction() -> None:
     sanitized = sanitize_snapshot(FLEX_SNAPSHOT)
 

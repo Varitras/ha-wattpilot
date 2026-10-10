@@ -271,11 +271,18 @@ def sanitize_property(key: str, value: Any, serial: str | None = None) -> Any:  
     return scrub(value, serial)
 
 
-def sanitize_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
-    """Return a property snapshot with identifying values dropped or replaced."""
-    serial = snapshot.get("sse")
-    if not isinstance(serial, str):
-        serial = None
+def sanitize_snapshot(
+    snapshot: Mapping[str, Any], serial: str | None = None
+) -> dict[str, Any]:
+    """
+    Return a property snapshot with identifying values dropped or replaced.
+
+    *serial* defaults to the snapshot's own `sse`. A delta or a later chunk
+    of the full status has none: a caller that knows the serial passes it.
+    """
+    own_serial = snapshot.get("sse")
+    if serial is None and isinstance(own_serial, str):
+        serial = own_serial
     return {
         key: sanitize_property(key, value, serial)
         for key, value in snapshot.items()
