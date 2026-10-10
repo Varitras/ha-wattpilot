@@ -14,6 +14,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- On a Wattpilot Flex, three readings now work. **Charger temperature**
+  shows the hottest of the Flex's temperature sensors, with all readings
+  as an attribute; it stayed unknown, because the first of them is always
+  empty. What each sensor measures is not documented, so the hottest is
+  shown, the one that matters for derating. The ten **ID chip** sensors
+  exist, read from the Flex's per-chip keys instead of a list it does not
+  have. The **Electricity price** has its `prices` attribute again; the
+  Flex sends its price list in another shape.
 - Ignoring a discovery card no longer deletes the charger's entry. An entry
   carried over from the earlier integration learns its charger's serial only
   once it connects, so a card for the same charger could still be open;

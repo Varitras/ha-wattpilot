@@ -77,10 +77,32 @@ def _namespace_get(value: Any, field: str) -> Any:  # noqa: ANN401 -- dynamicall
     return getattr(value, field, None)
 
 
+def _price_schedule(value: Any) -> list[dict[str, Any]]:  # noqa: ANN401 -- dynamically shaped charger payload
+    """
+    Expand a Wattpilot Flex price list into the usual entries.
+
+    The Flex sends one object -- the prices, the first start, the interval --
+    whose start and first price match awcp (FW 43.5 diagnostics).
+    """
+    prices = _namespace_get(value, "marketprice")
+    start = _namespace_get(value, "start")
+    interval = _namespace_get(value, "interval")
+    if not isinstance(prices, list) or start is None or interval is None:
+        return []
+    return [
+        {
+            "start": start + i * interval,
+            "end": start + (i + 1) * interval,
+            "marketprice": price,
+        }
+        for i, price in enumerate(prices)
+    ]
+
+
 def _price_list(value: Any) -> list[dict[str, Any]]:  # noqa: ANN401 -- dynamically shaped charger payload
     """Return the charger's price list, with its unix times as datetimes."""
     if not isinstance(value, list):
-        return []
+        value = _price_schedule(value)
     return [
         {
             "start": dt_util.utc_from_timestamp(_namespace_get(entry, "start")),
@@ -98,37 +120,23 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
     # A day or two of hourly prices, rewritten every hour, and per-phase
     # readings that differ in nearly every update while charging: history
     # of either would only fill the recorder.
-    _unrecorded_attributes = frozenset({"prices", *NRG_ATTRIBUTES})
+    _unrecorded_attributes = frozenset({"prices", "readings", *NRG_ATTRIBUTES})
 
     def __init__(self, *args: Any) -> None:  # noqa: ANN401 -- forwards WattpilotEntity's args unchanged
         """Set the ID-chip index placeholder, if this sensor has one."""
         super().__init__(*args)
-        if self.entity_description.cards_index is not None:
+        if self.entity_description.chip_index is not None:
             self._attr_translation_placeholders = {
-                "index": str(self.entity_description.cards_index)
+                "index": str(self.entity_description.chip_index)
             }
 
-    def _apply_value(self, value: Any) -> None:  # noqa: ANN401, C901 -- dynamically shaped charger payload; branches are the conversion rules, see class/task docs
+    def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload; branches are the conversion rules, see class/task docs
         description = self.entity_description
         try:
             if description.cards_index is not None:
                 self._apply_card(value, description.cards_index)
                 return
-            if description.value_index is not None:
-                item = value[description.value_index]
-                if description.index_attributes:
-                    self._attr_extra_state_attributes = {
-                        name: value[index]
-                        for name, index in description.index_attributes.items()
-                    }
-                value = item
-            elif description.namespace_value is not None:
-                state = _namespace_get(value, description.namespace_value)
-                self._attr_extra_state_attributes = {
-                    field: _namespace_get(value, field)
-                    for field in description.namespace_attributes
-                }
-                value = state
+            value = self._unwrap(value)
             self._apply_price_list()
             if value is not None and description.html_unescape:
                 value = html.unescape(str(value))
@@ -166,6 +174,37 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
                 description.charger_key,
                 type(err).__name__,
             )
+
+    def _unwrap(self, value: Any) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
+        """Pick the reading out of a structured payload, with its attributes."""
+        description = self.entity_description
+        if description.value_index is not None:
+            return self._unwrap_indexed(value, description.value_index)
+        if description.namespace_value is not None:
+            return self._unwrap_namespace(value, description.namespace_value)
+        if description.highest_reading:
+            return self._unwrap_highest(value)
+        return value
+
+    def _unwrap_indexed(self, value: Any, index: int) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
+        attributes = self.entity_description.index_attributes
+        if attributes:
+            self._attr_extra_state_attributes = {
+                name: value[position] for name, position in attributes.items()
+            }
+        return value[index]
+
+    def _unwrap_namespace(self, value: Any, field: str) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
+        self._attr_extra_state_attributes = {
+            name: _namespace_get(value, name)
+            for name in self.entity_description.namespace_attributes
+        }
+        return _namespace_get(value, field)
+
+    def _unwrap_highest(self, value: Any) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
+        self._attr_extra_state_attributes = {"readings": value}
+        readings = [item for item in value if isinstance(item, (int, float))]
+        return max(readings, default=None)
 
     def _apply_price_list(self) -> None:
         """Show the companion price list, for the one sensor that has one."""
