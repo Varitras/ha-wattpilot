@@ -274,10 +274,34 @@ def test_the_flex_chip_readings_survive_the_redaction() -> None:
 
 @pytest.mark.parametrize(
     "value",
-    ["12:34:56", "43.5", "43.4-RC1 - BETA", "2026-10-09T10:00:00Z", "1.2.9", "::"],
+    [
+        "12:34:56",
+        "43.5",
+        "43.4-RC1 - BETA",
+        "2026-10-09T10:00:00Z",
+        "1.2.9",
+        "::",
+        "1.2.3.4.5",
+    ],
 )
 def test_text_that_only_looks_like_an_address_is_kept(value: str) -> None:
     assert sanitize_snapshot({"fwv": value})["fwv"] == value
+
+
+@pytest.mark.parametrize(
+    ("text", "address"),
+    [
+        ("Connect to 10.1.2.3.", "10.1.2.3"),
+        ("trying 10.1.2.3...", "10.1.2.3"),
+        ("10.1.2.3. next", "10.1.2.3"),
+        ("addr:fe80::1c2b:3aff:fe4d:5e6f", "fe80::1c2b"),
+        ("inet6:2a01:4f8:c0c:1::1", "2a01:4f8"),
+    ],
+)
+def test_an_address_at_the_edge_of_a_text_is_replaced(text: str, address: str) -> None:
+    """A full stop after an IPv4 address, or a label glued to an IPv6 one,
+    kept the address out of the net (R1-07)."""
+    assert address not in sanitize_snapshot({"unknownKey": text})["unknownKey"]
 
 
 @pytest.mark.parametrize("empty", ["", None])

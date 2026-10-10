@@ -112,9 +112,11 @@ NET_REPLACEMENTS: dict[str, Any] = {
 # Value-based nets for addresses inside text, whatever the key: name-based
 # rules only know the keys someone has seen, and a Flex on Ethernet reported
 # a dozen nobody had. ipaddress decides, so times and versions survive.
-IPV4_CANDIDATE = re.compile(r"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d.])")
+# A full stop may end the IPv4 address, a label may precede the IPv6 one:
+# "Connect to <address>." and "inet6:<address>" got through (R1-07).
+IPV4_CANDIDATE = re.compile(r"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?!\d)(?!\.\d)")
 IPV6_CANDIDATE = re.compile(
-    r"(?<![\w:])[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?:%\w+)?(?![\w:])"
+    r"(?<!\w)[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?:%\w+)?(?![\w:])"
 )
 # Already-innocuous defaults: skipping them keeps the fixture faithful to what
 # the real firmware reports for unconfigured fields, while still closing the
