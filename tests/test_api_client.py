@@ -18,7 +18,11 @@ from unittest.mock import patch
 import pytest
 
 from custom_components.wattpilot.api import definition as definition_module
-from custom_components.wattpilot.api.client import Wattpilot, _message_type
+from custom_components.wattpilot.api.client import (
+    Wattpilot,
+    _message_type,
+    mask_serial,
+)
 from custom_components.wattpilot.api.exceptions import CommandError
 
 
@@ -233,6 +237,17 @@ async def test_an_acknowledgement_without_status_still_answers_the_command() -> 
         )
     )
     await task
+
+
+@pytest.mark.parametrize(
+    ("serial", "masked"),
+    [("12345678", "******78"), ("12", "**"), ("", ""), (None, "<unknown>")],
+)
+def test_a_logged_serial_shows_only_its_last_digits(
+    serial: str | None, masked: str
+) -> None:
+    """Enough to tell two chargers apart, too little to name one."""
+    assert mask_serial(serial) == masked
 
 
 async def test_a_rejection_without_request_id_is_reported_with_its_reason(

@@ -24,7 +24,7 @@ from .const import (
     awaits_serial,
     signal_property,
 )
-from .hub import WattpilotConfigEntry, WattpilotHub
+from .hub import WattpilotConfigEntry, WattpilotHub, mask_serial
 from .registry_migration import async_migrate_legacy_unique_ids
 from .services import async_setup_services
 
@@ -181,15 +181,15 @@ def _adopt_serial(
             translation_domain=DOMAIN,
             translation_key="wrong_charger",
             translation_placeholders={
-                "expected": str(entry.unique_id),
-                "found": serial,
+                "expected": mask_serial(entry.unique_id),
+                "found": mask_serial(serial),
             },
         )
     if _serial_taken_by_other_entry(hass, entry, serial):
         raise ConfigEntryError(
             translation_domain=DOMAIN,
             translation_key="duplicate_device",
-            translation_placeholders={"serial": serial},
+            translation_placeholders={"serial": mask_serial(serial)},
         )
     hass.config_entries.async_update_entry(
         entry,

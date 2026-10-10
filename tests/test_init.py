@@ -395,7 +395,7 @@ async def test_duplicate_serial_fails_setup(
         await async_setup_entry(hass, second)
     assert raised.value.translation_domain == DOMAIN
     assert raised.value.translation_key == "duplicate_device"
-    assert raised.value.translation_placeholders == {"serial": "123456"}
+    assert raised.value.translation_placeholders == {"serial": "****56"}
     # Rejected hub's connection must be closed before the error is raised,
     # not leaked.
     assert second_charger.disconnect_count >= 1
@@ -450,9 +450,10 @@ async def test_a_different_charger_at_the_same_address_is_refused(
 
     assert raised.value.translation_domain == DOMAIN
     assert raised.value.translation_key == "wrong_charger"
+    # Masked: Home Assistant logs this message as well.
     assert raised.value.translation_placeholders == {
-        "expected": "123456",
-        "found": "999999",
+        "expected": "****56",
+        "found": "****99",
     }
     assert entry.unique_id == "123456", "the entry must keep its identity"
     # The registry is the thing actually at risk: nothing may have moved.
@@ -686,7 +687,8 @@ async def test_a_charger_refused_before_the_password_is_named(
         await async_setup_entry(hass, entry)
     assert raised.value.translation_domain == DOMAIN, "untranslated without it"
     assert raised.value.translation_key == "wrong_charger"
+    # Masked: Home Assistant logs this message as well.
     assert raised.value.translation_placeholders == {
-        "expected": "123456",
-        "found": "999999",
+        "expected": "****56",
+        "found": "****99",
     }

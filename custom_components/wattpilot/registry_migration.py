@@ -119,18 +119,14 @@ async def async_migrate_legacy_unique_ids(
             # -- but it is reported instead of only logged (audit VA-06).
             collisions.append(entity_entry.entity_id)
             _LOGGER.warning(
-                "Not migrating %s (%s): target unique_id %s already exists",
+                "Not migrating %s: an entity for %s already exists",
                 entity_entry.entity_id,
-                unique_id,
-                target,
+                suffix_map[legacy_suffix],
             )
             return None
         existing.add(collision_key)
         _LOGGER.info(
-            "Migrating unique_id %s -> %s for %s",
-            unique_id,
-            target,
-            entity_entry.entity_id,
+            "Migrating %s to %s", entity_entry.entity_id, suffix_map[legacy_suffix]
         )
         return {"new_unique_id": target}
 

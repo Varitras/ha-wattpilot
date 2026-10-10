@@ -14,6 +14,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The log no longer carries the charger's serial number. Messages about the
+  connection, about entity migration and the setup error for a different
+  charger show only its last two digits; the repair notice, which is not
+  logged, still names it in full.
 - **Charging power** no longer fills the recorder database. Its sixteen
   per-phase attributes differ in nearly every update while a car charges,
   and each update stored a new attribute row. They stay visible and usable in

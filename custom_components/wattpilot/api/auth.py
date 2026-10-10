@@ -119,7 +119,7 @@ def _bcryptjs_encode_base64_string(s: str, length: int) -> str:
         vals = [ord(ch) - ord("0") for ch in s]
         b = bytes([0] * (length - len(vals)) + vals)
     else:
-        msg = f"Serial must be digits only, got: {s}"
+        msg = "Serial must be digits only"
         raise ValueError(msg)
     return _bcryptjs_base64_encode(b, length)
 

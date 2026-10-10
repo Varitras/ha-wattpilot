@@ -75,8 +75,8 @@ async def test_first_connect_is_not_announced_as_a_recovery(
     with caplog.at_level(logging.DEBUG):
         await hub.async_connect()
     messages = [record.getMessage() for record in caplog.records]
-    assert "Charger 123456 is back online" not in messages
-    assert "Charger 123456 connected" in messages
+    assert "Charger ****56 is back online" not in messages
+    assert "Charger ****56 connected" in messages
 
 
 async def test_create_local_builds_client_with_host_and_password(
@@ -473,9 +473,9 @@ async def test_deliberate_shutdown_is_not_logged_as_a_warning(
     with caplog.at_level(logging.DEBUG):
         await hub.async_shutdown()
     warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
-    assert "Charger 123456 is unavailable" not in warnings
+    assert "Charger ****56 is unavailable" not in warnings
     messages = [r.getMessage() for r in caplog.records]
-    assert "Charger 123456 disconnected" in messages
+    assert "Charger ****56 disconnected" in messages
 
 
 async def test_an_unannounced_drop_is_reported_at_info(
@@ -500,7 +500,7 @@ async def test_an_unannounced_drop_is_reported_at_info(
         async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
         await hass.async_block_till_done()
     gone = [
-        r for r in caplog.records if r.getMessage() == "Charger 123456 is unavailable"
+        r for r in caplog.records if r.getMessage() == "Charger ****56 is unavailable"
     ]
     assert [r.levelno for r in gone] == [logging.INFO]
 

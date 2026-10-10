@@ -33,6 +33,8 @@ from .models import AuthHashType, CloudInfo, DeviceInfo, LoadMode
 _LOGGER = logging.getLogger(__name__)
 
 WPFLEX_DEVICE_TYPE = "wattpilot_flex"
+# Enough to tell a user's chargers apart in the log, too few to name one.
+_SERIAL_VISIBLE_DIGITS = 2
 # Seconds between two attempts to reach a charger that is rebooting.
 _REBOOT_RETRY_PAUSE = 2.0
 # Recorded on firmware 42.5: rst=1 is never answered -- the charger goes
@@ -75,6 +77,20 @@ def _correlation_key(request_id: object) -> str:
     that had already arrived (audit A11-01).
     """
     return str(request_id)
+
+
+def mask_serial(serial: str | None) -> str:
+    """
+    wattpilot: a serial fit for the log, which users attach to public issues.
+
+    Only the last digits stay readable; a serial this short is masked whole.
+    """
+    if serial is None:
+        return "<unknown>"
+    if len(serial) <= _SERIAL_VISIBLE_DIGITS:
+        return "*" * len(serial)
+    hidden = len(serial) - _SERIAL_VISIBLE_DIGITS
+    return "*" * hidden + serial[hidden:]
 
 
 def _message_type(raw: str) -> str:
@@ -204,7 +220,7 @@ class Wattpilot:
         except BaseException:
             await self._connection.close()
             raise
-        _LOGGER.info("Connected to Wattpilot %s", self._device.serial)
+        _LOGGER.info("Connected to Wattpilot %s", mask_serial(self._device.serial))
 
     async def disconnect(self) -> None:
         """Close the WebSocket connection."""
@@ -967,7 +983,7 @@ class Wattpilot:
     async def _on_hello(self, msg: SimpleNamespace) -> None:
         if not await self._identity_accepted(msg.serial):
             return
-        _LOGGER.debug("Connected to Wattpilot serial %s", msg.serial)
+        _LOGGER.debug("Connected to Wattpilot serial %s", mask_serial(msg.serial))
         self._device.serial = msg.serial
         if hasattr(msg, "hostname"):
             self._device.name = msg.hostname
@@ -993,7 +1009,9 @@ class Wattpilot:
         known = self._device.serial
         if not known or known == serial:
             return True
-        msg = f"Expected charger {known}, but {serial} answered at {self._host}"
+        msg = (
+            f"Expected charger {mask_serial(known)}, but {mask_serial(serial)} answered"
+        )
         await self._connection.reject(DeviceIdentityError(msg, found=serial))
         return False
 

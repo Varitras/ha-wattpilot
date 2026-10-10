@@ -31,6 +31,9 @@ from .api import (
     Wattpilot,
     WattpilotError,
 )
+
+# Re-exported for mypy: the rest of the package reaches api/ through the hub.
+from .api import mask_serial as mask_serial  # noqa: PLC0414
 from .const import DOMAIN, signal_availability, signal_property
 
 _LOGGER = logging.getLogger(__name__)
@@ -101,7 +104,11 @@ class WattpilotHub:
             raise ConfigEntryError(
                 translation_domain=DOMAIN,
                 translation_key="wrong_charger",
-                translation_placeholders={"expected": self.serial, "found": err.found},
+                # HA logs this message too; the repair notice keeps the full serial.
+                translation_placeholders={
+                    "expected": mask_serial(self.serial),
+                    "found": mask_serial(err.found),
+                },
             ) from err
         except AuthenticationError as err:
             raise ConfigEntryAuthFailed(
@@ -340,18 +347,18 @@ class WattpilotHub:
         never_reported = self._last_available is None
         self._last_available = available
         if never_reported:
-            _LOGGER.debug("Charger %s connected", self.serial)
+            _LOGGER.debug("Charger %s connected", mask_serial(self.serial))
         elif available:
-            _LOGGER.info("Charger %s is back online", self.serial)
+            _LOGGER.info("Charger %s is back online", mask_serial(self.serial))
         elif expected:
             # A deliberate teardown (unload, HA stop, config-flow probe): the
             # charger going away is the expected outcome, not a fault.
-            _LOGGER.debug("Charger %s disconnected", self.serial)
+            _LOGGER.debug("Charger %s disconnected", mask_serial(self.serial))
         else:
             # INFO, not WARNING: the quality-scale rule `log-when-unavailable`
             # reserves WARNING for faults the user can act on, and a charger
             # that stopped answering is usually one somebody switched off.
-            _LOGGER.info("Charger %s is unavailable", self.serial)
+            _LOGGER.info("Charger %s is unavailable", mask_serial(self.serial))
         async_dispatcher_send(
             self._hass, signal_availability(self._entry_id), available
         )

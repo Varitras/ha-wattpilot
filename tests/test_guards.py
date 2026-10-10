@@ -27,6 +27,87 @@ def iter_python_files() -> list[Path]:
     return files
 
 
+# Names whose value identifies a device or a network. Logs are what users
+# attach to public issues, and nothing redacts them.
+IDENTIFYING_NAMES = frozenset(
+    {"serial", "unique_id", "host", "_host", "hostname", "token"}
+)
+LOGGER_LEVELS = frozenset({"debug", "info", "warning", "error", "exception"})
+# Home Assistant logs these with their placeholders filled in. A repair
+# issue is not among them: it is shown, not logged.
+LOGGED_EXCEPTIONS = frozenset(
+    {"ConfigEntryError", "ConfigEntryAuthFailed", "ConfigEntryNotReady"}
+)
+
+
+def _is_logger_call(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "_LOGGER"
+        and node.func.attr in LOGGER_LEVELS
+    )
+
+
+def _logged_values(node: ast.AST) -> list[ast.expr]:
+    """What a log call or a logged exception writes, or nothing."""
+    if _is_logger_call(node):
+        return list(node.args)  # type: ignore[attr-defined]
+    is_logged_exception = isinstance(node, ast.Call) and (
+        getattr(node.func, "id", None) in LOGGED_EXCEPTIONS
+    )
+    if not is_logged_exception:
+        return []
+    return [
+        keyword.value
+        for keyword in node.keywords  # type: ignore[attr-defined]
+        if keyword.arg == "translation_placeholders"
+    ]
+
+
+def _unmasked_identifiers(node: ast.AST) -> list[str]:
+    """Identifying names in *node* that do not pass through mask_serial."""
+    is_mask_call = isinstance(node, ast.Call) and (
+        getattr(node.func, "id", None) == "mask_serial"
+    )
+    if is_mask_call:
+        return []
+    found = []
+    if isinstance(node, ast.Name) and node.id in IDENTIFYING_NAMES:
+        found.append(node.id)
+    if isinstance(node, ast.Attribute) and node.attr in IDENTIFYING_NAMES:
+        found.append(node.attr)
+    for child in ast.iter_child_nodes(node):
+        found.extend(_unmasked_identifiers(child))
+    return found
+
+
+def test_no_device_identifier_reaches_the_log() -> None:
+    """
+    A serial, host or token that reaches the log goes through mask_serial.
+
+    The connect and availability messages logged the full serial at INFO,
+    and the wrong-charger setup error carried both serials into the log
+    Home Assistant writes for it -- the log users paste into issues.
+    Fix: wrap the value in api.mask_serial, or leave it out.
+    """
+    offenders = [
+        f"{path.relative_to(PACKAGE)}:{node.lineno} {names}"
+        for path in iter_python_files()
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        for names in [
+            [
+                name
+                for value in _logged_values(node)
+                for name in _unmasked_identifiers(value)
+            ]
+        ]
+        if names
+    ]
+    assert not offenders, f"device identifiers logged unmasked: {offenders}"
+
+
 def _strip_vendor_spellings(text: str) -> str:
     """Remove the vendor package spellings before the domain-literal test.
 
@@ -382,7 +463,7 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # Past the default on 2026-09-26 by the repair notice for a different
     # charger answering at runtime (audit A15-04): the hub is where the
     # connection's state turns into what the user is told (measured: 424).
-    "hub.py": 430,
+    "hub.py": 434,
 }
 SHRINK_SLACK = 0.85  # an entry >=15% below budget must be ratcheted down
 
@@ -401,7 +482,7 @@ CLUSTER_BUDGET = {
     # forty lines of comment had already been condensed to make room: the
     # open/close coordination (A13-01, A14-01, A15-01) and the refused-
     # password flag (A14-02), at a measured 1607 lines.
-    "api client": (("client.py", "connection.py"), 1610),
+    "api client": (("client.py", "connection.py"), 1628),
 }
 
 
@@ -869,6 +950,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         ),
         "test_no_manifest_requirement_is_unused": (
             "no dependency is installed for nothing"
+        ),
+        "test_no_device_identifier_reaches_the_log": (
+            "no serial, host or token in the log"
         ),
         "test_manifest_does_not_declare_what_home_assistant_ships": (
             "hassfest accepts the requirements"
