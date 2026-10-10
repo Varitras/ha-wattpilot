@@ -209,7 +209,10 @@ def _sanitized_cards(value: Any) -> Any:  # noqa: ANN401 -- untyped JSON
 _KEEP = object()
 
 
-def _replacement_for(key: str) -> Any:  # noqa: ANN401 -- untyped JSON
+def _replacement_for(key: str, value: Any) -> Any:  # noqa: ANN401 -- untyped JSON
+    if value is None or value == "":
+        # Names nobody, and a stand-in would read as a real value (A18-28).
+        return _KEEP
     chip = CHIP_NAME_KEY.fullmatch(key)
     if chip:
         return f"Card {chip[1]}"
@@ -247,7 +250,7 @@ def sanitize_property(key: str, value: Any, serial: str | None = None) -> Any:  
         # both match by name at any depth and `smd` carries a numeric `ts` of
         # its own -- a timestamp, which must survive (audit VA-07).
         return TIME_SERVER_REPLACEMENT
-    replacement = _replacement_for(key)
+    replacement = _replacement_for(key, value)
     if replacement is not _KEEP:
         return replacement
     return scrub(value, serial)

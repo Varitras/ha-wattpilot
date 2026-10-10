@@ -14,6 +14,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Diagnostics keep an empty value empty. An empty car profile showed up
+  as "default", a real profile, contradicting the entity's unknown state.
 - The notice about entities that could not be migrated goes away with
   the entry it is about, instead of staying until a restart.
 - A malformed address in the setup or reconfigure form -- an IPv6 address
