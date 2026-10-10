@@ -264,14 +264,13 @@ class WattpilotHub:
         """Return whether the charger is currently reachable."""
         # Not the client's flag alone: a close that raised leaves `connected`
         # True with the loop behind it gone, and once this hub has torn itself
-        # down no update reaches an entity again (audit VA-04). Not refused,
-        # whatever the socket says. Nor before the full status (A18-20) --
-        # unless no outage was seen: a reconnect between two checks replays it
-        # into entities still shown, and they flapped (R1-04).
+        # down no update reaches an entity again (audit VA-04). Nor before the
+        # full status (A18-20) -- unless no outage was seen: a reconnect
+        # between two checks replays it into entities still shown, and they
+        # flapped (R1-04).
         return (
             not self._torn_down
             and bool(self.charger.connected)
-            and self.charger.refusal is None
             and (
                 bool(self.charger.properties_initialized)
                 or self._last_available is True
