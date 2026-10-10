@@ -12,6 +12,7 @@ import asyncio
 import errno
 import json
 import logging
+import socket
 import threading
 from typing import Any
 from unittest.mock import patch
@@ -264,6 +265,15 @@ def test_a_socket_error_is_described_without_the_chargers_address() -> None:
 
     assert "192.0.2.77" not in described
     assert described == "ConnectionRefusedError (ECONNREFUSED)"
+
+
+def test_a_name_resolution_error_keeps_its_hint() -> None:
+    """A resolver error quotes no address, and `gaierror (-2)` dropped the
+    one thing that says what to fix: the name did not resolve (reaudit
+    R1-18)."""
+    error = socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+
+    assert describe_error(error) == "gaierror (Name or service not known)"
 
 
 def test_our_own_error_texts_are_kept() -> None:
