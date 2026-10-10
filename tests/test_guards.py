@@ -33,8 +33,8 @@ def iter_python_files() -> list[Path]:
 # Names whose value identifies a device or a network. Logs are what users
 # attach to public issues, and nothing redacts them.
 # err/exc: a socket error's text quotes the charger's address and port.
-# Not entity_id: the device is named after its host name, Wattpilot_<serial>,
-# on purpose, so entity ids carry the serial, and a masked one finds nothing.
+# name/entity_id: the device is named after its host name, Wattpilot_<serial>,
+# on purpose, so its name and entity IDs carry the serial (R1-02).
 IDENTIFYING_NAMES = frozenset(
     {
         "serial",
@@ -45,6 +45,8 @@ IDENTIFYING_NAMES = frozenset(
         "hostname",
         "friendly_name",
         "title",
+        "name",
+        "entity_id",
         "token",
         "err",
         "exc",
@@ -145,6 +147,8 @@ def _identifier_leaks(source: str) -> list[str]:
         '_LOGGER.debug("failed: %s", exc)',
         'raise ConfigEntryNotReady(translation_placeholders={"error": str(err)})',
         'raise HomeAssistantError(translation_placeholders={"serial": serial})',
+        '_LOGGER.warning("%s: %s", self.entity_id, type(err).__name__)',
+        '_LOGGER.info("%s connected", self.hub.name)',
     ],
 )
 def test_the_identifier_guard_can_actually_fail(snippet: str) -> None:
@@ -156,7 +160,7 @@ def test_the_identifier_guard_can_actually_fail(snippet: str) -> None:
     [
         '_LOGGER.info("x %s", mask_serial(self.serial))',
         '_LOGGER.debug("failed: %s", describe_error(exc))',
-        '_LOGGER.warning("%s: %s", self.entity_id, type(err).__name__)',
+        '_LOGGER.warning("%s: %s", description.key, type(err).__name__)',
     ],
 )
 def test_the_identifier_guard_lets_masked_values_through(snippet: str) -> None:

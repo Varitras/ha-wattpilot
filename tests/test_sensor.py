@@ -454,19 +454,22 @@ async def test_malformed_value_keeps_previous_state(
 ) -> None:
     fake_charger._properties["nrg"] = [1] * 16
     sensor = await make_sensor(hass, fake_charger, "nrg")
+    # As a real charger names it: the device is named after its host name.
+    sensor.entity_id = "sensor.wattpilot_123456_charging_power"
     with caplog.at_level(logging.WARNING):
         fake_charger.push("nrg", "garbage")
         await hass.async_block_till_done()
     assert sensor.native_value == 1
     # The warning is the only trace a dropped push leaves; it has to name
-    # which entity, what shape arrived, which charger key and what went wrong.
+    # which sensor, what shape arrived, which charger key and what went wrong.
+    # The sensor by its key: the entity ID carries the serial (R1-02).
     # It deliberately does NOT carry the value, nor the exception's message,
     # which can quote the value too: nothing redacts this sink, and a card
     # list logged that way put holder names into it (audit A12-05).
     # Compared whole rather than as a substring: a substring check passes just
     # as happily when the message has grown extra text around it.
     assert any(
-        record.getMessage() == "sensor.test_nrg: unexpected str for nrg (IndexError)"
+        record.getMessage() == "charging_power: unexpected str for nrg (IndexError)"
         for record in caplog.records
     )
     # Only our own sink: Home Assistant's dispatcher logs its signal payload
@@ -477,6 +480,7 @@ async def test_malformed_value_keeps_previous_state(
         if record.name == "custom_components.wattpilot.sensor"
     ]
     assert not any("garbage" in message for message in ours)
+    assert not any("123456" in message for message in ours)
 
 
 async def test_the_temperature_is_the_hottest_reading(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers import entity_registry as er
@@ -169,6 +170,41 @@ async def test_a_skipped_collision_raises_a_repair_issue(
     )
     assert issue is not None, "a silently orphaned entity must surface as a repair"
     assert legacy.entity_id in issue.translation_placeholders["entities"]
+
+
+async def test_the_migration_log_names_no_entity_id(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A legacy entity ID can carry the serial, as the new ones do (R1-02)."""
+    caplog.set_level(logging.INFO)
+    entry = MockConfigEntry(domain=DOMAIN, data=V2_LOCAL_DATA, version=2)
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    seed(hass, entry, "number", "123456-amp")
+    for unique_id, object_id in (
+        ("Wattpilot-amp", "wattpilot_123456_current"),
+        ("Wattpilot-AccessState", "wattpilot_123456_access"),
+    ):
+        registry.async_get_or_create(
+            "number" if unique_id.endswith("amp") else "sensor",
+            DOMAIN,
+            unique_id,
+            config_entry=entry,
+            suggested_object_id=object_id,
+        )
+
+    assert await setup_entry(hass, entry, fake_charger)
+
+    ours = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "custom_components.wattpilot.registry_migration"
+    ]
+    assert "Not migrating a number entity for amp: one already exists" in ours
+    assert "Migrating a sensor entity to access_state" in ours
+    assert not any("123456" in message for message in ours)
 
 
 async def test_no_repair_issue_without_a_collision(

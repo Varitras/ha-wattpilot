@@ -261,10 +261,11 @@ appear inside other text. Still look over the file before posting it.
 
 The log is masked as far as this integration reaches: its own messages and
 Home Assistant's messages about setting up the entry show only the last two
-digits of the serial number. Entity IDs contain the serial number, though --
-the device is named after its host name, `Wattpilot_<serial>` -- and other
-parts of Home Assistant log them, recorder warnings for example. Look over a
-log before posting it.
+digits of the serial number. Entity IDs contain the serial number -- the
+device is named after its host name, `Wattpilot_<serial>` -- so the
+integration's own messages name an entity by its key instead. Other parts of
+Home Assistant log entity IDs, though, recorder warnings for example. Look
+over a log before posting it.
 
 ## Removing the integration
 

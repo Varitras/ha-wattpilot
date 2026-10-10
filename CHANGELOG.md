@@ -76,8 +76,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   notice, which is not logged, still names the serial in full. A network
   error is named by its kind, such as `ConnectionRefusedError
   (ECONNREFUSED)`, instead of by its text, which quoted the charger's
-  address. Entity IDs carry the serial as well, and other parts of Home
-  Assistant may log them.
+  address. Entity IDs carry the serial as well, so the integration's own
+  messages name an entity by its key; other parts of Home Assistant may
+  log entity IDs.
 - **Charging power** no longer fills the recorder database. Its sixteen
   per-phase attributes differ in nearly every update while a car charges,
   and each update stored a new attribute row. They stay visible and usable in

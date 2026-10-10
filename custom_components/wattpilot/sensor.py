@@ -172,10 +172,11 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
             # diagnostics download and nothing redacts it, so a card list
             # logged with %r put holder names into the log (audit A12-05).
             # The exception's own message can quote the value too, so only
-            # its type is reported.
+            # its type is reported. The sensor by its key: the entity ID
+            # carries the serial (R1-02).
             _LOGGER.warning(
                 "%s: unexpected %s for %s (%s)",
-                self.entity_id,
+                description.key,
                 _describe_shape(value),
                 description.charger_key,
                 type(err).__name__,
