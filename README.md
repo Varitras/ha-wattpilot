@@ -226,17 +226,19 @@ automation:
 ## How data updates
 
 The integration holds one WebSocket connection to the charger and subscribes
-to property changes. Nothing is polled. When the connection drops, every entity
-goes unavailable, the drop is logged once, and the client reconnects on its
-own; entities come back as soon as the charger does.
+to property changes. Nothing is polled. When the connection drops and is still
+down at the next check (every 30 seconds), every entity goes unavailable, the
+drop is logged once, and the client reconnects on its own; entities come back
+as soon as the charger has sent its current readings. A reconnect between two
+checks goes unnoticed.
 
 **Update interval** (Settings → Devices & Services → Wattpilot → Configure) is
 therefore not a polling interval: it coalesces the charger's pushes. The
 charger can push the same property many times a second, and every push writes
 entity state and a recorder row. The interval caps that to at most one update
 per entity per interval; **0** forwards every change immediately. Availability
-is never delayed by it — a push proves the charger is reachable, and that is
-signalled at once.
+is never delayed by it: a recovery is signalled with the first push after the
+charger's readings are in, together with those readings.
 
 ## Troubleshooting
 

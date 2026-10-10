@@ -91,12 +91,6 @@ class WattpilotHub:
 
     async def async_connect(self) -> None:
         """Connect and authenticate; translate errors for config entry setup."""
-        # Before the I/O, not after: the client replays its whole state the
-        # moment the socket is up, and the first pushed property already
-        # announces the charger as available. Clearing this afterwards would
-        # leave `available` False for that burst while _last_available had
-        # already gone True -- and _update_availability suppresses a repeat,
-        # so nothing would ever correct the entities again.
         self._torn_down = False
         try:
             await self.charger.connect()
@@ -274,11 +268,16 @@ class WattpilotHub:
         # successful ws.close(), so a close that raised leaves it True while
         # the message loop behind it is already gone. Once this hub has torn
         # itself down, no update can reach an entity again whatever the
-        # client believes (audit VA-04). Nor before the full status (A18-20).
+        # client believes (audit VA-04). Nor before the full status (A18-20)
+        # -- unless no outage was seen: a reconnect between two checks
+        # replays it into entities still shown, and they flapped (R1-04).
         return (
             not self._torn_down
             and bool(self.charger.connected)
-            and bool(self.charger.properties_initialized)
+            and (
+                bool(self.charger.properties_initialized)
+                or self._last_available is True
+            )
         )
 
     @property
@@ -302,7 +301,8 @@ class WattpilotHub:
             async_dispatcher_send(
                 self._hass, signal_property(self._entry_id, key), value
             )
-        # Not buffered: once the full status is in, a recovery shows at once.
+        # Not buffered: the first push after the full status (the next delta,
+        # about a second later) announces a recovery (R1-23).
         self._update_availability(available=self.available)
 
     @callback
