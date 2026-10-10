@@ -9,6 +9,7 @@ import sys
 from importlib import metadata
 from pathlib import Path
 
+import pytest
 import yaml
 
 from custom_components.wattpilot.redaction import DROP_KEYS, REPLACE
@@ -29,14 +30,49 @@ def iter_python_files() -> list[Path]:
 
 # Names whose value identifies a device or a network. Logs are what users
 # attach to public issues, and nothing redacts them.
+# err/exc: a socket error's text quotes the charger's address and port.
+# Not entity_id: the device is named after its host name, Wattpilot_<serial>,
+# on purpose, so entity ids carry the serial, and a masked one finds nothing.
 IDENTIFYING_NAMES = frozenset(
-    {"serial", "unique_id", "host", "_host", "hostname", "token"}
+    {
+        "serial",
+        "_serial",
+        "unique_id",
+        "host",
+        "_host",
+        "hostname",
+        "friendly_name",
+        "title",
+        "token",
+        "err",
+        "exc",
+    }
 )
-LOGGER_LEVELS = frozenset({"debug", "info", "warning", "error", "exception"})
+# Calls whose result carries no identifier, whatever goes in.
+SAFE_WRAPPERS = frozenset({"mask_serial", "describe_error", "type"})
+LOGGER_LEVELS = frozenset(
+    {
+        "debug",
+        "info",
+        "warning",
+        "warn",
+        "error",
+        "exception",
+        "critical",
+        "fatal",
+        "log",
+    }
+)
 # Home Assistant logs these with their placeholders filled in. A repair
 # issue is not among them: it is shown, not logged.
 LOGGED_EXCEPTIONS = frozenset(
-    {"ConfigEntryError", "ConfigEntryAuthFailed", "ConfigEntryNotReady"}
+    {
+        "ConfigEntryError",
+        "ConfigEntryAuthFailed",
+        "ConfigEntryNotReady",
+        "HomeAssistantError",
+        "ServiceValidationError",
+    }
 )
 
 
@@ -67,11 +103,11 @@ def _logged_values(node: ast.AST) -> list[ast.expr]:
 
 
 def _unmasked_identifiers(node: ast.AST) -> list[str]:
-    """Identifying names in *node* that do not pass through mask_serial."""
-    is_mask_call = isinstance(node, ast.Call) and (
-        getattr(node.func, "id", None) == "mask_serial"
+    """Identifying names in *node* that do not pass through a safe wrapper."""
+    is_safe_call = isinstance(node, ast.Call) and (
+        getattr(node.func, "id", None) in SAFE_WRAPPERS
     )
-    if is_mask_call:
+    if is_safe_call:
         return []
     found = []
     if isinstance(node, ast.Name) and node.id in IDENTIFYING_NAMES:
@@ -81,6 +117,48 @@ def _unmasked_identifiers(node: ast.AST) -> list[str]:
     for child in ast.iter_child_nodes(node):
         found.extend(_unmasked_identifiers(child))
     return found
+
+
+def _identifier_leaks(source: str) -> list[str]:
+    return [
+        f"{node.lineno} {names}"
+        for node in ast.walk(ast.parse(source))
+        for names in [
+            [
+                name
+                for value in _logged_values(node)
+                for name in _unmasked_identifiers(value)
+            ]
+        ]
+        if names
+    ]
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        '_LOGGER.info("x %s", self.serial)',
+        '_LOGGER.critical("x %s", host)',
+        '_LOGGER.log(20, "x %s", self.hub.title)',
+        '_LOGGER.debug("failed: %s", exc)',
+        'raise ConfigEntryNotReady(translation_placeholders={"error": str(err)})',
+        'raise HomeAssistantError(translation_placeholders={"serial": serial})',
+    ],
+)
+def test_the_identifier_guard_can_actually_fail(snippet: str) -> None:
+    assert _identifier_leaks(snippet), snippet
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        '_LOGGER.info("x %s", mask_serial(self.serial))',
+        '_LOGGER.debug("failed: %s", describe_error(exc))',
+        '_LOGGER.warning("%s: %s", self.entity_id, type(err).__name__)',
+    ],
+)
+def test_the_identifier_guard_lets_masked_values_through(snippet: str) -> None:
+    assert not _identifier_leaks(snippet), snippet
 
 
 def test_no_device_identifier_reaches_the_log() -> None:
@@ -93,17 +171,9 @@ def test_no_device_identifier_reaches_the_log() -> None:
     Fix: wrap the value in api.mask_serial, or leave it out.
     """
     offenders = [
-        f"{path.relative_to(PACKAGE)}:{node.lineno} {names}"
+        f"{path.relative_to(PACKAGE)}:{leak}"
         for path in iter_python_files()
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        for names in [
-            [
-                name
-                for value in _logged_values(node)
-                for name in _unmasked_identifiers(value)
-            ]
-        ]
-        if names
+        for leak in _identifier_leaks(path.read_text(encoding="utf-8"))
     ]
     assert not offenders, f"device identifiers logged unmasked: {offenders}"
 
@@ -952,7 +1022,13 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
             "no dependency is installed for nothing"
         ),
         "test_no_device_identifier_reaches_the_log": (
-            "no serial, host or token in the log"
+            "no serial, host, title or error text with an address in the log"
+        ),
+        "test_the_identifier_guard_can_actually_fail": (
+            "the identifier guard flags each kind of leak it claims to"
+        ),
+        "test_the_identifier_guard_lets_masked_values_through": (
+            "masked values pass, so the guard is not fixed by deletion"
         ),
         "test_manifest_does_not_declare_what_home_assistant_ships": (
             "hassfest accepts the requirements"

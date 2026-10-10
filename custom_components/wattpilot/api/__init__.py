@@ -13,7 +13,12 @@ the adopted parts stay distinguishable from ours.
 """
 
 from .client import Wattpilot, mask_serial
-from .exceptions import AuthenticationError, DeviceIdentityError, WattpilotError
+from .exceptions import (
+    AuthenticationError,
+    DeviceIdentityError,
+    WattpilotError,
+    describe_error,
+)
 from .models import CloudInfo
 
 __all__ = [
@@ -22,5 +27,6 @@ __all__ = [
     "DeviceIdentityError",
     "Wattpilot",
     "WattpilotError",
+    "describe_error",
     "mask_serial",
 ]

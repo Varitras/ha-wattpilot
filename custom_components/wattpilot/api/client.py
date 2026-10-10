@@ -254,7 +254,7 @@ class Wattpilot:
 
     @property
     def name(self) -> str:
-        """Return the charger's friendly name."""
+        """Return the charger's name: its host name, Wattpilot_<serial>."""
         return self._device.name
 
     @property

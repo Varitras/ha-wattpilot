@@ -14,10 +14,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- The log no longer carries the charger's serial number. Messages about the
-  connection, about entity migration and the setup error for a different
-  charger show only its last two digits; the repair notice, which is not
-  logged, still names it in full.
+- The integration no longer writes the charger's serial number or address
+  into the log. Its own messages, and the messages Home Assistant logs
+  about setting up the entry, show only the serial's last two digits: the
+  entry is named after the charger's host name, `Wattpilot_<serial>`, and
+  Home Assistant logs that name on every failed attempt. The repair
+  notice, which is not logged, still names the serial in full. A network
+  error is named by its kind, such as `ConnectionRefusedError
+  (ECONNREFUSED)`, instead of by its text, which quoted the charger's
+  address. Entity IDs carry the serial as well, and other parts of Home
+  Assistant may log them.
 - **Charging power** no longer fills the recorder database. Its sixteen
   per-phase attributes differ in nearly every update while a car charges,
   and each update stored a new attribute row. They stay visible and usable in

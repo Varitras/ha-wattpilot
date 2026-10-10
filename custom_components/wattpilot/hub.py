@@ -30,10 +30,9 @@ from .api import (
     DeviceIdentityError,
     Wattpilot,
     WattpilotError,
+    describe_error,
 )
-
-# Re-exported for mypy: the rest of the package reaches api/ through the hub.
-from .api import mask_serial as mask_serial  # noqa: PLC0414
+from .api import mask_serial as mask_serial  # noqa: PLC0414 -- for __init__
 from .const import DOMAIN, signal_availability, signal_property
 
 _LOGGER = logging.getLogger(__name__)
@@ -114,13 +113,13 @@ class WattpilotHub:
             raise ConfigEntryAuthFailed(
                 translation_domain=DOMAIN,
                 translation_key="authentication_failed",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={"error": describe_error(err)},
             ) from err
         except _WRITE_ERRORS as err:
             raise ConfigEntryNotReady(
                 translation_domain=DOMAIN,
                 translation_key="cannot_connect",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={"error": describe_error(err)},
             ) from err
         self._update_availability(available=True)
 
@@ -221,7 +220,7 @@ class WattpilotHub:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="disconnect_failed",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={"error": describe_error(err)},
             ) from err
         finally:
             # Announcing this is not optional and not conditional. The
@@ -373,7 +372,7 @@ class WattpilotHub:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="set_failed",
-                translation_placeholders={"key": key, "error": str(err)},
+                translation_placeholders={"key": key, "error": describe_error(err)},
             ) from err
 
     async def async_set_next_trip(self, departure: time) -> None:
@@ -384,7 +383,7 @@ class WattpilotHub:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="next_trip_failed",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={"error": describe_error(err)},
             ) from err
 
     async def async_set_next_trip_energy(self, energy_wh: float) -> None:
@@ -397,7 +396,7 @@ class WattpilotHub:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="next_trip_energy_failed",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={"error": describe_error(err)},
             ) from err
 
     async def async_enable_cloud_api(self) -> CloudInfo:
@@ -408,7 +407,7 @@ class WattpilotHub:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="cloud_enable_failed",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={"error": describe_error(err)},
             ) from err
 
     async def async_disable_cloud_api(self) -> None:
@@ -419,7 +418,7 @@ class WattpilotHub:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="cloud_disable_failed",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={"error": describe_error(err)},
             ) from err
 
     async def async_install_firmware(self, version: str | None) -> None:
@@ -430,5 +429,5 @@ class WattpilotHub:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="firmware_update_failed",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={"error": describe_error(err)},
             ) from err

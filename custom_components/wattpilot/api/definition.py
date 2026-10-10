@@ -10,6 +10,8 @@ from typing import Any
 
 import yaml
 
+from .exceptions import describe_error
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -95,7 +97,7 @@ def load_api_definition() -> ApiDefinition:
             api_def.properties = _add_unique(api_def.properties, p["key"], p)
 
     except yaml.YAMLError as exc:
-        _LOGGER.fatal("Failed to parse wattpilot.yaml: %s", exc)
+        _LOGGER.fatal("Failed to parse wattpilot.yaml: %s", describe_error(exc))
         raise
 
     return api_def

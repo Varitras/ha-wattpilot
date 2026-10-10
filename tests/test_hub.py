@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import logging
 from datetime import time, timedelta
 from typing import TYPE_CHECKING, Any
@@ -111,11 +112,17 @@ async def test_connect_maps_auth_error(
 async def test_connect_maps_connection_error(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
-    fake_charger.connect_error = ConnectionError("timeout")
+    """Home Assistant logs this error on every setup retry, and a refused
+    connect's own text quotes the charger's address and port."""
+    fake_charger.connect_error = OSError(
+        errno.ECONNREFUSED, "Connect call failed ('192.0.2.77', 80)"
+    )
     hub = make_hub(hass, fake_charger)
     with pytest.raises(ConfigEntryNotReady) as raised:
         await hub.async_connect()
-    assert_translated(raised, "cannot_connect", error="timeout")
+    assert_translated(
+        raised, "cannot_connect", error="ConnectionRefusedError (ECONNREFUSED)"
+    )
 
 
 async def test_connect_maps_wattpilot_error(
@@ -213,7 +220,7 @@ async def test_set_property_maps_errors(
     fake_charger.set_error = ConnectionError("socket closed")
     with pytest.raises(HomeAssistantError) as raised:
         await hub.async_set_property("amp", 16)
-    assert_translated(raised, "set_failed", key="amp", error="socket closed")
+    assert_translated(raised, "set_failed", key="amp", error="ConnectionError")
 
 
 async def test_set_property_maps_websocket_error(
@@ -224,7 +231,7 @@ async def test_set_property_maps_websocket_error(
     fake_charger.set_error = WebSocketException("closed")
     with pytest.raises(HomeAssistantError) as raised:
         await hub.async_set_property("amp", 16)
-    assert_translated(raised, "set_failed", key="amp", error="closed")
+    assert_translated(raised, "set_failed", key="amp", error="WebSocketException")
 
 
 @pytest.mark.parametrize(
@@ -253,7 +260,7 @@ async def test_write_errors_surface_with_their_cause(
     fake_charger.write_error = ConnectionError("socket closed")
     with pytest.raises(HomeAssistantError) as raised:
         await write(hub)
-    assert_translated(raised, key, error="socket closed")
+    assert_translated(raised, key, error="ConnectionError")
 
 
 async def test_shutdown_disconnects_and_stops_dispatch(
@@ -279,7 +286,7 @@ async def test_shutdown_maps_disconnect_error_and_still_clears_callbacks(
     fake_charger.disconnect_error = ConnectionError("socket closed")
     with pytest.raises(HomeAssistantError) as raised:
         await hub.async_shutdown()
-    assert_translated(raised, "disconnect_failed", error="socket closed")
+    assert_translated(raised, "disconnect_failed", error="ConnectionError")
     assert fake_charger._callbacks == []
     assert hub._unsubscribe_properties is None
     assert hub._cancel_timer is None

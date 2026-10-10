@@ -9,6 +9,7 @@ original's tests came along, so its behaviour is pinned here.
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import logging
 import threading
@@ -23,7 +24,11 @@ from custom_components.wattpilot.api.client import (
     _message_type,
     mask_serial,
 )
-from custom_components.wattpilot.api.exceptions import CommandError
+from custom_components.wattpilot.api.exceptions import (
+    CommandError,
+    WattpilotConnectionError,
+    describe_error,
+)
 
 
 class FakeSocket:
@@ -248,6 +253,26 @@ def test_a_logged_serial_shows_only_its_last_digits(
 ) -> None:
     """Enough to tell two chargers apart, too little to name one."""
     assert mask_serial(serial) == masked
+
+
+def test_a_socket_error_is_described_without_the_chargers_address() -> None:
+    """The text of a refused connect quotes the charger's IP and port, and
+    it went into the setup error Home Assistant logs on every retry."""
+    refused = OSError(errno.ECONNREFUSED, "Connect call failed ('192.0.2.77', 80)")
+
+    described = describe_error(refused)
+
+    assert "192.0.2.77" not in described
+    assert described == "ConnectionRefusedError (ECONNREFUSED)"
+
+
+def test_our_own_error_texts_are_kept() -> None:
+    error = WattpilotConnectionError("Timeout waiting for hello")
+    assert describe_error(error) == "Timeout waiting for hello"
+
+
+def test_a_foreign_error_without_errno_is_named_by_class() -> None:
+    assert describe_error(ValueError("ws://192.0.2.77/ws is invalid")) == "ValueError"
 
 
 async def test_a_rejection_without_request_id_is_reported_with_its_reason(
