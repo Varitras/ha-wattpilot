@@ -38,15 +38,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   exist, read from the Flex's per-chip keys instead of a list it does not
   have. The **Electricity price** has its `prices` attribute again; the
   Flex sends its price list in another shape.
-- Ignoring a discovery card no longer deletes the charger's entry. An entry
-  carried over from the earlier integration learns its charger's serial only
-  once it connects, so a card for the same charger could still be open;
-  ignoring it made Home Assistant replace the entry, with its entities and
-  entity IDs, by an ignored one. Such a card now closes once the entry has
-  its serial, and an ignored card no longer blocks that entry from setting
-  up. Reconfigure and re-authentication refuse to move such an entry onto a
-  charger that already has an entry of its own, instead of reporting success
-  and failing afterwards.
+- Ignoring a discovery card no longer deletes the charger's entry. An
+  entry carried over from the earlier integration learns its charger's
+  serial only once it connects, so a card for the same charger could still
+  be open; ignoring it made Home Assistant replace the entry, with its
+  entities and entity IDs, by an ignored one. A card for the entry's
+  address is no longer offered while the entry waits for its first
+  connection -- the entry tries again instead -- and closes once the entry
+  has its serial; an ignored card no longer blocks that entry from setting
+  up. Reconfigure and re-authentication refuse to move such an entry onto
+  a charger that already has an entry of its own, instead of reporting
+  success and failing afterwards.
 - A charger that comes back after an outage is reached again, also when a
   reconnect action failed while it was away, or a firmware update took
   longer than the integration waits for it. Either used to leave nothing

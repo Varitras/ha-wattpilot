@@ -610,6 +610,35 @@ async def test_a_card_finished_after_the_entry_learned_its_serial_changes_nothin
     assert hass.config_entries.async_get_entry(entry.entry_id) is not None
 
 
+async def test_a_card_for_a_fork_entry_awaiting_its_serial_is_not_offered(
+    hass: HomeAssistant,
+) -> None:
+    """A fork entry is keyed on its address until it connects. The card for
+    the charger at that address was offered anyway, and confirming it made a
+    second entry with the serial that locked the fork entry out (reaudit
+    R1-14). The charger just announced itself, so the entry tries again."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="192.168.1.60",
+        version=2,
+        data={
+            CONF_CONNECTION_TYPE: CONNECTION_LOCAL,
+            **USER_INPUT,
+            "host": "192.168.1.60",
+            CONF_AWAITING_SERIAL: True,
+        },
+    )
+    entry.add_to_hass(hass)
+    entry.mock_state(hass, ConfigEntryState.SETUP_RETRY)
+    with patch.object(hass.config_entries, "async_schedule_reload") as reload:
+        result = await start_discovery_flow(hass)
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    reload.assert_called_once_with(entry.entry_id)
+    entry.mock_state(hass, ConfigEntryState.NOT_LOADED)
+
+
 async def test_a_connected_entry_does_not_move_to_another_announced_address(
     hass: HomeAssistant,
 ) -> None:
