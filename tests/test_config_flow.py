@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
+import pytest
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.data_entry_flow import FlowResultType
@@ -103,6 +104,29 @@ async def test_user_flow_cannot_connect(
     assert result["errors"] == {"base": "cannot_connect"}
     # The probe connection must be closed even on transport failure.
     assert fake_charger.disconnect_count == 1
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ValueError("Port could not be cast to integer value"),
+        UnicodeError("label empty"),
+    ],
+)
+async def test_a_malformed_host_is_a_form_error(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, error: Exception
+) -> None:
+    """An unbracketed IPv6 address, a mistyped port or an empty label made
+    building the address raise outside the connection errors: the form said
+    "Unknown error" and the log held a traceback (audit A18-21)."""
+    result = await start_user_flow(hass)
+    fake_charger.connect_error = error
+    with patch_charger(fake_charger):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {**USER_INPUT, "host": "fe80::1"}
+        )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"host": "invalid_host"}
 
 
 async def test_user_flow_aborts_on_duplicate(

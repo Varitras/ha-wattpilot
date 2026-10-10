@@ -131,6 +131,10 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
             return {"base": "invalid_auth"}, "", ""
         except ConfigEntryNotReady:
             return {"base": "cannot_connect"}, "", ""
+        except ValueError:
+            # An unbracketed IPv6 address, a bad port, an empty label: building
+            # the address raised, and the form showed "Unknown error" (A18-21).
+            return {"host": "invalid_host"}, "", ""
         finally:
             # The probe connection is disposable; a failure closing it must
             # not replace the validation result -- a success, or the auth/

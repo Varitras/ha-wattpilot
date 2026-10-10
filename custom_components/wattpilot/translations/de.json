@@ -21,6 +21,7 @@
     },
     "error": {
       "cannot_connect": "Verbindung zum Ladegerät nicht möglich",
+      "invalid_host": "Die Adresse ist kein gültiger Hostname und keine gültige IP-Adresse; eine IPv6-Adresse in eckige Klammern setzen",
       "invalid_auth": "Ungültiges Passwort",
       "charger_has_entry": "Für dieses Ladegerät gibt es bereits einen eigenen Eintrag; einen der beiden löschen",
       "wrong_device": "Das Ladegerät unter dieser Adresse hat eine andere Seriennummer"

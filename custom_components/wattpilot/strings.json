@@ -21,6 +21,7 @@
     },
     "error": {
       "cannot_connect": "Cannot connect to the charger",
+      "invalid_host": "The address is not a valid host name or IP address; an IPv6 address goes in brackets",
       "invalid_auth": "Invalid password",
       "charger_has_entry": "This charger already has an entry of its own; delete one of the two",
       "wrong_device": "The charger at this address has a different serial number"

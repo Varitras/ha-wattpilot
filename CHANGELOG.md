@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A malformed address in the setup or reconfigure form -- an IPv6 address
+  without brackets, a mistyped port -- is reported at the address field
+  instead of as an unknown error.
 - On a Wattpilot Flex, three readings now work. **Charger temperature**
   shows the hottest of the Flex's temperature sensors, with all readings
   as an attribute; it stayed unknown, because the first of them is always
