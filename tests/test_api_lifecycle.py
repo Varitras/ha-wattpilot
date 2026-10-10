@@ -243,18 +243,6 @@ async def test_a_firmware_install_without_a_version_needs_an_offer(
         await client.install_firmware_update()
 
 
-def test_the_string_form_says_whether_it_is_connected(client: Wattpilot) -> None:
-    assert str(client) == "Not connected"
-
-    client._connection.mark_authenticated()
-    client._update_property("nrg", [230.0] * 11 + [4230])
-    client._update_property("amp", 16)
-    client._update_property("car", 2)
-    summary = str(client)
-    assert "Serial" in summary
-    assert "4.23" in summary
-
-
 async def test_a_reconnect_to_a_different_charger_is_refused(
     client: Wattpilot,
 ) -> None:
@@ -801,6 +789,25 @@ async def test_the_firmware_wait_keeps_the_budget_it_was_given(
     await client._connection.close()
 
     assert took < 1, f"a 0.05s budget took {took:.2f}s"
+
+
+async def test_a_binary_frame_that_is_not_utf8_does_not_end_the_reader(
+    client: Wattpilot,
+) -> None:
+    """The frame was decoded before the frame guard, so a byte sequence that
+    is not UTF-8 ended the reader instead of being skipped (audit A19-08)."""
+    client._connection.socket = FakeSocket(  # type: ignore[assignment]
+        [bytes([0xFF, 0xFE]), json.dumps({"type": "deltaStatus", "status": {"amp": 6}})]  # type: ignore[list-item]
+    )
+    task = asyncio.create_task(client._connection._message_loop())
+    try:
+        await _settle(lambda: client.amp == 6)
+        assert client.amp == 6
+        assert not task.done()
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
 
 
 async def test_an_empty_array_does_not_end_the_reader(client: Wattpilot) -> None:

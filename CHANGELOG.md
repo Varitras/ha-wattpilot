@@ -35,6 +35,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reconnect action failed while it was away, or a firmware update took
   longer than the integration waits for it. Either used to leave nothing
   retrying, so the charger stayed unavailable until a reload.
+- A single value the integration cannot read no longer takes the rest of
+  the charger's update with it, and no longer stalls the first connection
+  until it times out. A message that is not valid text is skipped instead
+  of stopping the reader. A charger asking for a password scheme the
+  integration does not know is refused with that scheme named, instead of
+  a bare timeout. A setting the charger accepted with an empty status is no
+  longer reported as unanswered.
 - Diagnostics from a Wattpilot Flex on Ethernet no longer contain the
   serial number in the Ethernet host name, the Ethernet addresses, the name
   servers and search domain, or the charger's address in the last cloud

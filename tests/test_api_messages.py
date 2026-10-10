@@ -8,6 +8,7 @@ covered -- a frame arriving under the wrong name is the failure this catches.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -159,3 +160,45 @@ async def test_inverter_frames_are_accepted_without_handling(
     await send(client, {"type": "clearInverters"})
     await send(client, {"type": "updateInverter"})
     assert "Unhandled" not in caplog.text
+
+
+async def test_a_malformed_property_costs_neither_its_siblings_nor_the_status(
+    client: Wattpilot,
+) -> None:
+    """One value the client cannot read ended the whole frame: the keys after
+    it were lost, and in the last chunk of the first full status the status
+    never completed, so connecting ran into its timeout (audit A18-16)."""
+    await send(
+        client,
+        {
+            "type": "fullStatus",
+            "partial": False,
+            "status": {"nrg": [230.0], "amp": 16},
+        },
+    )
+    assert client.amp == 16
+    assert client.properties_initialized
+
+
+async def test_an_acceptance_with_a_null_status_answers_the_command(
+    client: Wattpilot,
+) -> None:
+    """`status: null` raised before the waiting command was answered, so a
+    write the charger had accepted was reported as unanswered (A18-19)."""
+    waiter = asyncio.get_running_loop().create_future()
+    client._pending_commands["7"] = waiter
+    await send(
+        client, {"type": "response", "requestId": 7, "success": True, "status": None}
+    )
+    assert waiter.done()
+    assert waiter.exception() is None
+
+
+async def test_an_unknown_password_hash_is_a_named_refusal(client: Wattpilot) -> None:
+    """An algorithm this client does not know made the frame unreadable: no
+    answer was sent and setup timed out without naming the cause (A18-18)."""
+    await send(
+        client, {"type": "authRequired", "token1": "a", "token2": "b", "hash": "argon2"}
+    )
+    assert client._connection.fatal_error is not None
+    assert "argon2" in str(client._connection.fatal_error)

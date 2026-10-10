@@ -525,7 +525,7 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # this budget came back down with it (measured: 1192). Nudged to 1230 on
     # 2026-09-06 for the audit round's connect cleanup and firmware deadline
     # (measured: 1221).
-    "client.py": 1230,
+    "client.py": 1128,
     # Past the default on 2026-09-25 by the open/close coordination (audits
     # A15-01, A16-01): shared attempts, a close that cancels instead of
     # waiting, and one visible transition at a time (measured: 406).
@@ -552,7 +552,7 @@ CLUSTER_BUDGET = {
     # forty lines of comment had already been condensed to make room: the
     # open/close coordination (A13-01, A14-01, A15-01) and the refused-
     # password flag (A14-02), at a measured 1607 lines.
-    "api client": (("client.py", "connection.py"), 1649),
+    "api client": (("client.py", "connection.py"), 1552),
 }
 
 
@@ -841,8 +841,8 @@ def test_complexity_ratchet() -> None:
         "connection.py::Connection._read_frames": 6,
         "connection.py::Connection._message_loop": 6,
         "client.py::Wattpilot._handle_message": 11,
-        "client.py::Wattpilot._on_response": 7,
-        "client.py::Wattpilot._update_property": 24,
+        "client.py::Wattpilot._on_response": 6,
+        "client.py::Wattpilot._update_property": 23,
         "definition.py::validate_api_definition": 12,
         "definition.py::load_api_definition": 8,
     }

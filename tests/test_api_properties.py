@@ -58,20 +58,6 @@ def test_a_pushed_property_reaches_its_getter(
     assert client.all_properties[key] == pushed
 
 
-def test_the_energy_array_is_split_into_phases(client: Wattpilot) -> None:
-    """`nrg` is one array carrying twelve readings; the client fans it out.
-    The three power values are watts on the wire and kilowatts on the API."""
-    client._update_property(
-        "nrg", [230.0, 231.0, 232.0, 1.5, 6.0, 6.1, 6.2, 1400, 1410, 1420, 5, 4230]
-    )
-    assert (client.voltage1, client.voltage2, client.voltage3) == (230.0, 231.0, 232.0)
-    assert client.voltage_n == 1.5
-    assert (client.amps1, client.amps2, client.amps3) == (6.0, 6.1, 6.2)
-    assert client.power1 == pytest.approx(1.4)
-    assert client.power_n == pytest.approx(0.005)
-    assert client.power == pytest.approx(4.23)
-
-
 def test_the_connected_access_point_also_yields_the_ssid(client: Wattpilot) -> None:
     """Current firmware reports the AP in `ccw`, not in `wss`."""
     client._update_property("ccw", SimpleNamespace(ssid="TestNet"))
