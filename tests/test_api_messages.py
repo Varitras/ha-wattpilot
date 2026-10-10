@@ -202,3 +202,20 @@ async def test_an_unknown_password_hash_is_a_named_refusal(client: Wattpilot) ->
     )
     assert client._connection.fatal_error is not None
     assert "argon2" in str(client._connection.fatal_error)
+
+
+async def test_an_unknown_password_hash_drops_the_socket(client: Wattpilot) -> None:
+    """Left open, the refused socket counted as connected until the readiness
+    guard gave up on it, as a wrong charger's does not (reaudit R1-13)."""
+
+    class Socket:
+        closed = False
+
+        async def close(self) -> None:
+            self.closed = True
+
+    socket = client._connection.socket = Socket()  # type: ignore[assignment]
+    await send(
+        client, {"type": "authRequired", "token1": "a", "token2": "b", "hash": "argon2"}
+    )
+    assert socket.closed

@@ -33,6 +33,7 @@ from custom_components.wattpilot.api import (
     DeviceIdentityError,
     WattpilotError,
 )
+from custom_components.wattpilot.api.exceptions import WattpilotConnectionError
 from custom_components.wattpilot.const import (
     CONF_AWAITING_SERIAL,
     CONF_CONNECTION_TYPE,
@@ -143,6 +144,34 @@ async def test_another_charger_answering_while_running_is_reported(
     assert issue.translation_key == "wrong_charger"
     assert issue.translation_placeholders == {"serial": "123456"}
     assert not reauth_flows(hass), "a new password cannot fix another charger"
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_a_charger_asking_for_an_unknown_sign_in_is_reported(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A third way the client stops for good: the charger asks for a password
+    scheme it does not know. Nothing reported it; the entities just stayed
+    unavailable (reaudit R1-13)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    issue_id = f"charger_refused_{entry.entry_id}"
+
+    fake_charger.connected = False
+    fake_charger.refusal = WattpilotConnectionError("Unsupported password hash: x9")
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=1))
+    await hass.async_block_till_done()
+
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, issue_id)
+    assert issue is not None, "the refusal was not reported"
+    assert issue.translation_key == "charger_refused"
+    assert issue.translation_placeholders == {"error": "Unsupported password hash: x9"}
+    assert not reauth_flows(hass), "a new password cannot fix this"
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()

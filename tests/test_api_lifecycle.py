@@ -896,6 +896,25 @@ async def test_a_firmware_update_outlasting_its_budget_keeps_recovering(
         await client._connection.close()
 
 
+async def test_a_refusal_ends_the_firmware_wait_with_its_reason(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Retrying cannot help against a refusal. The wait went on until its
+    deadline and reported a timeout, never the reason (reaudit R1-13)."""
+
+    async def refused() -> None:
+        client._connection.fail(WattpilotConnectionError("Unsupported password hash"))
+        raise client._connection.fatal_error  # type: ignore[misc]
+
+    client._all_props["onv"] = ["42.6"]
+    monkeypatch.setattr(client, "set_property", lambda *_a, **_k: asyncio.sleep(0))
+    monkeypatch.setattr(client, "connect", refused)
+
+    async with asyncio.timeout(1):
+        with pytest.raises(WattpilotConnectionError, match="Unsupported password"):
+            await client.install_firmware_update(timeout=30)
+
+
 async def _a_loop_in_backoff(connection: Any) -> None:
     connection.socket = FakeSocket([])
     connection.message_loop_task = asyncio.create_task(connection._message_loop())

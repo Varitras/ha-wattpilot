@@ -43,6 +43,8 @@ _AVAILABILITY_CHECK_INTERVAL = timedelta(seconds=30)
 # way the action did not take effect. Raised `from None`: a setup traceback
 # shows the cause, and a refused connect quotes the address (R1-01).
 _WRITE_ERRORS = (WattpilotError, WebSocketException, OSError)
+# Repair issues for a refusal, named after their translation key.
+_REFUSAL_ISSUES = ("wrong_charger", "charger_refused")
 
 type WattpilotConfigEntry = ConfigEntry[WattpilotHub]
 
@@ -182,8 +184,9 @@ class WattpilotHub:
         close; one that starts later is refused.
         """
         self._retired = True
-        # It describes this hub's connection; a new setup finds out afresh.
-        ir.async_delete_issue(self._hass, DOMAIN, self._wrong_charger_issue)
+        # They describe this hub's connection; a new setup finds out afresh.
+        for kind in _REFUSAL_ISSUES:
+            ir.async_delete_issue(self._hass, DOMAIN, f"{kind}_{self._entry_id}")
         await self.async_disconnect()
 
     async def async_disconnect(self) -> None:
@@ -218,15 +221,10 @@ class WattpilotHub:
                 translation_placeholders={"error": describe_error(err)},
             ) from None
         finally:
-            # Announcing this is not optional and not conditional. The
-            # subscription above is gone, so no update will ever reach an
-            # entity again -- including after a disconnect that raised,
-            # where `available` would still read True. And it has to happen
-            # here rather than before the I/O, because the timer that would
-            # otherwise have noticed was just cancelled: nothing else is
-            # left to write entity state, and every sensor would keep
-            # displaying its last reading for good. expected=True: this teardown
-            # is deliberate, so it must not log as a fault.
+            # Not optional, a failed disconnect included: subscription and timer
+            # are gone, so nothing else will write entity state, and every
+            # sensor would keep its last reading for good. expected=True: a
+            # deliberate teardown, not a fault.
             self._update_availability(available=False, expected=True)
 
     # ---- state ----
@@ -316,7 +314,7 @@ class WattpilotHub:
     @callback
     def _check_availability(self, _now: datetime) -> None:
         self._update_availability(available=self.available)
-        # The client stops for good on either refusal -- retrying would only
+        # The client stops for good on a refusal -- retrying would only
         # repeat it -- so the user has to be told, in the way that helps.
         refusal = self.charger.refusal
         if isinstance(refusal, AuthenticationError):
@@ -326,19 +324,21 @@ class WattpilotHub:
                 entry.async_start_reauth(self._hass)
         elif isinstance(refusal, DeviceIdentityError):
             # Not reauth: a new password would not bring this charger back.
-            ir.async_create_issue(
-                self._hass,
-                DOMAIN,
-                self._wrong_charger_issue,
-                is_fixable=False,
-                severity=ir.IssueSeverity.ERROR,
-                translation_key="wrong_charger",
-                translation_placeholders={"serial": self.serial},
-            )
+            self._report_refusal("wrong_charger", {"serial": self.serial})
+        elif refusal is not None:
+            # A sign-in scheme the client does not know (reaudit R1-13).
+            self._report_refusal("charger_refused", {"error": describe_error(refusal)})
 
-    @property
-    def _wrong_charger_issue(self) -> str:
-        return f"wrong_charger_{self._entry_id}"
+    def _report_refusal(self, kind: str, placeholders: dict[str, str]) -> None:
+        ir.async_create_issue(
+            self._hass,
+            DOMAIN,
+            f"{kind}_{self._entry_id}",
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key=kind,
+            translation_placeholders=placeholders,
+        )
 
     @callback
     def _update_availability(self, *, available: bool, expected: bool = False) -> None:

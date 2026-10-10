@@ -100,6 +100,10 @@
       "title": "Another charger answers at this charger's address",
       "description": "Home Assistant reached a different charger at the address of the charger with serial {serial}, and stopped connecting so it does not show that charger's readings as this one's. The address was probably handed to another device.\n\nIf the charger now has a different address, open the integration and choose **Reconfigure** to enter it. This notice goes away when the integration is reloaded."
     },
+    "charger_refused": {
+      "title": "The charger refused the connection",
+      "description": "The charger refused the connection: {error}. Home Assistant stopped connecting, as retrying would only repeat the refusal. The charger probably asks for a sign-in method this version of the integration does not know.\n\nLook for an update of the integration. This notice goes away when the integration is reloaded."
+    },
     "migration_collision": {
       "title": "Some entities could not be migrated",
       "description": "These entities from a previously installed Wattpilot integration keep their old identifier, because an entity with the new one already exists: {entities}.\n\nNothing was deleted. Each of them still holds its history, entity ID and customisations, but no longer belongs to a loaded integration, so it shows as unavailable. The entity that is loaded is the one that was already there.\n\nDelete the unavailable ones in their entity settings once their history no longer matters to you; the loaded ones carry on. The old ones cannot take the loaded ones' place: Home Assistant does not let you delete an entity an integration provides."

@@ -474,9 +474,7 @@ class Wattpilot:
             remaining = deadline - loop.time()
             if remaining <= 0:
                 break
-            with contextlib.suppress(Exception):
-                async with asyncio.timeout(remaining):
-                    await self.connect()
+            if await self._reconnect_within(remaining):
                 return
             remaining = deadline - loop.time()
             if remaining <= 0:
@@ -488,6 +486,19 @@ class Wattpilot:
         self._connection.resume_reconnecting()
         msg = "Timeout reconnecting after firmware update"
         raise WattpilotConnectionError(msg)
+
+    async def _reconnect_within(self, remaining: float) -> bool:
+        """Make one attempt; a refusal ends the wait with its reason."""
+        try:
+            async with asyncio.timeout(remaining):
+                await self.connect()
+        except Exception:
+            if self.refusal is not None:
+                # Retried, it ran into the deadline and was reported as a
+                # timeout (reaudit R1-13).
+                raise
+            return False
+        return True
 
     # ---- Type coercion ----
 
@@ -698,7 +709,7 @@ class Wattpilot:
             if msg.hash not in AuthHashType:
                 # Unanswered, this was a timeout with no cause (A18-18).
                 msg_text = f"Unsupported password hash: {msg.hash}"
-                self._connection.fail(WattpilotConnectionError(msg_text))
+                await self._connection.reject(WattpilotConnectionError(msg_text))
                 return
             self._auth_hash_type = AuthHashType(msg.hash)
         elif self._device.device_type == WPFLEX_DEVICE_TYPE:
