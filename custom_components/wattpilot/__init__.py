@@ -27,7 +27,7 @@ from .const import (
     signal_property,
 )
 from .hub import WattpilotConfigEntry, WattpilotHub, mask_serial
-from .registry_migration import async_migrate_legacy_unique_ids
+from .registry_migration import async_clear_collisions, async_migrate_legacy_unique_ids
 from .services import async_setup_services
 
 if TYPE_CHECKING:
@@ -279,6 +279,11 @@ def _close_open_cards(hass: HomeAssistant, serial: str) -> None:
         match_context={"source": config_entries.SOURCE_ZEROCONF, "unique_id": serial},
     ):
         flows.async_abort(card["flow_id"])
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Clear what this entry left in the repair list."""
+    async_clear_collisions(hass, entry)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: WattpilotConfigEntry) -> bool:

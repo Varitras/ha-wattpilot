@@ -134,14 +134,23 @@ async def async_migrate_legacy_unique_ids(
     _report_collisions(hass, entry, collisions)
 
 
+def _collision_issue_id(entry: ConfigEntry) -> str:
+    return f"migration_collision_{entry.entry_id}"
+
+
+def async_clear_collisions(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Drop the notice with the entry it is about (audit A18-23)."""
+    ir.async_delete_issue(hass, DOMAIN, _collision_issue_id(entry))
+
+
 def _report_collisions(
     hass: HomeAssistant, entry: ConfigEntry, collisions: list[str]
 ) -> None:
     """Raise (or clear) the repair issue for entities left unmigrated."""
-    issue_id = f"migration_collision_{entry.entry_id}"
     if not collisions:
-        ir.async_delete_issue(hass, DOMAIN, issue_id)
+        async_clear_collisions(hass, entry)
         return
+    issue_id = _collision_issue_id(entry)
     ir.async_create_issue(
         hass,
         DOMAIN,

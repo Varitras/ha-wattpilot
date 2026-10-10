@@ -14,6 +14,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The notice about entities that could not be migrated goes away with
+  the entry it is about, instead of staying until a restart.
 - A malformed address in the setup or reconfigure form -- an IPv6 address
   without brackets, a mistyped port -- is reported at the address field
   instead of as an unknown error.
