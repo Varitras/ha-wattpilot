@@ -639,6 +639,22 @@ async def test_a_reconnect_between_two_checks_does_not_flap_the_entities(
     assert not [r for r in caplog.records if r.levelno >= logging.INFO]
 
 
+async def test_a_refused_charger_is_unavailable_while_its_socket_is_up(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A wrong password leaves the socket up until the readiness guard gives
+    up on it. Counted as a reconnect nobody noticed, the entities stayed
+    available with their old readings until then."""
+    hub = make_hub(hass, fake_charger)
+    await hub.async_connect()
+    hub.start_dispatch()
+
+    fake_charger.properties_initialized = False
+    fake_charger.refusal = AuthenticationError("wrong password")
+
+    assert not hub.available
+
+
 async def test_a_recovery_is_logged_once_at_info(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,

@@ -262,16 +262,16 @@ class WattpilotHub:
     @property
     def available(self) -> bool:
         """Return whether the charger is currently reachable."""
-        # Not the client's flag alone: it clears `connected` only after a
-        # successful ws.close(), so a close that raised leaves it True while
-        # the message loop behind it is already gone. Once this hub has torn
-        # itself down, no update can reach an entity again whatever the
-        # client believes (audit VA-04). Nor before the full status (A18-20)
-        # -- unless no outage was seen: a reconnect between two checks
-        # replays it into entities still shown, and they flapped (R1-04).
+        # Not the client's flag alone: a close that raised leaves `connected`
+        # True with the loop behind it gone, and once this hub has torn itself
+        # down no update reaches an entity again (audit VA-04). Not refused,
+        # whatever the socket says. Nor before the full status (A18-20) --
+        # unless no outage was seen: a reconnect between two checks replays it
+        # into entities still shown, and they flapped (R1-04).
         return (
             not self._torn_down
             and bool(self.charger.connected)
+            and self.charger.refusal is None
             and (
                 bool(self.charger.properties_initialized)
                 or self._last_available is True
