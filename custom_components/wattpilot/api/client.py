@@ -627,16 +627,16 @@ class Wattpilot:
         # come back as 08:30 (audit A12-06).
         await self.set_property("ftt", timestamp)
 
-    async def set_next_trip_energy(self, energy_kwh: float) -> None:
+    async def set_next_trip_energy(self, energy_wh: float) -> None:
         """
-        Set the energy requirement for the next trip in kWh.
+        Set the energy requirement for the next trip, in Wh.
 
-        Automatically sets the energy unit to kWh before updating.
+        Sets `esk` first; measured on FW 42.5, `fte` is then Wh (25000 = 25 kWh).
         """
         # FBT003 does not apply: the bool is the value being written to the
         # charger, not a flag steering this function.
         await self.set_property("esk", True)  # noqa: FBT003
-        await self.set_property("fte", energy_kwh)
+        await self.set_property("fte", energy_wh)
 
     async def enable_cloud_api(
         self,

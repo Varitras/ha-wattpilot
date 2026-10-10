@@ -103,7 +103,7 @@ class WattpilotHub:
             raise ConfigEntryError(
                 translation_domain=DOMAIN,
                 translation_key="wrong_charger",
-                # HA logs this message too; the repair notice keeps the full serial.
+                # Home Assistant logs this message as well.
                 translation_placeholders={
                     "expected": mask_serial(self.serial),
                     "found": mask_serial(err.found),
@@ -399,8 +399,7 @@ class WattpilotHub:
 
     async def async_set_next_trip_energy(self, energy_wh: float) -> None:
         """Set the energy target for the next scheduled trip."""
-        # Verified on firmware 42.5: device holds fte=25000 with esk=True,
-        # i.e. Wh -- despite the vendor's parameter being named energy_kwh.
+        # Verified on firmware 42.5: device holds fte=25000 with esk=True, i.e. Wh.
         try:
             await self.charger.set_next_trip_energy(energy_wh)
         except _WRITE_ERRORS as err:

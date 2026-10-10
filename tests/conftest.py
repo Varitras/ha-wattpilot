@@ -113,9 +113,9 @@ class FakeWattpilot:
         self._raise_write_error()
         self.next_trip_calls.append(value)
 
-    async def set_next_trip_energy(self, energy_kwh: float) -> None:
+    async def set_next_trip_energy(self, energy_wh: float) -> None:
         self._raise_write_error()
-        self.next_trip_energy_calls.append(energy_kwh)
+        self.next_trip_energy_calls.append(energy_wh)
 
     async def enable_cloud_api(self) -> Any:
         self._raise_write_error()

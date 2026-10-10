@@ -246,9 +246,9 @@ def sanitize_property(key: str, value: Any, serial: str | None = None) -> Any:  
     if key == "ts" and isinstance(value, str):
         # timeServer: a public pool name is harmless, an internal hostname or
         # a private IP is not, and nothing in the value tells them apart, so
-        # it always goes. Not a NET_FIELDS entry and not in REPLACE, because
-        # both match by name at any depth and `smd` carries a numeric `ts` of
-        # its own -- a timestamp, which must survive (audit VA-07).
+        # it always goes. Not a NET_FIELDS entry, which matches by name at any
+        # depth while `smd` carries a numeric `ts` of its own -- a timestamp,
+        # which must survive -- and only for a string (audit VA-07).
         return TIME_SERVER_REPLACEMENT
     replacement = _replacement_for(key, value)
     if replacement is not _KEEP:

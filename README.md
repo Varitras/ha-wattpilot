@@ -114,8 +114,9 @@ And a few that make existing settings usable from Home Assistant:
 
 ### Energy Dashboard
 
-Use **Total energy** (`sensor.wattpilot_total_energy`, assuming the device is
-named "Wattpilot") as the device's consumption source. It is a
+Use **Total energy** (`sensor.wattpilot_<serial>_total_energy`, the device
+being named after its host name `Wattpilot_<serial>` unless you renamed it)
+as the device's consumption source. It is a
 `total_increasing` energy sensor and survives charger reboots, also across a
 reload or restart of Home Assistant.
 
@@ -188,7 +189,8 @@ automations keep working.
 ### Example
 
 Restrict charging to solar surplus while the sun is up, and set tomorrow's
-departure every evening:
+departure every evening. The entity IDs start with the device name, here a
+charger with the serial 123456; put in yours:
 
 ```yaml
 automation:
@@ -199,7 +201,7 @@ automation:
     actions:
       - action: switch.turn_on
         target:
-          entity_id: switch.wattpilot_pv_surplus_charging
+          entity_id: switch.wattpilot_123456_pv_surplus_charging
 
   - alias: Wattpilot solar surplus off at sunset
     triggers:
@@ -208,7 +210,7 @@ automation:
     actions:
       - action: switch.turn_off
         target:
-          entity_id: switch.wattpilot_pv_surplus_charging
+          entity_id: switch.wattpilot_123456_pv_surplus_charging
 
   - alias: Wattpilot next trip at 07:30
     triggers:
@@ -217,7 +219,7 @@ automation:
     actions:
       - action: wattpilot.set_next_trip
         data:
-          device_id: "{{ device_id('sensor.wattpilot_car_state') }}"
+          device_id: "{{ device_id('sensor.wattpilot_123456_car_state') }}"
           trigger_time: "07:30:00"
 ```
 
