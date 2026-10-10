@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -57,12 +56,6 @@ class FakeWattpilot:
         self.install_calls: list[str | None] = []
         self.disconnect_count = 0
         self.disable_cloud_api_count = 0
-        # Mirrors the real client's lazy-loaded API definition cache: a
-        # counter (not a bool) so tests can assert it warms exactly once,
-        # plus the calling thread's identity so tests can prove the warm-up
-        # actually ran off the event loop thread.
-        self.api_def_loads = 0
-        self.api_def_load_thread_ident: int | None = None
         # 32 chars: same shape as a real go-e cloud API key. Settable so
         # redaction tests can exercise short/empty keys too.
         # Prefix, body and suffix deliberately distinguishable. A uniform
@@ -145,11 +138,6 @@ class FakeWattpilot:
     def _raise_write_error(self) -> None:
         if self.write_error is not None:
             raise self.write_error
-
-    def _get_api_def(self) -> None:
-        """Mirror the real client's lazy, instance-cached API definition load."""
-        self.api_def_loads += 1
-        self.api_def_load_thread_ident = threading.get_ident()
 
 
 @pytest.fixture(name="fake_charger")
