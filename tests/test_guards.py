@@ -33,8 +33,8 @@ def iter_python_files() -> list[Path]:
 # Names whose value identifies a device or a network. Logs are what users
 # attach to public issues, and nothing redacts them.
 # err/exc: a socket error's text quotes the charger's address and port.
-# name/entity_id: the device is named after its host name, Wattpilot_<serial>,
-# on purpose, so its name and entity IDs carry the serial (R1-02).
+# entity_id: the device is named after its host name, Wattpilot_<serial>,
+# on purpose, so its entity IDs carry the serial (R1-02).
 IDENTIFYING_NAMES = frozenset(
     {
         "serial",
@@ -45,15 +45,19 @@ IDENTIFYING_NAMES = frozenset(
         "hostname",
         "friendly_name",
         "title",
-        "name",
         "entity_id",
         "token",
         "err",
         "exc",
     }
 )
+# As an attribute only: hub.name, charger.name, the host name again. A plain
+# `name` is a property's name.
+IDENTIFYING_ATTRIBUTES = IDENTIFYING_NAMES | {"name"}
 # Calls whose result carries no identifier, whatever goes in.
 SAFE_WRAPPERS = frozenset({"mask_serial", "describe_error", "type"})
+# An error's reason is a fixed phrase, a decode error's "invalid start byte".
+SAFE_ATTRIBUTES = frozenset({"reason"})
 LOGGER_LEVELS = frozenset(
     {
         "debug",
@@ -78,6 +82,18 @@ LOGGED_EXCEPTIONS = frozenset(
         "ServiceValidationError",
     }
 )
+# This package's own errors: describe_error() logs their text as it is.
+OWN_ERRORS = frozenset(
+    node.name
+    for node in ast.walk(
+        ast.parse((PACKAGE / API_DIR / "exceptions.py").read_text(encoding="utf-8"))
+    )
+    if isinstance(node, ast.ClassDef)
+)
+# Errors whose text can quote the charger's address: a refused connect does.
+TRANSPORT_ERRORS = frozenset(
+    {"OSError", "ConnectionError", "WebSocketException", "_WRITE_ERRORS"}
+)
 
 
 def _is_logger_call(node: ast.AST) -> bool:
@@ -94,15 +110,26 @@ def _logged_values(node: ast.AST) -> list[ast.expr]:
     """What a log call or a logged exception writes, or nothing."""
     if _is_logger_call(node):
         return list(node.args)  # type: ignore[attr-defined]
+    # ruff (EM101/EM102) puts every exception message into `msg` first.
+    is_message = (
+        isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and getattr(node.targets[0], "id", None) == "msg"
+    )
+    if is_message:
+        return [node.value]  # type: ignore[attr-defined]
     is_logged_exception = isinstance(node, ast.Call) and (
-        getattr(node.func, "id", None) in LOGGED_EXCEPTIONS
+        getattr(node.func, "id", None) in LOGGED_EXCEPTIONS | OWN_ERRORS
     )
     if not is_logged_exception:
         return []
     return [
-        keyword.value
-        for keyword in node.keywords  # type: ignore[attr-defined]
-        if keyword.arg == "translation_placeholders"
+        *node.args,  # type: ignore[attr-defined]
+        *(
+            keyword.value
+            for keyword in node.keywords  # type: ignore[attr-defined]
+            if keyword.arg == "translation_placeholders"
+        ),
     ]
 
 
@@ -111,12 +138,13 @@ def _unmasked_identifiers(node: ast.AST) -> list[str]:
     is_safe_call = isinstance(node, ast.Call) and (
         getattr(node.func, "id", None) in SAFE_WRAPPERS
     )
-    if is_safe_call:
+    is_safe_attribute = getattr(node, "attr", None) in SAFE_ATTRIBUTES
+    if is_safe_call or is_safe_attribute:
         return []
     found = []
     if isinstance(node, ast.Name) and node.id in IDENTIFYING_NAMES:
         found.append(node.id)
-    if isinstance(node, ast.Attribute) and node.attr in IDENTIFYING_NAMES:
+    if isinstance(node, ast.Attribute) and node.attr in IDENTIFYING_ATTRIBUTES:
         found.append(node.attr)
     for child in ast.iter_child_nodes(node):
         found.extend(_unmasked_identifiers(child))
@@ -138,6 +166,50 @@ def _identifier_leaks(source: str) -> list[str]:
     ]
 
 
+def _catches_transport_errors(handler: ast.ExceptHandler) -> bool:
+    caught = (
+        handler.type.elts if isinstance(handler.type, ast.Tuple) else [handler.type]
+    )
+    return any(
+        getattr(name, "id", getattr(name, "attr", None)) in TRANSPORT_ERRORS
+        for name in caught
+    )
+
+
+def _shows_traceback(node: ast.AST, error: str | None) -> bool:
+    """A raise that chains *error*, or a log call that prints the traceback."""
+    if isinstance(node, ast.Raise):
+        return error is not None and getattr(node.cause, "id", None) == error
+    if not _is_logger_call(node):
+        return False
+    with_traceback = any(
+        keyword.arg == "exc_info"
+        and not (isinstance(keyword.value, ast.Constant) and not keyword.value.value)
+        for keyword in node.keywords  # type: ignore[attr-defined]
+    )
+    return with_traceback or node.func.attr == "exception"  # type: ignore[attr-defined]
+
+
+def _traceback_leaks(source: str) -> list[str]:
+    """
+    Tracebacks of an error that can quote the address.
+
+    Home Assistant logs a failed setup's traceback, causes included, and a
+    message mask never reaches it (R1-01).
+    """
+    return [
+        f"{inner.lineno} traceback of {handler.name or 'the error'}"
+        for handler in ast.walk(ast.parse(source))
+        if isinstance(handler, ast.ExceptHandler) and _catches_transport_errors(handler)
+        for inner in ast.walk(handler)
+        if _shows_traceback(inner, handler.name)
+    ]
+
+
+def _log_leaks(source: str) -> list[str]:
+    return _identifier_leaks(source) + _traceback_leaks(source)
+
+
 @pytest.mark.parametrize(
     "snippet",
     [
@@ -149,10 +221,18 @@ def _identifier_leaks(source: str) -> list[str]:
         'raise HomeAssistantError(translation_placeholders={"serial": serial})',
         '_LOGGER.warning("%s: %s", self.entity_id, type(err).__name__)',
         '_LOGGER.info("%s connected", self.hub.name)',
+        'raise DeviceIdentityError(f"another charger at {self._host}")',
+        'msg = f"no answer from {self._host}"',
+        'raise ConfigEntryNotReady(f"cannot reach {host}")',
+        'raise HomeAssistantError(f"charger {serial} refused")',
+        "try: pass\nexcept OSError as err: raise ConfigEntryNotReady() from err",
+        "try: pass\nexcept (ValueError, OSError): _LOGGER.exception('failed')",
+        "try: pass\nexcept _WRITE_ERRORS as err: _LOGGER.debug('x', exc_info=err)",
+        "try: pass\nexcept ws.WebSocketException: _LOGGER.info('x', exc_info=True)",
     ],
 )
 def test_the_identifier_guard_can_actually_fail(snippet: str) -> None:
-    assert _identifier_leaks(snippet), snippet
+    assert _log_leaks(snippet), snippet
 
 
 @pytest.mark.parametrize(
@@ -161,10 +241,15 @@ def test_the_identifier_guard_can_actually_fail(snippet: str) -> None:
         '_LOGGER.info("x %s", mask_serial(self.serial))',
         '_LOGGER.debug("failed: %s", describe_error(exc))',
         '_LOGGER.warning("%s: %s", description.key, type(err).__name__)',
+        'msg = f"Cannot convert {value!r} for property {name!r}"',
+        'msg = f"Failed to decode: {exc.reason}"',
+        "try: pass\nexcept OSError as err: raise ConfigEntryNotReady() from None",
+        "try: pass\nexcept TimeoutError as err: raise CommandError(msg) from err",
+        "try: pass\nexcept OSError: _LOGGER.debug('x', exc_info=False)",
     ],
 )
 def test_the_identifier_guard_lets_masked_values_through(snippet: str) -> None:
-    assert not _identifier_leaks(snippet), snippet
+    assert not _log_leaks(snippet), snippet
 
 
 def test_no_device_identifier_reaches_the_log() -> None:
@@ -173,13 +258,15 @@ def test_no_device_identifier_reaches_the_log() -> None:
 
     The connect and availability messages logged the full serial at INFO,
     and the wrong-charger setup error carried both serials into the log
-    Home Assistant writes for it -- the log users paste into issues.
-    Fix: wrap the value in api.mask_serial, or leave it out.
+    Home Assistant writes for it -- the log users paste into issues. A
+    setup retry's traceback quoted the address through the chained cause.
+    Fix: wrap the value in api.mask_serial, or leave it out; raise a
+    transport error's replacement `from None`.
     """
     offenders = [
         f"{path.relative_to(PACKAGE)}:{leak}"
         for path in iter_python_files()
-        for leak in _identifier_leaks(path.read_text(encoding="utf-8"))
+        for leak in _log_leaks(path.read_text(encoding="utf-8"))
     ]
     assert not offenders, f"device identifiers logged unmasked: {offenders}"
 
@@ -1097,7 +1184,8 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
             "no dependency is installed for nothing"
         ),
         "test_no_device_identifier_reaches_the_log": (
-            "no serial, host, title or error text with an address in the log"
+            "no serial, host, title, entity ID or address-quoting error or "
+            "traceback in the log"
         ),
         "test_the_minimum_ha_guard_needs_a_test_run_not_an_install": (
             "the minimum-HA guard is not satisfied by an install line"
