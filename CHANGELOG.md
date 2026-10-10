@@ -14,6 +14,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Diagnostics from a Wattpilot Flex on Ethernet no longer contain the
+  serial number in the Ethernet host name, the Ethernet addresses, the name
+  servers and search domain, or the charger's address in the last cloud
+  error. IP addresses and the serial number are now replaced wherever they
+  appear in a text, not only in the fields known to hold them. The Flex's
+  ID-chip names are replaced too, as they already were on other models: a
+  name can be entered for each chip.
 - The integration no longer writes the charger's serial number or address
   into the log. Its own messages, and the messages Home Assistant logs
   about setting up the entry, show only the serial's last two digits: the
