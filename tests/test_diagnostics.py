@@ -312,3 +312,28 @@ def test_an_empty_value_is_not_replaced_by_a_real_looking_one(
     diagnostics contradicted the select showing unknown (audit A18-28). An
     empty value names nobody; it stays as it is."""
     assert sanitize_snapshot({"ct": empty, "sse": empty}) == {"ct": empty, "sse": empty}
+
+
+@pytest.mark.parametrize("empty", ["", None])
+def test_an_empty_time_server_companion_or_chip_name_stays_empty(
+    empty: str | None,
+) -> None:
+    """The same rule on the paths with their own stand-ins: an unset time
+    server became a configured one, an unpaired inverter a named device and
+    an unnamed chip "Card 0" (R1-08)."""
+    sanitized = sanitize_snapshot(
+        {
+            "ts": empty,
+            "cci": {"id": empty, "label": empty, "commonName": empty, "model": "X"},
+            "cards": [{"name": empty, "cardId": False, "energy": 0}],
+        }
+    )
+
+    assert sanitized["ts"] == empty
+    assert sanitized["cci"] == {
+        "id": empty,
+        "label": empty,
+        "commonName": empty,
+        "model": "X",
+    }
+    assert sanitized["cards"][0]["name"] == empty
