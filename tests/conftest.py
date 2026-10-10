@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from custom_components.wattpilot import _SerialMask
+
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
 
 pytest_plugins = "pytest_homeassistant_custom_component"
 
@@ -17,6 +20,19 @@ pytest_plugins = "pytest_homeassistant_custom_component"
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
     """Allow HA to load custom_components/wattpilot in tests."""
+
+
+@pytest.fixture(autouse=True)
+def drop_serial_masks() -> Iterator[None]:
+    """The mask stays for the process's life; tests start many Home Assistants."""
+    yield
+    for logger in (
+        logging.getLogger("homeassistant.config_entries"),
+        logging.getLogger("custom_components.wattpilot"),
+    ):
+        for log_filter in list(logger.filters):
+            if isinstance(log_filter, _SerialMask):
+                logger.removeFilter(log_filter)
 
 
 @pytest.fixture(name="device_properties")

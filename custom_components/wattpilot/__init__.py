@@ -81,18 +81,11 @@ class _SerialMask(logging.Filter):
 async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
     """Register integration services and mask serials in setup messages."""
     async_setup_services(hass)
+    # Never removed: the setups the stop cancels log their title after the
+    # stop event, and lost the mask with it (R1-05).
     serial_mask = _SerialMask(hass)
     for logger in _ENTRY_LOGGERS:
         logger.addFilter(serial_mask)
-
-    @callback
-    def _remove_serial_mask(_event: Event) -> None:
-        # The loggers outlive this Home Assistant; a filter left behind would
-        # keep reading the entries of a stopped one.
-        for logger in _ENTRY_LOGGERS:
-            logger.removeFilter(serial_mask)
-
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _remove_serial_mask)
     return True
 
 

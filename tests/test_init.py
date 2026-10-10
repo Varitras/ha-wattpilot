@@ -805,30 +805,28 @@ async def test_another_integrations_unique_id_is_left_alone(
     assert record.getMessage() == "Config entry 'Other_777777' not ready"
 
 
-async def test_the_serial_mask_is_removed_when_home_assistant_stops(
-    hass: HomeAssistant, fake_charger: FakeWattpilot
+async def test_a_setup_cancelled_by_the_stop_is_logged_masked(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The loggers are process-wide and outlive Home Assistant."""
+    """Home Assistant fires the stop event first and lets the setup retries
+    it cancelled log their title afterwards. The mask went with the event,
+    so that line carried the full serial (R1-05)."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )
     assert await setup_entry(hass, entry, fake_charger)
 
-    def masks() -> list[logging.Filter]:
-        return [
-            log_filter
-            for logger in (
-                logging.getLogger("homeassistant.config_entries"),
-                logging.getLogger("custom_components.wattpilot"),
-            )
-            for log_filter in logger.filters
-            if isinstance(log_filter, _SerialMask)
-        ]
-
-    assert len(masks()) == 2
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
     await hass.async_block_till_done()
-    assert masks() == []
+    logging.getLogger("custom_components.wattpilot").error(
+        "Setup of config entry '%s' for wattpilot integration cancelled",
+        "Wattpilot_123456",
+    )
+
+    assert "Wattpilot_****56" in caplog.text
+    assert "123456" not in caplog.text
 
 
 def _awaiting_fork_entry() -> MockConfigEntry:
