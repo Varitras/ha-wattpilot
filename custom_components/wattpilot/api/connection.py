@@ -175,20 +175,33 @@ class Connection:
 
     async def _open(self) -> None:
         if self.connected:
-            if not self._initialized:
-                async with self._cleanup_on_failure():
-                    await self._wait_for(
-                        "property initialization",
-                        self._initialized_event,
-                        self.init_timeout,
-                    )
+            await self._finish_initialization()
             return
 
         # A reader still sitting out its retry backoff owns a socket; replacing
         # it without stopping it left two readers racing (audit A12-01).
-        if self.message_loop_task is not None:
+        replaced_reader = self.message_loop_task is not None
+        if replaced_reader:
             await self._close()
+        try:
+            await self._open_socket()
+        except Exception:
+            # The reader just stopped was the one thing retrying; without it
+            # a charger that comes back is never reached again (A18-05).
+            if replaced_reader:
+                self.resume_reconnecting()
+            raise
 
+    async def _finish_initialization(self) -> None:
+        if not self._initialized:
+            async with self._cleanup_on_failure():
+                await self._wait_for(
+                    "property initialization",
+                    self._initialized_event,
+                    self.init_timeout,
+                )
+
+    async def _open_socket(self) -> None:
         self.begin()
         self.socket = await websockets.asyncio.client.connect(self._url)
         self.message_loop_task = asyncio.create_task(self._message_loop())
@@ -204,6 +217,13 @@ class Connection:
                 self._initialized_event,
                 self.init_timeout,
             )
+
+    def resume_reconnecting(self) -> None:
+        """Restart the reconnect loop after a failed attempt -- not after a refusal."""
+        refused = self.fatal_error is not None
+        if not self._auto_reconnect or refused or self.message_loop_task is not None:
+            return
+        self.message_loop_task = asyncio.create_task(self._message_loop())
 
     def begin(self) -> None:
         """
@@ -364,9 +384,7 @@ class Connection:
                 _LOGGER.warning("Ignoring an unreadable frame (%d bytes)", len(raw))
 
     async def _message_loop(self) -> None:
-        if self.socket is None:
-            msg = "Message loop started without a socket"
-            raise WattpilotConnectionError(msg)
+        # Started without a socket (resume_reconnecting), it begins in its backoff.
         reconnect_delay = self._reconnect_delay_min
         try:
             while True:

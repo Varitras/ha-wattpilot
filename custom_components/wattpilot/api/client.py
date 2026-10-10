@@ -808,6 +808,9 @@ class Wattpilot:
                 break
             await asyncio.sleep(min(_REBOOT_RETRY_PAUSE, remaining))
 
+        # The update closed the connection to reconnect by itself; giving up
+        # without handing it back left the updated charger unreached (A18-06).
+        self._connection.resume_reconnecting()
         msg = "Timeout reconnecting after firmware update"
         raise WattpilotConnectionError(msg)
 

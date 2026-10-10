@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import errno
 import json
 import time
 from typing import TYPE_CHECKING, Any
@@ -790,11 +791,14 @@ async def test_the_firmware_wait_keeps_the_budget_it_was_given(
 
     monkeypatch.setattr(client, "set_property", lambda *_a, **_k: asyncio.sleep(0))
     monkeypatch.setattr(client, "connect", slow_and_failing)
+    # The timeout hands recovery back to the reconnect loop (A18-06); park it.
+    client._connection._reconnect_delay_min = 3600
 
     started = time.monotonic()
     with pytest.raises(WattpilotConnectionError, match="Timeout reconnecting"):
         await client.install_firmware_update(timeout=0.05)
     took = time.monotonic() - started
+    await client._connection.close()
 
     assert took < 1, f"a 0.05s budget took {took:.2f}s"
 
@@ -819,3 +823,67 @@ async def test_an_empty_array_does_not_end_the_reader(client: Wattpilot) -> None
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+
+
+CONNECT = "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect"
+
+
+class RefusingConnector:
+    """A charger that is still away: every connect is refused, and counted."""
+
+    def __init__(self) -> None:
+        self.attempts = 0
+
+    async def __call__(self, _url: str) -> FakeSocket:
+        self.attempts += 1
+        await asyncio.sleep(0)
+        raise OSError(errno.ECONNREFUSED, "Connect call failed")
+
+
+async def test_a_failed_reconnect_action_during_backoff_keeps_recovering(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reconnect action stopped the loop that was waiting out its backoff
+    before its own attempt had a socket. When that attempt failed, nothing
+    was left to retry: the charger came back to an integration that never
+    reached it again (audit A18-05)."""
+    connector = RefusingConnector()
+    monkeypatch.setattr(CONNECT, connector)
+    connection = client._connection
+    connection._reconnect_delay_min = 0.01
+    connection.socket = FakeSocket([])  # type: ignore[assignment]
+    connection.message_loop_task = asyncio.create_task(connection._message_loop())
+    await connection.socket.close()
+    await _settle(lambda: not connection.connected)
+
+    with pytest.raises(ConnectionRefusedError):
+        await connection.open()
+
+    try:
+        assert connection.message_loop_task is not None, "nobody is left to retry"
+        tried = connector.attempts
+        await asyncio.sleep(0.1)
+        assert connector.attempts > tried, "the retries stopped"
+    finally:
+        await connection.close()
+
+
+async def test_a_firmware_update_outlasting_its_budget_keeps_recovering(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The update closes the connection to reconnect by itself. When the
+    charger took longer than the budget, the action failed and left the
+    client closed for good -- the updated charger was never reached again
+    (audit A18-06)."""
+    monkeypatch.setattr(CONNECT, RefusingConnector())
+    client._all_props["onv"] = ["42.6"]
+    monkeypatch.setattr(client, "set_property", lambda *_a, **_k: asyncio.sleep(0))
+    client._connection._reconnect_delay_min = 3600  # park it; it only has to exist
+
+    with pytest.raises(WattpilotConnectionError, match="Timeout reconnecting"):
+        await client.install_firmware_update(timeout=0.05)
+
+    try:
+        assert client._connection.message_loop_task is not None
+    finally:
+        await client._connection.close()
