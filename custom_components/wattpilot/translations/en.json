@@ -23,7 +23,7 @@
       "cannot_connect": "Cannot connect to the charger",
       "invalid_host": "The address is not a valid host name or IP address; an IPv6 address goes in brackets",
       "invalid_auth": "Invalid password",
-      "charger_has_entry": "This charger already has an entry of its own; delete one of the two",
+      "charger_has_entry": "This charger already has another entry. This one carries the history of the earlier integration: to keep it, delete the other entry and try again",
       "wrong_device": "The charger at this address has a different serial number"
     },
     "abort": {
@@ -68,7 +68,7 @@
       "message": "Failed to disconnect from the charger: {error}"
     },
     "duplicate_device": {
-      "message": "Charger {serial} is already configured by another entry."
+      "message": "Charger {serial} is already configured by another entry. This entry carries the history of the earlier integration: to keep it, delete the other entry and reload this one."
     },
     "entry_unloaded": {
       "message": "The charger's entry was unloaded. Reload it to reconnect."

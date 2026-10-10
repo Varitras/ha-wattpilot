@@ -114,11 +114,11 @@ async def async_migrate_legacy_unique_ids(
             return None  # already correct
         collision_key = (entity_entry.domain, target)
         if collision_key in existing:
-            # Deliberately not resolved here: the skipped entity is the one
-            # holding the history, entity id and customisations, and the one
-            # kept is the entity already bound. Which of the two is worth
-            # keeping is the owner's call, so nothing is deleted or renamed
-            # -- but it is reported instead of only logged (audit VA-06).
+            # Deliberately not resolved here: the skipped entity holds the
+            # history, entity id and customisations, and the one kept is
+            # already bound. Whether that history still matters is the
+            # owner's call, so nothing is deleted or renamed -- but it is
+            # reported instead of only logged (audit VA-06).
             collisions.append(entity_entry.entity_id)
             # Not the entity ID, here or below: it can carry the serial
             # (R1-02). The repair issue names it; that is not logged.

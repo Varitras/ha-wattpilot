@@ -110,9 +110,9 @@ class Wattpilot:
 
     Usage::
 
-        async with Wattpilot("192.168.1.100", "mypassword") as wp:
-            print(wp.power)
-            await wp.set_power(16)
+        async with Wattpilot("192.0.2.10", "mypassword") as wp:
+            print(wp.all_properties.get("amp"))
+            await wp.set_property("amp", 16)
     """
 
     def __init__(  # noqa: PLR0913 -- every connection knob it has

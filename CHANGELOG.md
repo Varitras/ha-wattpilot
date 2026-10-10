@@ -14,9 +14,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- The 0.2.0 notes said fractions work for all three timings now set in
-  minutes. They do for the two phase-switch timings; **Minimum charging
-  time** takes whole minutes from 1 to 60.
+- The 0.2.0 notes gave 0.5 minutes as an example for all three timings
+  now set in minutes. **Minimum charging time** starts at 1 minute, so 0.5
+  is refused there; fractions above 1 minute work, as for the two
+  phase-switch timings.
 - **Total energy** no longer falls across a reload or restart of Home
   Assistant. After a charger restart it can report a few Wh less, which the
   sensor held back -- but only until the integration reloaded, as it does
