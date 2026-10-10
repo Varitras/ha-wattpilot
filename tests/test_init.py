@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
@@ -736,6 +737,31 @@ async def test_home_assistants_setup_messages_do_not_carry_the_serial(
     assert retries, "the retry must log through this integration's logger"
     assert "Wattpilot_****56" in caplog.text, "the message itself must stay"
     assert "123456" not in caplog.text
+
+
+async def test_a_setup_retry_does_not_log_the_chargers_address(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Home Assistant logs each retry's traceback at DEBUG, the chained cause
+    included -- and asyncio's refused connect quotes the address (R1-01)."""
+    caplog.set_level(logging.DEBUG)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    fake_charger.connect_error = ConnectionRefusedError(
+        errno.ECONNREFUSED, "Connect call failed ('192.0.2.10', 80)"
+    )
+
+    assert not await setup_entry(hass, entry, fake_charger)
+    with patch_charger(fake_charger):
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+        await hass.async_block_till_done()
+
+    assert "Full exception" in caplog.text, "the traceback itself must stay"
+    assert "ECONNREFUSED" in caplog.text, "the kind of error must stay"
+    assert "192.0.2.10" not in caplog.text
 
 
 def _record(message: str, *args: object) -> logging.LogRecord:

@@ -40,7 +40,8 @@ _LOGGER = logging.getLogger(__name__)
 _AVAILABILITY_CHECK_INTERVAL = timedelta(seconds=30)
 # The client's own errors, raw websockets errors it does not wrap, and socket
 # failures. A write the charger refused (CommandError) lands here too: either
-# way the action did not take effect.
+# way the action did not take effect. Raised `from None`: a setup traceback
+# shows the cause, and a refused connect quotes the address (R1-01).
 _WRITE_ERRORS = (WattpilotError, WebSocketException, OSError)
 
 type WattpilotConfigEntry = ConfigEntry[WattpilotHub]
@@ -120,7 +121,7 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="cannot_connect",
                 translation_placeholders={"error": describe_error(err)},
-            ) from err
+            ) from None
         self._update_availability(available=True)
 
     def start_dispatch(self) -> None:
@@ -221,7 +222,7 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="disconnect_failed",
                 translation_placeholders={"error": describe_error(err)},
-            ) from err
+            ) from None
         finally:
             # Announcing this is not optional and not conditional. The
             # subscription above is gone, so no update will ever reach an
@@ -384,7 +385,7 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="set_failed",
                 translation_placeholders={"key": key, "error": describe_error(err)},
-            ) from err
+            ) from None
 
     async def async_set_next_trip(self, departure: time) -> None:
         """Set the next scheduled departure time."""
@@ -395,7 +396,7 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="next_trip_failed",
                 translation_placeholders={"error": describe_error(err)},
-            ) from err
+            ) from None
 
     async def async_set_next_trip_energy(self, energy_wh: float) -> None:
         """Set the energy target for the next scheduled trip."""
@@ -407,7 +408,7 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="next_trip_energy_failed",
                 translation_placeholders={"error": describe_error(err)},
-            ) from err
+            ) from None
 
     async def async_enable_cloud_api(self) -> CloudInfo:
         """Enable the charger's cloud API and return its connection info."""
@@ -418,7 +419,7 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="cloud_enable_failed",
                 translation_placeholders={"error": describe_error(err)},
-            ) from err
+            ) from None
 
     async def async_disable_cloud_api(self) -> None:
         """Disable the charger's cloud API."""
@@ -429,7 +430,7 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="cloud_disable_failed",
                 translation_placeholders={"error": describe_error(err)},
-            ) from err
+            ) from None
 
     async def async_install_firmware(self, version: str | None) -> None:
         """Trigger a firmware update, or install the latest if version is None."""
@@ -440,4 +441,4 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="firmware_update_failed",
                 translation_placeholders={"error": describe_error(err)},
-            ) from err
+            ) from None
