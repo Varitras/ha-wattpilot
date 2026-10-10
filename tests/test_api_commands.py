@@ -8,9 +8,9 @@ charger's own quirks force on us.
 from __future__ import annotations
 
 import asyncio
-import datetime
 import json
 import time
+from datetime import time as time_of_day
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -79,7 +79,7 @@ async def test_next_trip_energy_sets_the_unit_first(client: Wattpilot) -> None:
 async def test_next_trip_is_sent_as_seconds_since_midnight(
     client: Wattpilot,
 ) -> None:
-    await client.set_next_trip(datetime.time(7, 30))
+    await client.set_next_trip(time_of_day(7, 30))
     assert sent_values(client) == [("ftt", 7 * 3600 + 30 * 60)]
 
 
@@ -101,7 +101,7 @@ async def test_the_departure_is_written_unshifted_in_every_zone_mode(
     """
     client._all_props["tds"] = scheme
 
-    await client.set_next_trip(datetime.time(7, 30))
+    await client.set_next_trip(time_of_day(7, 30))
     assert sent_values(client) == [("ftt", 7 * 3600 + 30 * 60)]
 
 
