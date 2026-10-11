@@ -50,6 +50,7 @@ addopts = ["-q"]
 # (audit VA-16).
 markers = [
     "e2e: drives a complete Home Assistant setup (fake charger, not hardware)",
+    "logs_identifiers: the test logs a charger identifier on purpose",
 ]
 
 [tool.ruff]

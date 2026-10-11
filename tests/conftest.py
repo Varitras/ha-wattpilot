@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -20,6 +21,48 @@ pytest_plugins = "pytest_homeassistant_custom_component"
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
     """Allow HA to load custom_components/wattpilot in tests."""
+
+
+# Serials and addresses the tests hand out. None may reach a log record
+# unmasked, tracebacks included: the static guard was widened three rounds
+# running and still missed shapes, so every test now checks the real output
+# (reaudit RF-P-03). 192.0.2.1 is the redaction's stand-in, not a charger.
+IDENTIFIERS = re.compile(
+    r"(?<![\d.])(?:123456|654321|999999|111111|222222"
+    r"|192\.168\.1\.5[01]|192\.168\.1\.60|192\.0\.2\.10|192\.0\.2\.50)(?![\d])"
+)
+# Entity IDs of a device named after its host name carry the serial: the
+# accepted risk L-027 for installations from before names were stored.
+ENTITY_ID = re.compile(r"\b[a-z_]+\.[a-z0-9_]+")
+
+
+class _LogLines(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__(logging.DEBUG)
+        self.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+        self.lines: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.lines.append(self.format(record))
+
+
+@pytest.fixture(autouse=True)
+def no_identifier_reaches_the_log(request: pytest.FixtureRequest) -> Iterator[None]:
+    """Fail a test whose log names a charger; mark the few that must."""
+    handler = _LogLines()
+    ours = logging.getLogger("custom_components.wattpilot")
+    level = ours.level
+    ours.setLevel(logging.DEBUG)
+    logging.getLogger().addHandler(handler)
+    yield
+    logging.getLogger().removeHandler(handler)
+    ours.setLevel(level)
+    if request.node.get_closest_marker("logs_identifiers"):
+        return
+    leaked = [
+        line for line in handler.lines if IDENTIFIERS.search(ENTITY_ID.sub("", line))
+    ]
+    assert not leaked, f"identifier(s) in the log: {leaked[:3]}"
 
 
 @pytest.fixture(autouse=True)
