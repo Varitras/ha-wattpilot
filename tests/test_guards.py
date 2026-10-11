@@ -668,13 +668,17 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     "client.py": 803,
     # Past the default on 2026-09-25 by the open/close coordination (audits
     # A15-01, A16-01): shared attempts, a close that cancels instead of
-    # waiting, and one visible transition at a time (measured: 406).
+    # waiting, and one visible transition at a time (measured: 406). Raised
+    # on 2026-10-10, owner-approved: to 424 for recovery after a failed
+    # reconnect action (A18-05/06), to 440 for a deliberate close winning
+    # over recovery (R1-11/12) (measured on 2026-10-11: 437).
     "connection.py": 440,
     # Past the default on 2026-09-26 by the repair notice for a different
     # charger answering at runtime (audit A15-04): the hub is where the
     # connection's state turns into what the user is told (measured: 424).
-    # 446 on 2026-10-11, owner-approved: refusal notices go once the charger
-    # is back (reaudit RF-L-03).
+    # Owner-approved raises: 444 on 2026-10-10 for announcing a recovery with
+    # the current values (A18-20), 446 on 2026-10-11 for refusal notices
+    # that go once the charger is back (reaudit RF-L-03).
     "hub.py": 446,
 }
 SHRINK_SLACK = 0.85  # an entry >=15% below budget must be ratcheted down
