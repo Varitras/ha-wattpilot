@@ -334,13 +334,17 @@ class WattpilotAveragePowerSensor(WattpilotSensor):
             self._hold_while_idle()
 
     def _show_live(self, value: Any, live: float | None) -> None:  # noqa: ANN401 -- charger payload
-        if live and value == self._stale:
+        if not live:
+            # Unknown when the live reading is: no telling a stale average,
+            # and which one is stale stays known (PC5-R-03).
+            super()._apply_value(None)
+            return
+        # A null average while charging is unknown, not stale (PC6-03).
+        if value is not None and value == self._stale:
             self._attr_native_value = 0  # until this session's own average (RF-D-04)
             return
-        if live:
-            self._stale = None  # kept through an unknown reading (PC5-R-03)
-        # Unknown when the live reading is: no telling a stale average.
-        super()._apply_value(value if live else None)
+        self._stale = None
+        super()._apply_value(value)
 
     def _hold_while_idle(self) -> None:
         if not self._attr_native_value:

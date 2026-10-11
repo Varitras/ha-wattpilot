@@ -1388,6 +1388,20 @@ async def test_a_reading_without_total_power_keeps_the_last_sessions_average_awa
     assert hass.states.get(entity_id).state == "0"
 
 
+async def test_a_null_average_while_charging_is_unknown_not_zero(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """None stood for "nothing stale" too, so a null average while power
+    flowed read 0 W (post-check PC6-03)."""
+    _, entity_id = await _average_power_while_charging(hass, fake_charger)
+
+    fake_charger.push("tpa", None)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(entity_id).state == "unknown"
+
+
 async def test_a_total_power_that_is_no_number_is_not_idle(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
