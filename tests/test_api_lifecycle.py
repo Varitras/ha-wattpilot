@@ -1246,3 +1246,51 @@ async def test_a_password_refused_after_sign_in_drops_the_connection(
         assert not client.connected
     finally:
         await connection.close()
+
+
+async def test_a_refused_connection_stops_counting_as_connected_at_once(
+    client: Wattpilot,
+) -> None:
+    """The refusal closed the socket, but the close waits for the charger's
+    reply -- up to ten seconds -- and the client counted as signed in all
+    that time (post-check PC3-01)."""
+    release = asyncio.Event()
+    socket = SlowClosingSocket(release)
+    connection = client._connection
+    connection.socket = socket  # type: ignore[assignment]
+    connection.mark_authenticated()
+
+    closing = asyncio.create_task(connection.reject(WattpilotConnectionError("x")))
+    await asyncio.sleep(0)
+
+    try:
+        assert not connection.connected, "still signed in while the close waits"
+    finally:
+        release.set()
+        await closing
+
+
+async def test_a_refusal_during_the_full_status_is_reported_as_itself(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A refusal after authSuccess did not end the wait for the full status:
+    setup reported a timeout and retried, and never asked for the password
+    (post-check PC3-02)."""
+    from custom_components.wattpilot.api.exceptions import (  # noqa: PLC0415
+        AuthenticationError,
+    )
+
+    async def signs_in_then_refuses(_url: str) -> FakeSocket:
+        loop = asyncio.get_running_loop()
+        loop.call_soon(client._connection.mark_authenticated)
+        refusal = AuthenticationError("wrong password")
+        loop.call_later(0.01, client._connection.fail, refusal)
+        return FakeSocket([])
+
+    monkeypatch.setattr(CONNECT, signs_in_then_refuses)
+    connection = client._connection
+    connection.init_timeout = 30
+
+    async with asyncio.timeout(1):
+        with pytest.raises(AuthenticationError):
+            await connection.open()

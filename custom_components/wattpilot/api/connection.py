@@ -142,14 +142,11 @@ class Connection:
         self._initialized_event.set()
 
     def fail(self, error: WattpilotError) -> None:
-        """
-        Record what makes this connection unusable and unblock open().
-
-        The event is set rather than left alone so a caller waiting for the
-        handshake stops waiting; open() checks fatal_error before it returns.
-        """
+        """Record the refusal, sign out at once and wake open()'s waits (PC3-01/02)."""
         self.fatal_error = error
+        self._set_authenticated(value=False)
         self._authenticated_event.set()
+        self._initialized_event.set()
 
     async def reject(self, error: WattpilotError) -> None:
         """Refuse the connection outright: record the reason and drop the socket."""
@@ -212,8 +209,6 @@ class Connection:
             await self._wait_for(
                 "authentication", self._authenticated_event, self.connect_timeout
             )
-            if self.fatal_error is not None:
-                raise self.fatal_error
             await self._wait_for(
                 "property initialization",
                 self._initialized_event,
@@ -334,6 +329,8 @@ class Connection:
         except TimeoutError as exc:
             msg = f"Timeout waiting for {what}"
             raise WattpilotConnectionError(msg) from exc
+        if self.fatal_error is not None:
+            raise self.fatal_error
 
     def _cancel_readiness_guard(self) -> None:
         """Stop watching a connection that is being replaced or torn down."""
