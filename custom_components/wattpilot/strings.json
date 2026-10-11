@@ -23,7 +23,7 @@
       "cannot_connect": "Cannot connect to the charger",
       "invalid_host": "The address is not a valid host name or IP address; an IPv6 address goes in brackets",
       "invalid_auth": "Invalid password",
-      "charger_has_entry": "This charger already has an entry of its own; delete one of the two",
+      "charger_has_entry": "This charger already has another entry. This one carries the history of the earlier integration: to keep it, delete the other entry and try again",
       "wrong_device": "The charger at this address has a different serial number"
     },
     "abort": {
@@ -68,7 +68,7 @@
       "message": "Failed to disconnect from the charger: {error}"
     },
     "duplicate_device": {
-      "message": "Charger {serial} is already configured by another entry."
+      "message": "Charger {serial} is already configured by another entry. This entry carries the history of the earlier integration: to keep it, delete the other entry and reload this one."
     },
     "entry_unloaded": {
       "message": "The charger's entry was unloaded. Reload it to reconnect."
@@ -99,6 +99,10 @@
     "wrong_charger": {
       "title": "Another charger answers at this charger's address",
       "description": "Home Assistant reached a different charger at the address of the charger with serial {serial}, and stopped connecting so it does not show that charger's readings as this one's. The address was probably handed to another device.\n\nIf the charger now has a different address, open the integration and choose **Reconfigure** to enter it. This notice goes away when the integration is reloaded."
+    },
+    "charger_refused": {
+      "title": "The charger refused the connection",
+      "description": "The charger refused the connection: {error}. Home Assistant stopped connecting, as retrying would only repeat the refusal. The charger probably asks for a sign-in method this version of the integration does not know.\n\nLook for an update of the integration. This notice goes away when the integration is reloaded."
     },
     "migration_collision": {
       "title": "Some entities could not be migrated",

@@ -40,8 +40,11 @@ _LOGGER = logging.getLogger(__name__)
 _AVAILABILITY_CHECK_INTERVAL = timedelta(seconds=30)
 # The client's own errors, raw websockets errors it does not wrap, and socket
 # failures. A write the charger refused (CommandError) lands here too: either
-# way the action did not take effect.
+# way the action did not take effect. Raised `from None`: a setup traceback
+# shows the cause, and a refused connect quotes the address (R1-01).
 _WRITE_ERRORS = (WattpilotError, WebSocketException, OSError)
+# Repair issues for a refusal, named after their translation key.
+_REFUSAL_ISSUES = ("wrong_charger", "charger_refused")
 
 type WattpilotConfigEntry = ConfigEntry[WattpilotHub]
 
@@ -90,12 +93,6 @@ class WattpilotHub:
 
     async def async_connect(self) -> None:
         """Connect and authenticate; translate errors for config entry setup."""
-        # Before the I/O, not after: the client replays its whole state the
-        # moment the socket is up, and the first pushed property already
-        # announces the charger as available. Clearing this afterwards would
-        # leave `available` False for that burst while _last_available had
-        # already gone True -- and _update_availability suppresses a repeat,
-        # so nothing would ever correct the entities again.
         self._torn_down = False
         try:
             await self.charger.connect()
@@ -120,7 +117,7 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="cannot_connect",
                 translation_placeholders={"error": describe_error(err)},
-            ) from err
+            ) from None
         self._update_availability(available=True)
 
     def start_dispatch(self) -> None:
@@ -187,8 +184,9 @@ class WattpilotHub:
         close; one that starts later is refused.
         """
         self._retired = True
-        # It describes this hub's connection; a new setup finds out afresh.
-        ir.async_delete_issue(self._hass, DOMAIN, self._wrong_charger_issue)
+        # They describe this hub's connection; a new setup finds out afresh.
+        for kind in _REFUSAL_ISSUES:
+            ir.async_delete_issue(self._hass, DOMAIN, f"{kind}_{self._entry_id}")
         await self.async_disconnect()
 
     async def async_disconnect(self) -> None:
@@ -221,17 +219,12 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="disconnect_failed",
                 translation_placeholders={"error": describe_error(err)},
-            ) from err
+            ) from None
         finally:
-            # Announcing this is not optional and not conditional. The
-            # subscription above is gone, so no update will ever reach an
-            # entity again -- including after a disconnect that raised,
-            # where `available` would still read True. And it has to happen
-            # here rather than before the I/O, because the timer that would
-            # otherwise have noticed was just cancelled: nothing else is
-            # left to write entity state, and every sensor would keep
-            # displaying its last reading for good. expected=True: this teardown
-            # is deliberate, so it must not log as a fault.
+            # Not optional, a failed disconnect included: subscription and timer
+            # are gone, so nothing else will write entity state, and every
+            # sensor would keep its last reading for good. expected=True: a
+            # deliberate teardown, not a fault.
             self._update_availability(available=False, expected=True)
 
     # ---- state ----
@@ -269,15 +262,19 @@ class WattpilotHub:
     @property
     def available(self) -> bool:
         """Return whether the charger is currently reachable."""
-        # Not the client's flag alone: it clears `connected` only after a
-        # successful ws.close(), so a close that raised leaves it True while
-        # the message loop behind it is already gone. Once this hub has torn
-        # itself down, no update can reach an entity again whatever the
-        # client believes (audit VA-04). Nor before the full status (A18-20).
+        # Not the client's flag alone: a close that raised leaves `connected`
+        # True with the loop behind it gone, and once this hub has torn itself
+        # down no update reaches an entity again (audit VA-04). Nor before the
+        # full status (A18-20) -- unless no outage was seen: a reconnect
+        # between two checks replays it into entities still shown, and they
+        # flapped (R1-04).
         return (
             not self._torn_down
             and bool(self.charger.connected)
-            and bool(self.charger.properties_initialized)
+            and (
+                bool(self.charger.properties_initialized)
+                or self._last_available is True
+            )
         )
 
     @property
@@ -301,7 +298,8 @@ class WattpilotHub:
             async_dispatcher_send(
                 self._hass, signal_property(self._entry_id, key), value
             )
-        # Not buffered: once the full status is in, a recovery shows at once.
+        # Not buffered: the first push after the full status (the next delta,
+        # about a second later) announces a recovery (R1-23).
         self._update_availability(available=self.available)
 
     @callback
@@ -315,7 +313,7 @@ class WattpilotHub:
     @callback
     def _check_availability(self, _now: datetime) -> None:
         self._update_availability(available=self.available)
-        # The client stops for good on either refusal -- retrying would only
+        # The client stops for good on a refusal -- retrying would only
         # repeat it -- so the user has to be told, in the way that helps.
         refusal = self.charger.refusal
         if isinstance(refusal, AuthenticationError):
@@ -325,19 +323,21 @@ class WattpilotHub:
                 entry.async_start_reauth(self._hass)
         elif isinstance(refusal, DeviceIdentityError):
             # Not reauth: a new password would not bring this charger back.
-            ir.async_create_issue(
-                self._hass,
-                DOMAIN,
-                self._wrong_charger_issue,
-                is_fixable=False,
-                severity=ir.IssueSeverity.ERROR,
-                translation_key="wrong_charger",
-                translation_placeholders={"serial": self.serial},
-            )
+            self._report_refusal("wrong_charger", {"serial": self.serial})
+        elif refusal is not None:
+            # A sign-in scheme the client does not know (reaudit R1-13).
+            self._report_refusal("charger_refused", {"error": describe_error(refusal)})
 
-    @property
-    def _wrong_charger_issue(self) -> str:
-        return f"wrong_charger_{self._entry_id}"
+    def _report_refusal(self, kind: str, placeholders: dict[str, str]) -> None:
+        ir.async_create_issue(
+            self._hass,
+            DOMAIN,
+            f"{kind}_{self._entry_id}",
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key=kind,
+            translation_placeholders=placeholders,
+        )
 
     @callback
     def _update_availability(self, *, available: bool, expected: bool = False) -> None:
@@ -384,7 +384,7 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="set_failed",
                 translation_placeholders={"key": key, "error": describe_error(err)},
-            ) from err
+            ) from None
 
     async def async_set_next_trip(self, departure: time) -> None:
         """Set the next scheduled departure time."""
@@ -395,7 +395,7 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="next_trip_failed",
                 translation_placeholders={"error": describe_error(err)},
-            ) from err
+            ) from None
 
     async def async_set_next_trip_energy(self, energy_wh: float) -> None:
         """Set the energy target for the next scheduled trip."""
@@ -407,7 +407,7 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="next_trip_energy_failed",
                 translation_placeholders={"error": describe_error(err)},
-            ) from err
+            ) from None
 
     async def async_enable_cloud_api(self) -> CloudInfo:
         """Enable the charger's cloud API and return its connection info."""
@@ -418,7 +418,7 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="cloud_enable_failed",
                 translation_placeholders={"error": describe_error(err)},
-            ) from err
+            ) from None
 
     async def async_disable_cloud_api(self) -> None:
         """Disable the charger's cloud API."""
@@ -429,7 +429,7 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="cloud_disable_failed",
                 translation_placeholders={"error": describe_error(err)},
-            ) from err
+            ) from None
 
     async def async_install_firmware(self, version: str | None) -> None:
         """Trigger a firmware update, or install the latest if version is None."""
@@ -440,4 +440,4 @@ class WattpilotHub:
                 translation_domain=DOMAIN,
                 translation_key="firmware_update_failed",
                 translation_placeholders={"error": describe_error(err)},
-            ) from err
+            ) from None

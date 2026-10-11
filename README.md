@@ -226,17 +226,19 @@ automation:
 ## How data updates
 
 The integration holds one WebSocket connection to the charger and subscribes
-to property changes. Nothing is polled. When the connection drops, every entity
-goes unavailable, the drop is logged once, and the client reconnects on its
-own; entities come back as soon as the charger does.
+to property changes. Nothing is polled. When the connection drops and is still
+down at the next check (every 30 seconds), every entity goes unavailable, the
+drop is logged once, and the client reconnects on its own; entities come back
+as soon as the charger has sent its current readings. A reconnect between two
+checks goes unnoticed.
 
 **Update interval** (Settings → Devices & Services → Wattpilot → Configure) is
 therefore not a polling interval: it coalesces the charger's pushes. The
 charger can push the same property many times a second, and every push writes
 entity state and a recorder row. The interval caps that to at most one update
 per entity per interval; **0** forwards every change immediately. Availability
-is never delayed by it — a push proves the charger is reachable, and that is
-signalled at once.
+is never delayed by it: a recovery is signalled with the first push after the
+charger's readings are in, together with those readings.
 
 ## Troubleshooting
 
@@ -246,7 +248,9 @@ signalled at once.
 | **Invalid password** | The password is the **Wattpilot.Solar app** password, not your Wi-Fi or Fronius account password. |
 | **The charger at this address has a different serial number** | The address now belongs to another charger. Use **Reconfigure** on the right entry. |
 | **This entry belongs to charger X, but the charger at this address reports serial Y** | Setup refuses rather than silently moving this entry's history onto another device. If the address was reused, point the entry at the right one with **Reconfigure**. If you replaced the charger, delete the entry and add the new one — the serial is the entry's identity, so the old history cannot follow. |
+| **Charger X is already configured by another entry** or, in Reconfigure, **This charger already has another entry** | An entry carried over from the earlier integration found its charger already set up a second time, from a discovery card or by hand. Delete that other entry and reload the carried-over one: only the carried-over entry keeps the earlier integration's entity IDs and history. |
 | **Repair notice: Another charger answers at this charger's address** | The same situation, found while running: the integration stops connecting instead of showing the other charger's readings. Point the entry at the right address with **Reconfigure**; the notice goes away with the reload that follows. |
+| **Repair notice: The charger refused the connection** | The charger asks for a sign-in method this version of the integration does not know, usually after a firmware update. Look for an update of the integration; the notice goes away when the integration is reloaded. |
 | **All entities unavailable** | The charger is offline or the connection dropped. It reconnects by itself — no restart needed. |
 | **Cloud connections are not supported yet** | An entry migrated from an older integration was configured for cloud. Reconfigure it with the local address. |
 | **Some entities are missing** | They are either firmware- or variant-gated (not offered by your charger), or disabled by default. Check the disabled entities on the device page. |
@@ -261,10 +265,11 @@ appear inside other text. Still look over the file before posting it.
 
 The log is masked as far as this integration reaches: its own messages and
 Home Assistant's messages about setting up the entry show only the last two
-digits of the serial number. Entity IDs contain the serial number, though --
-the device is named after its host name, `Wattpilot_<serial>` -- and other
-parts of Home Assistant log them, recorder warnings for example. Look over a
-log before posting it.
+digits of the serial number. Entity IDs contain the serial number -- the
+device is named after its host name, `Wattpilot_<serial>` -- so the
+integration's own messages name an entity by its key instead. Other parts of
+Home Assistant log entity IDs, though, recorder warnings for example. Look
+over a log before posting it.
 
 ## Removing the integration
 

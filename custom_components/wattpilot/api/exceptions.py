@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import errno
+import socket
 
 
 class WattpilotError(Exception):
@@ -46,10 +47,14 @@ def describe_error(error: BaseException) -> str:
 
     Our own messages are written to carry no identifier. A socket error's
     text quotes the charger's address and port, so anything else is named
-    by its class and errno only.
+    by its class and errno only -- a resolver error by its phrase.
     """
     if isinstance(error, WattpilotError):
         return str(error)
+    if isinstance(error, socket.gaierror):
+        # A resolver's phrase names no address, and its negative code has no
+        # errno name: "gaierror (-2)" hid that the name did not resolve.
+        return f"{type(error).__name__} ({error.strerror})"
     code = getattr(error, "errno", None)
     if code is None:
         return type(error).__name__

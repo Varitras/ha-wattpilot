@@ -23,7 +23,7 @@
       "cannot_connect": "Verbindung zum Ladegerät nicht möglich",
       "invalid_host": "Die Adresse ist kein gültiger Hostname und keine gültige IP-Adresse; eine IPv6-Adresse in eckige Klammern setzen",
       "invalid_auth": "Ungültiges Passwort",
-      "charger_has_entry": "Für dieses Ladegerät gibt es bereits einen eigenen Eintrag; einen der beiden löschen",
+      "charger_has_entry": "Für dieses Ladegerät gibt es bereits einen anderen Eintrag. Dieser hier trägt die Historie der früheren Integration: um sie zu behalten, den anderen Eintrag löschen und es erneut versuchen",
       "wrong_device": "Das Ladegerät unter dieser Adresse hat eine andere Seriennummer"
     },
     "abort": {
@@ -68,7 +68,7 @@
       "message": "Trennen vom Ladegerät fehlgeschlagen: {error}"
     },
     "duplicate_device": {
-      "message": "Ladegerät {serial} ist bereits durch einen anderen Eintrag konfiguriert."
+      "message": "Ladegerät {serial} ist bereits durch einen anderen Eintrag konfiguriert. Dieser Eintrag trägt die Historie der früheren Integration: um sie zu behalten, den anderen Eintrag löschen und diesen neu laden."
     },
     "entry_unloaded": {
       "message": "Der Eintrag des Ladegeräts wurde entladen. Zum Wiederverbinden den Eintrag neu laden."
@@ -99,6 +99,10 @@
     "wrong_charger": {
       "title": "Unter der Adresse dieses Ladegeräts antwortet ein anderes",
       "description": "Home Assistant hat unter der Adresse des Ladegeräts mit der Seriennummer {serial} ein anderes Ladegerät erreicht und die Verbindung eingestellt, damit dessen Werte nicht als die dieses Geräts erscheinen. Vermutlich wurde die Adresse an ein anderes Gerät vergeben.\n\nHat das Ladegerät jetzt eine andere Adresse, in der Integration **Neu konfigurieren** wählen und sie eintragen. Dieser Hinweis verschwindet, wenn die Integration neu geladen wird."
+    },
+    "charger_refused": {
+      "title": "Das Ladegerät hat die Verbindung abgelehnt",
+      "description": "Das Ladegerät hat die Verbindung abgelehnt: {error}. Home Assistant hat die Verbindung eingestellt, weil ein neuer Versuch nur dieselbe Ablehnung brächte. Vermutlich verlangt das Ladegerät ein Anmeldeverfahren, das diese Version der Integration nicht kennt.\n\nNach einem Update der Integration sehen. Dieser Hinweis verschwindet, wenn die Integration neu geladen wird."
     },
     "migration_collision": {
       "title": "Einige Entitäten konnten nicht migriert werden",

@@ -263,6 +263,14 @@ def test_a_flex_on_ethernet_keeps_no_identifier_in_the_diagnostics() -> None:
     assert not leaked, f"identifiers in the diagnostics: {leaked}"
 
 
+def test_the_serial_is_replaced_also_where_sse_is_not_in_the_map() -> None:
+    """A delta or a later chunk of the full status carries no `sse`, so a
+    recording kept the serial a new key embedded (R1-09)."""
+    sanitized = sanitize_snapshot({"newKey": "Wattpilot-91234567"}, serial="91234567")
+
+    assert "91234567" not in json.dumps(sanitized)
+
+
 def test_the_flex_chip_readings_survive_the_redaction() -> None:
     sanitized = sanitize_snapshot(FLEX_SNAPSHOT)
 
@@ -274,10 +282,34 @@ def test_the_flex_chip_readings_survive_the_redaction() -> None:
 
 @pytest.mark.parametrize(
     "value",
-    ["12:34:56", "43.5", "43.4-RC1 - BETA", "2026-10-09T10:00:00Z", "1.2.9", "::"],
+    [
+        "12:34:56",
+        "43.5",
+        "43.4-RC1 - BETA",
+        "2026-10-09T10:00:00Z",
+        "1.2.9",
+        "::",
+        "1.2.3.4.5",
+    ],
 )
 def test_text_that_only_looks_like_an_address_is_kept(value: str) -> None:
     assert sanitize_snapshot({"fwv": value})["fwv"] == value
+
+
+@pytest.mark.parametrize(
+    ("text", "address"),
+    [
+        ("Connect to 10.1.2.3.", "10.1.2.3"),
+        ("trying 10.1.2.3...", "10.1.2.3"),
+        ("10.1.2.3. next", "10.1.2.3"),
+        ("addr:fe80::1c2b:3aff:fe4d:5e6f", "fe80::1c2b"),
+        ("inet6:2a01:4f8:c0c:1::1", "2a01:4f8"),
+    ],
+)
+def test_an_address_at_the_edge_of_a_text_is_replaced(text: str, address: str) -> None:
+    """A full stop after an IPv4 address, or a label glued to an IPv6 one,
+    kept the address out of the net (R1-07)."""
+    assert address not in sanitize_snapshot({"unknownKey": text})["unknownKey"]
 
 
 @pytest.mark.parametrize("empty", ["", None])
@@ -288,3 +320,28 @@ def test_an_empty_value_is_not_replaced_by_a_real_looking_one(
     diagnostics contradicted the select showing unknown (audit A18-28). An
     empty value names nobody; it stays as it is."""
     assert sanitize_snapshot({"ct": empty, "sse": empty}) == {"ct": empty, "sse": empty}
+
+
+@pytest.mark.parametrize("empty", ["", None])
+def test_an_empty_time_server_companion_or_chip_name_stays_empty(
+    empty: str | None,
+) -> None:
+    """The same rule on the paths with their own stand-ins: an unset time
+    server became a configured one, an unpaired inverter a named device and
+    an unnamed chip "Card 0" (R1-08)."""
+    sanitized = sanitize_snapshot(
+        {
+            "ts": empty,
+            "cci": {"id": empty, "label": empty, "commonName": empty, "model": "X"},
+            "cards": [{"name": empty, "cardId": False, "energy": 0}],
+        }
+    )
+
+    assert sanitized["ts"] == empty
+    assert sanitized["cci"] == {
+        "id": empty,
+        "label": empty,
+        "commonName": empty,
+        "model": "X",
+    }
+    assert sanitized["cards"][0]["name"] == empty

@@ -70,29 +70,30 @@ class _SerialMask(logging.Filter):
         except TypeError, ValueError:
             return True  # a malformed record is logging's to report
         masked = message
-        for entry in self._hass.config_entries.async_entries(DOMAIN):
-            if entry.unique_id:
-                masked = masked.replace(entry.unique_id, mask_serial(entry.unique_id))
+        for serial in self._serials():
+            masked = masked.replace(serial, mask_serial(serial))
         if masked != message:
             record.msg, record.args = masked, None
         return True
+
+    def _serials(self) -> list[str]:
+        # A serial is all digits; an entry awaiting it is keyed on a name or
+        # address, which got masked in every other title as well (R1-17).
+        return [
+            entry.unique_id
+            for entry in self._hass.config_entries.async_entries(DOMAIN)
+            if entry.unique_id and entry.unique_id.isdigit()
+        ]
 
 
 async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
     """Register integration services and mask serials in setup messages."""
     async_setup_services(hass)
+    # Never removed: the setups the stop cancels log their title after the
+    # stop event, and lost the mask with it (R1-05).
     serial_mask = _SerialMask(hass)
     for logger in _ENTRY_LOGGERS:
         logger.addFilter(serial_mask)
-
-    @callback
-    def _remove_serial_mask(_event: Event) -> None:
-        # The loggers outlive this Home Assistant; a filter left behind would
-        # keep reading the entries of a stopped one.
-        for logger in _ENTRY_LOGGERS:
-            logger.removeFilter(serial_mask)
-
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _remove_serial_mask)
     return True
 
 

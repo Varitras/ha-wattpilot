@@ -14,18 +14,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- The 0.2.0 notes said fractions work for all three timings now set in
-  minutes. They do for the two phase-switch timings; **Minimum charging
-  time** takes whole minutes from 1 to 60.
+- The 0.2.0 notes gave 0.5 minutes as an example for all three timings
+  now set in minutes. **Minimum charging time** starts at 1 minute, so 0.5
+  is refused there; fractions above 1 minute work, as for the two
+  phase-switch timings.
 - **Total energy** no longer falls across a reload or restart of Home
   Assistant. After a charger restart it can report a few Wh less, which the
   sensor held back -- but only until the integration reloaded, as it does
   after a firmware update, and the energy dashboard then got a negative
-  hour.
+  hour. Only a step back that small is held across a reload: a replacement
+  charger that takes over the entity ID starts from its own total.
 - Diagnostics keep an empty value empty. An empty car profile showed up
   as "default", a real profile, contradicting the entity's unknown state.
 - The notice about entities that could not be migrated goes away with
-  the entry it is about, instead of staying until a restart.
+  the entry it is about, and with the entities it lists once they are
+  deleted, instead of staying until a restart.
 - A malformed address in the setup or reconfigure form -- an IPv6 address
   without brackets, a mistyped port -- is reported at the address field
   instead of as an unknown error.
@@ -37,15 +40,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   exist, read from the Flex's per-chip keys instead of a list it does not
   have. The **Electricity price** has its `prices` attribute again; the
   Flex sends its price list in another shape.
-- Ignoring a discovery card no longer deletes the charger's entry. An entry
-  carried over from the earlier integration learns its charger's serial only
-  once it connects, so a card for the same charger could still be open;
-  ignoring it made Home Assistant replace the entry, with its entities and
-  entity IDs, by an ignored one. Such a card now closes once the entry has
-  its serial, and an ignored card no longer blocks that entry from setting
-  up. Reconfigure and re-authentication refuse to move such an entry onto a
-  charger that already has an entry of its own, instead of reporting success
-  and failing afterwards.
+- Ignoring a discovery card no longer deletes the charger's entry. An
+  entry carried over from the earlier integration learns its charger's
+  serial only once it connects, so a card for the same charger could still
+  be open; ignoring it made Home Assistant replace the entry, with its
+  entities and entity IDs, by an ignored one. While the entry waits for
+  its first connection, a card for its address is no longer offered and
+  the charger cannot be added there by hand a second time -- the entry
+  tries again instead; a card closes once the entry has its serial, and an
+  ignored card no longer blocks that entry from setting up. Reconfigure
+  and re-authentication refuse to move such an entry onto a charger that
+  already has an entry of its own, instead of reporting success and
+  failing afterwards.
 - A charger that comes back after an outage is reached again, also when a
   reconnect action failed while it was away, or a firmware update took
   longer than the integration waits for it. Either used to leave nothing
@@ -59,8 +65,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   until it times out. A message that is not valid text is skipped instead
   of stopping the reader. A charger asking for a password scheme the
   integration does not know is refused with that scheme named, instead of
-  a bare timeout. A setting the charger accepted with an empty status is no
-  longer reported as unanswered.
+  a bare timeout; while running, a repair notice says so, and a firmware
+  update reports it instead of a timeout. A setting the charger accepted
+  with an empty status is no longer reported as unanswered.
 - Diagnostics from a Wattpilot Flex on Ethernet no longer contain the
   serial number in the Ethernet host name, the Ethernet addresses, the name
   servers and search domain, or the charger's address in the last cloud
@@ -76,8 +83,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   notice, which is not logged, still names the serial in full. A network
   error is named by its kind, such as `ConnectionRefusedError
   (ECONNREFUSED)`, instead of by its text, which quoted the charger's
-  address. Entity IDs carry the serial as well, and other parts of Home
-  Assistant may log them.
+  address. Entity IDs carry the serial as well, so the integration's own
+  messages name an entity by its key; other parts of Home Assistant may
+  log entity IDs.
 - **Charging power** no longer fills the recorder database. Its sixteen
   per-phase attributes differ in nearly every update while a car charges,
   and each update stored a new attribute row. They stay visible and usable in

@@ -104,12 +104,14 @@ rules:
   repair-issues:
     status: done
     comment: |
-      Two issues exist. One lists entities a migration had to skip because
+      Three issues exist. One lists entities a migration had to skip because
       the target unique id was already taken. It is not fixable from the UI
-      on purpose -- which of the two entities to keep is the owner's call,
-      and the issue explains both ways out. The other says that a different
-      charger answered at the address while the entry was running, and
-      points to Reconfigure. The remaining candidate, a cloud-configured
+      on purpose -- whether their history still matters is the owner's call;
+      the issue says how to delete them and updates as they go. One says
+      that a different charger answered at the address while the entry was
+      running, and points to Reconfigure. One says the charger refused the
+      connection for a reason retrying cannot fix, an unknown sign-in
+      method. The remaining candidate, a cloud-configured
       entry migrated from the fork, still fails setup with a translated
       error rather than offering a repair.
   stale-devices:

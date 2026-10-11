@@ -172,10 +172,11 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
             # diagnostics download and nothing redacts it, so a card list
             # logged with %r put holder names into the log (audit A12-05).
             # The exception's own message can quote the value too, so only
-            # its type is reported.
+            # its type is reported. The sensor by its key: the entity ID
+            # carries the serial (R1-02).
             _LOGGER.warning(
                 "%s: unexpected %s for %s (%s)",
-                self.entity_id,
+                description.key,
                 _describe_shape(value),
                 description.charger_key,
                 type(err).__name__,
@@ -302,6 +303,8 @@ def _charging_minutes(cdi: Any, boot_clock: Any) -> int | None:  # noqa: ANN401 
 class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):
     """A total that never falls, also across a reload or restart."""
 
+    _restored_total: float | None = None
+
     async def async_added_to_hass(self) -> None:
         """Seed the hold against a step back with the last reported total."""
         # In memory only, the hold ended with the entity: a reload in the
@@ -309,8 +312,19 @@ class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):
         # triggers -- reported the lower total (audit A18-25).
         last = await self.async_get_last_sensor_data()
         if last is not None and isinstance(last.native_value, (int, float)):
-            self._attr_native_value = last.native_value
+            self._attr_native_value = self._restored_total = last.native_value
         await super().async_added_to_hass()
+
+    def _should_suppress_decrease(
+        self, description: WattpilotSensorEntityDescription, value: float
+    ) -> bool:
+        restored, self._restored_total = self._restored_total, None
+        # A restored total can be another charger's: a replacement that took
+        # over this entity ID was held at the old total for years (R1-03).
+        # Only a step back as small as a restart's is held.
+        if restored is not None and value < restored * _RESET_THRESHOLD_RATIO:
+            return False
+        return super()._should_suppress_decrease(description, value)
 
 
 class WattpilotChargingDurationSensor(WattpilotSensor):

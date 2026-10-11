@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
@@ -32,6 +33,7 @@ from custom_components.wattpilot.api import (
     DeviceIdentityError,
     WattpilotError,
 )
+from custom_components.wattpilot.api.exceptions import WattpilotConnectionError
 from custom_components.wattpilot.const import (
     CONF_AWAITING_SERIAL,
     CONF_CONNECTION_TYPE,
@@ -142,6 +144,37 @@ async def test_another_charger_answering_while_running_is_reported(
     assert issue.translation_key == "wrong_charger"
     assert issue.translation_placeholders == {"serial": "123456"}
     assert not reauth_flows(hass), "a new password cannot fix another charger"
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_a_charger_asking_for_an_unknown_sign_in_is_reported(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A third way the client stops for good: the charger asks for a password
+    scheme it does not know. Nothing reported it; the entities just stayed
+    unavailable (reaudit R1-13)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    issue_id = f"charger_refused_{entry.entry_id}"
+
+    fake_charger.connected = False
+    fake_charger.refusal = WattpilotConnectionError("Unsupported password hash: x9")
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=1))
+    await hass.async_block_till_done()
+
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, issue_id)
+    assert issue is not None, "the refusal was not reported"
+    assert issue.translation_key == "charger_refused"
+    # Nothing in Home Assistant can fix it; a Fix button would lead nowhere.
+    assert issue.is_fixable is False
+    assert issue.severity is ir.IssueSeverity.ERROR
+    assert issue.translation_placeholders == {"error": "Unsupported password hash: x9"}
+    assert not reauth_flows(hass), "a new password cannot fix this"
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
@@ -738,6 +771,31 @@ async def test_home_assistants_setup_messages_do_not_carry_the_serial(
     assert "123456" not in caplog.text
 
 
+async def test_a_setup_retry_does_not_log_the_chargers_address(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Home Assistant logs each retry's traceback at DEBUG, the chained cause
+    included -- and asyncio's refused connect quotes the address (R1-01)."""
+    caplog.set_level(logging.DEBUG)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    fake_charger.connect_error = ConnectionRefusedError(
+        errno.ECONNREFUSED, "Connect call failed ('192.0.2.10', 80)"
+    )
+
+    assert not await setup_entry(hass, entry, fake_charger)
+    with patch_charger(fake_charger):
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+        await hass.async_block_till_done()
+
+    assert "Full exception" in caplog.text, "the traceback itself must stay"
+    assert "ECONNREFUSED" in caplog.text, "the kind of error must stay"
+    assert "192.0.2.10" not in caplog.text
+
+
 def _record(message: str, *args: object) -> logging.LogRecord:
     return logging.LogRecord(
         "custom_components.wattpilot", logging.INFO, "", 0, message, args, None
@@ -779,30 +837,42 @@ async def test_another_integrations_unique_id_is_left_alone(
     assert record.getMessage() == "Config entry 'Other_777777' not ready"
 
 
-async def test_the_serial_mask_is_removed_when_home_assistant_stops(
-    hass: HomeAssistant, fake_charger: FakeWattpilot
+async def test_an_entry_awaiting_its_serial_masks_nothing(
+    hass: HomeAssistant,
 ) -> None:
-    """The loggers are process-wide and outlive Home Assistant."""
+    """An entry carried over from the earlier integration is keyed on its
+    name or address until it connects. Masked as a serial, that name turned
+    every other title holding it into `*******ot` (R1-17)."""
+    MockConfigEntry(domain=DOMAIN, unique_id="Wattpilot").add_to_hass(hass)
+    record = _record("Config entry '%s' not ready", "Wattpilot meter")
+
+    assert _SerialMask(hass).filter(record)
+
+    assert record.getMessage() == "Config entry 'Wattpilot meter' not ready"
+
+
+async def test_a_setup_cancelled_by_the_stop_is_logged_masked(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Home Assistant fires the stop event first and lets the setup retries
+    it cancelled log their title afterwards. The mask went with the event,
+    so that line carried the full serial (R1-05)."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )
     assert await setup_entry(hass, entry, fake_charger)
 
-    def masks() -> list[logging.Filter]:
-        return [
-            log_filter
-            for logger in (
-                logging.getLogger("homeassistant.config_entries"),
-                logging.getLogger("custom_components.wattpilot"),
-            )
-            for log_filter in logger.filters
-            if isinstance(log_filter, _SerialMask)
-        ]
-
-    assert len(masks()) == 2
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
     await hass.async_block_till_done()
-    assert masks() == []
+    logging.getLogger("custom_components.wattpilot").error(
+        "Setup of config entry '%s' for wattpilot integration cancelled",
+        "Wattpilot_123456",
+    )
+
+    assert "Wattpilot_****56" in caplog.text
+    assert "123456" not in caplog.text
 
 
 def _awaiting_fork_entry() -> MockConfigEntry:
@@ -871,13 +941,10 @@ async def test_only_the_adopted_charger_s_ignored_card_is_removed(
     assert hass.config_entries.async_get_entry(other_integration.entry_id) is not None
 
 
-async def test_total_energy_does_not_fall_across_a_reload(
-    hass: HomeAssistant, fake_charger: FakeWattpilot
-) -> None:
-    """After a restart the charger reported 21 Wh less (replay fixture). The
-    sensor held its value -- in memory only, so a reload in that window, as
-    the one after a firmware update, reported the lower total and the energy
-    dashboard got a negative hour (audit A18-25)."""
+async def _total_energy_after_restore(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, restored: int, reported: int
+) -> tuple[str, int]:
+    """Set the entry up with *restored* Wh saved and *reported* Wh live."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )
@@ -897,17 +964,77 @@ async def test_total_energy_does_not_fall_across_a_reload(
         hass,
         [
             (
-                State(entity_id, "2681214"),
-                {"native_value": 2681214, "native_unit_of_measurement": "Wh"},
+                State(entity_id, str(restored)),
+                {"native_value": restored, "native_unit_of_measurement": "Wh"},
             )
         ],
     )
-    fake_charger._properties["eto"] = 2681193
+    fake_charger._properties["eto"] = reported
 
     with patch_charger(fake_charger):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
+    return entity_id, _total_energy_wh(hass, entity_id)
 
+
+def _total_energy_wh(hass: HomeAssistant, entity_id: str) -> int:
     state = hass.states.get(entity_id)
     factor = 1000 if state.attributes["unit_of_measurement"] == "kWh" else 1
-    assert round(float(state.state) * factor) == 2681214
+    return round(float(state.state) * factor)
+
+
+async def test_total_energy_does_not_fall_across_a_reload(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """After a restart the charger reported 21 Wh less (replay fixture). The
+    sensor held its value -- in memory only, so a reload in that window, as
+    the one after a firmware update, reported the lower total and the energy
+    dashboard got a negative hour (audit A18-25)."""
+    _, total = await _total_energy_after_restore(
+        hass, fake_charger, restored=2681214, reported=2681193
+    )
+
+    assert total == 2681214
+
+
+async def test_a_restored_total_holds_a_step_back_down_to_its_limit(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """Exactly at 90 % of the restored total it is still a step back."""
+    _, total = await _total_energy_after_restore(
+        hass, fake_charger, restored=1000, reported=900
+    )
+
+    assert total == 1000
+
+
+async def test_a_restored_total_from_another_charger_does_not_freeze_it(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A replacement charger that took over the old entity ID restored the
+    old charger's total and held it until its own passed it -- years at
+    zero in the energy dashboard (R1-03). Only a step back as small as a
+    restart's is held; a drop this large is a different meter."""
+    entity_id, total = await _total_energy_after_restore(
+        hass, fake_charger, restored=2681214, reported=1200
+    )
+    assert total == 1200
+
+    fake_charger.push("eto", 1300)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+    await hass.async_block_till_done()
+    assert _total_energy_wh(hass, entity_id) == 1300
+
+    # From the first live reading on, the hold is the strict one again.
+    fake_charger.push("eto", 100)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=60))
+    await hass.async_block_till_done()
+    assert _total_energy_wh(hass, entity_id) == 1300
+    assert not [
+        record
+        for record in caplog.records
+        if record.name.startswith("custom_components.wattpilot")
+        and record.levelno >= logging.WARNING
+    ], "every reading must be read without complaint"

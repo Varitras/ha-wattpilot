@@ -28,8 +28,10 @@ from .descriptions import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
     from homeassistant.config_entries import ConfigEntry
-    from homeassistant.core import HomeAssistant
+    from homeassistant.core import Event, HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -112,21 +114,25 @@ async def async_migrate_legacy_unique_ids(
             return None  # already correct
         collision_key = (entity_entry.domain, target)
         if collision_key in existing:
-            # Deliberately not resolved here: the skipped entity is the one
-            # holding the history, entity id and customisations, and the one
-            # kept is the entity already bound. Which of the two is worth
-            # keeping is the owner's call, so nothing is deleted or renamed
-            # -- but it is reported instead of only logged (audit VA-06).
+            # Deliberately not resolved here: the skipped entity holds the
+            # history, entity id and customisations, and the one kept is
+            # already bound. Whether that history still matters is the
+            # owner's call, so nothing is deleted or renamed -- but it is
+            # reported instead of only logged (audit VA-06).
             collisions.append(entity_entry.entity_id)
+            # Not the entity ID, here or below: it can carry the serial
+            # (R1-02). The repair issue names it; that is not logged.
             _LOGGER.warning(
-                "Not migrating %s: an entity for %s already exists",
-                entity_entry.entity_id,
+                "Not migrating a %s entity for %s: one already exists",
+                entity_entry.domain,
                 suffix_map[legacy_suffix],
             )
             return None
         existing.add(collision_key)
         _LOGGER.info(
-            "Migrating %s to %s", entity_entry.entity_id, suffix_map[legacy_suffix]
+            "Migrating a %s entity to %s",
+            entity_entry.domain,
+            suffix_map[legacy_suffix],
         )
         return {"new_unique_id": target}
 
@@ -147,14 +153,40 @@ def _report_collisions(
     hass: HomeAssistant, entry: ConfigEntry, collisions: list[str]
 ) -> None:
     """Raise (or clear) the repair issue for entities left unmigrated."""
+    _show_collisions(hass, entry, collisions)
+    if not collisions:
+        return
+    remaining = set(collisions)
+
+    @callback
+    def _is_listed_removal(data: er.EventEntityRegistryUpdatedData) -> bool:
+        return data["action"] == "remove" and data["entity_id"] in remaining
+
+    @callback
+    def _forget_removed(event: Event[er.EventEntityRegistryUpdatedData]) -> None:
+        # Deleting what the notice lists left it up until a reload (R1-19).
+        remaining.discard(event.data["entity_id"])
+        _show_collisions(hass, entry, remaining)
+
+    entry.async_on_unload(
+        hass.bus.async_listen(
+            er.EVENT_ENTITY_REGISTRY_UPDATED,
+            _forget_removed,
+            event_filter=_is_listed_removal,
+        )
+    )
+
+
+def _show_collisions(
+    hass: HomeAssistant, entry: ConfigEntry, collisions: Collection[str]
+) -> None:
     if not collisions:
         async_clear_collisions(hass, entry)
         return
-    issue_id = _collision_issue_id(entry)
     ir.async_create_issue(
         hass,
         DOMAIN,
-        issue_id,
+        _collision_issue_id(entry),
         is_fixable=False,
         severity=ir.IssueSeverity.WARNING,
         translation_key="migration_collision",

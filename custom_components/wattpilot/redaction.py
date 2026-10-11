@@ -112,9 +112,11 @@ NET_REPLACEMENTS: dict[str, Any] = {
 # Value-based nets for addresses inside text, whatever the key: name-based
 # rules only know the keys someone has seen, and a Flex on Ethernet reported
 # a dozen nobody had. ipaddress decides, so times and versions survive.
-IPV4_CANDIDATE = re.compile(r"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d.])")
+# A full stop may end the IPv4 address, a label may precede the IPv6 one:
+# "Connect to <address>." and "inet6:<address>" got through (R1-07).
+IPV4_CANDIDATE = re.compile(r"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?!\d)(?!\.\d)")
 IPV6_CANDIDATE = re.compile(
-    r"(?<![\w:])[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?:%\w+)?(?![\w:])"
+    r"(?<!\w)[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?:%\w+)?(?![\w:])"
 )
 # Already-innocuous defaults: skipping them keeps the fixture faithful to what
 # the real firmware reports for unconfigured fields, while still closing the
@@ -182,6 +184,21 @@ def scrub(value: Any, serial: str | None = None) -> Any:  # noqa: ANN401 -- recu
 
 
 UNEXPECTED_SHAPE = "<redacted: unexpected shape>"
+# id/label/commonName are per-installation identifiers (label is a
+# user-editable name, commonName embeds a unique device ID).
+_COMPANION_STAND_INS = {
+    "id": "00000000",
+    "label": "Companion Device",
+    "commonName": "companion-0.0e-0_0",
+}
+
+
+def _stand_in(value: Any, replacement: Any) -> Any:  # noqa: ANN401 -- untyped JSON
+    """Return *replacement*, unless the value is empty."""
+    if value is None or value == "":
+        # Names nobody, and a stand-in would read as a real value (A18-28).
+        return value
+    return replacement
 
 
 def _sanitized_card(index: int, card: Any) -> Any:  # noqa: ANN401 -- untyped JSON
@@ -189,7 +206,7 @@ def _sanitized_card(index: int, card: Any) -> Any:  # noqa: ANN401 -- untyped JS
     if not isinstance(card, dict):
         return UNEXPECTED_SHAPE
     return {
-        "name": f"Card {index}",
+        "name": _stand_in(card.get("name"), f"Card {index}"),
         "cardId": bool(card.get("cardId")),
         "energy": card.get("energy", 0),
     }
@@ -210,13 +227,25 @@ _KEEP = object()
 
 
 def _replacement_for(key: str, value: Any) -> Any:  # noqa: ANN401 -- untyped JSON
-    if value is None or value == "":
-        # Names nobody, and a stand-in would read as a real value (A18-28).
-        return _KEEP
     chip = CHIP_NAME_KEY.fullmatch(key)
     if chip:
-        return f"Card {chip[1]}"
-    return REPLACE.get(key, _KEEP)
+        return _stand_in(value, f"Card {chip[1]}")
+    return _stand_in(value, REPLACE.get(key, _KEEP))
+
+
+def _sanitized_companion(value: Any, serial: str | None) -> Any:  # noqa: ANN401 -- untyped JSON
+    """Paired companion device, e.g. a solar inverter's DataManager."""
+    # model/deviceFamily/message are fixed product constants and pass
+    # through scrub() unchanged.
+    if not isinstance(value, dict):
+        # An unconditional update() raised on anything else, which took the
+        # whole diagnostics download with it -- the one thing a user needs
+        # when reporting a problem (VA-12).
+        return UNEXPECTED_SHAPE
+    companion = scrub(value, serial)
+    for field, replacement in _COMPANION_STAND_INS.items():
+        companion[field] = _stand_in(companion.get(field), replacement)
+    return companion
 
 
 def sanitize_property(key: str, value: Any, serial: str | None = None) -> Any:  # noqa: ANN401 -- untyped JSON
@@ -228,39 +257,32 @@ def sanitize_property(key: str, value: Any, serial: str | None = None) -> Any:  
     if key == "cards":
         return _sanitized_cards(value)
     if key == "cci":
-        # Paired companion device (e.g. a solar inverter's DataManager).
-        # id/label/commonName are per-installation identifiers (label is
-        # a user-editable name, commonName embeds a unique device ID);
-        # model/deviceFamily/message are fixed product constants and
-        # pass through scrub() unchanged.
-        if not isinstance(value, dict):
-            # The unconditional update() below raised on anything else, which
-            # took the whole diagnostics download with it -- the one thing a
-            # user needs when reporting a problem (VA-12).
-            return UNEXPECTED_SHAPE
-        companion = scrub(value, serial)
-        companion.update(
-            id="00000000", label="Companion Device", commonName="companion-0.0e-0_0"
-        )
-        return companion
+        return _sanitized_companion(value, serial)
     if key == "ts" and isinstance(value, str):
         # timeServer: a public pool name is harmless, an internal hostname or
         # a private IP is not, and nothing in the value tells them apart, so
         # it always goes. Not a NET_FIELDS entry, which matches by name at any
         # depth while `smd` carries a numeric `ts` of its own -- a timestamp,
         # which must survive -- and only for a string (audit VA-07).
-        return TIME_SERVER_REPLACEMENT
+        return _stand_in(value, TIME_SERVER_REPLACEMENT)
     replacement = _replacement_for(key, value)
     if replacement is not _KEEP:
         return replacement
     return scrub(value, serial)
 
 
-def sanitize_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
-    """Return a property snapshot with identifying values dropped or replaced."""
-    serial = snapshot.get("sse")
-    if not isinstance(serial, str):
-        serial = None
+def sanitize_snapshot(
+    snapshot: Mapping[str, Any], serial: str | None = None
+) -> dict[str, Any]:
+    """
+    Return a property snapshot with identifying values dropped or replaced.
+
+    *serial* defaults to the snapshot's own `sse`. A delta or a later chunk
+    of the full status has none: a caller that knows the serial passes it.
+    """
+    own_serial = snapshot.get("sse")
+    if serial is None and isinstance(own_serial, str):
+        serial = own_serial
     return {
         key: sanitize_property(key, value, serial)
         for key, value in snapshot.items()

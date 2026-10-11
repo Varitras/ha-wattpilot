@@ -607,6 +607,38 @@ async def test_a_recovery_is_announced_with_the_current_values(
     assert events[-2:] == [("car", 1), ("available", True)]
 
 
+async def test_a_reconnect_between_two_checks_does_not_flap_the_entities(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The client reconnects within its 5 s backoff, before the 30 s check
+    saw it gone. The replay of the full status took every entity through
+    unavailable at the moment the charger was back, logged an outage and
+    fired `to:` triggers again (R1-04)."""
+    caplog.set_level(logging.INFO, logger="custom_components.wattpilot.hub")
+    hub = make_hub(hass, fake_charger)
+    await hub.async_connect()
+    hub.start_dispatch()
+    events: list[tuple[str, Any]] = []
+    async_dispatcher_connect(
+        hass,
+        signal_availability(ENTRY_ID),
+        callback(lambda a: events.append(("available", a))),
+    )
+
+    fake_charger.properties_initialized = False  # reconnected, replaying
+    fake_charger.push("car", 2)
+    await hass.async_block_till_done()
+    assert hub.available, "entities read this live while they write"
+    fake_charger.properties_initialized = True
+    fake_charger.push("amp", 16)
+    await hass.async_block_till_done()
+
+    assert events == []
+    assert not [r for r in caplog.records if r.levelno >= logging.INFO]
+
+
 async def test_a_recovery_is_logged_once_at_info(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,

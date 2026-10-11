@@ -14,6 +14,7 @@ from homeassistant.config_entries import (
     OptionsFlowWithReload,
 )
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryNotReady,
@@ -191,6 +192,7 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle the initial setup step: host and password."""
         errors: dict[str, str] = {}
         if user_input is not None:
+            self._abort_if_awaiting_entry_at(user_input["host"])
             errors, serial, name = await self._async_validate(
                 user_input["host"], user_input["password"]
             )
@@ -223,12 +225,40 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="incomplete_discovery")
         known = await self.async_set_unique_id(serial)
         self._abort_if_unique_id_configured(updates=_address_update(known, ipv4))
+        self._abort_if_awaiting_entry_at(ipv4)
         self._discovered_host = ipv4
         # A TXT key can be present without a value.
         self.context["title_placeholders"] = {
             "name": discovery_info.properties.get("friendly_name") or "Wattpilot"
         }
         return await self.async_step_zeroconf_confirm()
+
+    def _abort_if_awaiting_entry_at(self, host: str) -> None:
+        """
+        Abort for an entry at this address that has yet to learn its serial.
+
+        Keyed on its address until it connects, it was not found by the
+        serial, and an entry made from a card or the form locked it out
+        (R1-14, PC-04). shortcut: the address is compared as written, so a
+        host name against an IP goes unnoticed; resolve both if that occurs.
+        """
+        awaiting = next(
+            (entry for entry in self._awaiting_entries() if entry.data["host"] == host),
+            None,
+        )
+        if awaiting is None:
+            return
+        if awaiting.state is ConfigEntryState.SETUP_RETRY:
+            # Its charger just announced itself: no need to wait for the retry.
+            self.hass.config_entries.async_schedule_reload(awaiting.entry_id)
+        raise AbortFlow("already_configured")
+
+    def _awaiting_entries(self) -> list[ConfigEntry]:
+        return [
+            entry
+            for entry in self._async_current_entries(include_ignore=False)
+            if awaits_serial(entry) and "host" in entry.data
+        ]
 
     async def async_step_zeroconf_confirm(
         self, user_input: dict[str, Any] | None = None
