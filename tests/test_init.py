@@ -582,7 +582,7 @@ async def test_migrate_v1_local_entry(
     with caplog.at_level(logging.INFO):
         assert await setup_entry(hass, entry, fake_charger)
     assert entry.version == 2
-    assert entry.data == V2_LOCAL_DATA
+    assert entry.data == {**V2_LOCAL_DATA, CONF_NAME: "Wattpilot"}
     assert entry.title == "Garage Wattpilot"
     assert entry.unique_id == "123456"
     # A one-way schema rewrite of someone else's config entry should say so,
@@ -593,6 +593,61 @@ async def test_migrate_v1_local_entry(
         == f"Migrated fork config entry {entry.entry_id} to version 2"
         for record in caplog.records
     )
+
+
+async def test_a_migrated_fork_entry_names_new_entities_without_the_serial(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A fork entry kept no name, so its device took the host name and every
+    entity the fork lacked got the serial in its ID (reaudit RF-P-04). The
+    fork's own friendly name is what its entity IDs were made from."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**V1_LOCAL_DATA, "friendly_name": "Garage"},
+        version=1,
+        unique_id="192.168.1.50",
+        title="Garage",
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+
+    assert entry.data[CONF_NAME] == "Garage"
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id("sensor", DOMAIN, "123456-tpa")
+    assert entity_id == "sensor.garage_average_charging_power"
+
+
+async def test_a_fork_name_another_entry_has_is_numbered_instead(
+    hass: HomeAssistant,
+) -> None:
+    """Two devices of one name would hand out entity IDs ending in _2."""
+    MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="111111",
+        title="Wattpilot",
+        version=2,
+        data={**V2_LOCAL_DATA, CONF_NAME: "Wattpilot"},
+    ).add_to_hass(hass)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V1_LOCAL_DATA, version=1, title="Wattpilot"
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry) is True
+
+    assert entry.data[CONF_NAME] == "Wattpilot 2"
+
+
+async def test_a_fork_entry_without_a_friendly_name_is_named_wattpilot(
+    hass: HomeAssistant,
+) -> None:
+    """Its own title does not count as taken: the name is for this entry."""
+    data = {k: v for k, v in V1_LOCAL_DATA.items() if k != "friendly_name"}
+    entry = MockConfigEntry(domain=DOMAIN, data=data, version=1, title="Wattpilot")
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry) is True
+
+    assert entry.data[CONF_NAME] == "Wattpilot"
 
 
 async def test_migrate_keeps_a_current_entry_untouched(hass: HomeAssistant) -> None:
@@ -625,7 +680,7 @@ async def test_migrate_v1_entry_without_unique_id(
     )
     assert await setup_entry(hass, entry, fake_charger)
     assert entry.version == 2
-    assert entry.data == V2_LOCAL_DATA
+    assert entry.data == {**V2_LOCAL_DATA, CONF_NAME: "Wattpilot"}
     assert entry.unique_id == "123456"
 
 

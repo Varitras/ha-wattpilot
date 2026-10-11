@@ -20,7 +20,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   host name `Wattpilot_<serial>`. Entity IDs follow the device name, so
   they no longer carry the serial number: `sensor.wattpilot_total_energy`
   instead of `sensor.wattpilot_<serial>_total_energy`. Existing
-  installations keep their names and entity IDs.
+  installations keep their names and entity IDs. An installation carried
+  over from a fork names its device after the fork's friendly name: its
+  entities keep their IDs, and the ones the fork did not have get IDs
+  without the serial number.
 - Requires Home Assistant 2026.9.0 or newer (was 2026.8.0). Home Assistant
   replaced its schema library in 2026.9, and the integration now uses the
   new one directly instead of relying on the alias for the old name.

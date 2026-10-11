@@ -111,18 +111,31 @@ def serial_taken_by_other_entry(
     )
 
 
-def new_device_name(hass: HomeAssistant) -> str:
+def _names_taken(hass: HomeAssistant, exclude: str | None) -> set[str | None]:
+    entries = [
+        entry
+        for entry in hass.config_entries.async_entries(DOMAIN, include_ignore=False)
+        if entry.entry_id != exclude
+    ]
+    return {entry.title for entry in entries} | {
+        entry.data.get(CONF_NAME) for entry in entries
+    }
+
+
+def new_device_name(
+    hass: HomeAssistant, *, preferred: str | None = None, exclude: str | None = None
+) -> str:
     """
     Name a new charger Wattpilot, numbered from the second one on.
 
     Not its host name, Wattpilot_<serial>: entity IDs follow the device
     name, and the serial in every one of them reached logs and posts. A
-    renamed entry's device keeps the name it was created with.
+    renamed entry's device keeps the name it was created with. *preferred*
+    wins while no other entry has it; *exclude* is the entry being named.
     """
-    entries = hass.config_entries.async_entries(DOMAIN, include_ignore=False)
-    taken = {entry.title for entry in entries} | {
-        entry.data.get(CONF_NAME) for entry in entries
-    }
+    taken = _names_taken(hass, exclude)
+    if preferred and preferred not in taken:
+        return preferred
     name, number = DEVICE_NAME, 1
     while name in taken:
         number += 1

@@ -23,6 +23,7 @@ from .const import (
     DOMAIN,
     PLATFORMS,
     awaits_serial,
+    new_device_name,
     serial_taken_by_other_entry,
     signal_property,
 )
@@ -330,6 +331,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "host": old["ip_address"],
                 "password": old["password"],
                 CONF_AWAITING_SERIAL: True,
+                # Without a name the device took the host name, and every
+                # entity the fork lacked got the serial in its ID (RF-P-04).
+                CONF_NAME: new_device_name(
+                    hass, preferred=old.get("friendly_name"), exclude=entry.entry_id
+                ),
             }
         hass.config_entries.async_update_entry(
             entry, data=new_data, version=ENTRY_VERSION
