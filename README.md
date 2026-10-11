@@ -58,7 +58,7 @@ domain.
 
 Every one of the 75 unique IDs `ruaan-deysel/ha-wattpilot` shipped is
 reproduced, plus the additions described below, across eight platforms.
-The reference device ends up with 107 entities — the rest are gated away by its
+The reference device ends up with 111 entities — the rest are gated away by its
 firmware and power variant.
 
 | Platform | What it covers |
@@ -103,6 +103,9 @@ only lets you infer:
 | **Average charging power** | `tpa` | The charger's own 30-second average, steadier than **Charging power** for threshold automations. Reads 0 W once no current has flowed for a minute, because the charger itself keeps the last session's average; a shorter pause keeps the value, meant to bridge a phase switch, whose length has not been measured. A new session reads 0 W until the charger reports its own average |
 | **Grid frequency** | `fhz` | Diagnostic, **disabled by default**: it changes in more than half of all pushes, so it is recorder load unless you are watching grid quality |
 | **L1/L2/L3/N voltage**, **current**, **power**, **power factor** | `nrg` | One sensor per phase and reading, with history (no current on N). **Disabled by default**: they change with nearly every push. The same values stay attributes of **Charging power**, without history |
+| **Charging power from solar**, **battery**, **grid**, **other sources** | `ws`, `wb`, `wg`, `wo` | The live counterpart of the session energy split. Reported by a Wattpilot Flex on firmware 43.x and created only on a charger that reports them. The unit is taken to be watts by analogy with the energy split; it has not been measured. **Disabled by default** |
+| **Charging current limit** | `cll` | The lowest of the charger's hardware limits. The single limits are attributes: adapter, cable, temperature, phase unbalance, the requested current, and `pvSurplus`, the current PV surplus charging offers while it runs. Diagnostic, **disabled by default** |
+| **Temperature current limit** | `amt` | The temperature limit on its own. Diagnostic, **disabled by default** |
 
 And a few that make existing settings usable from Home Assistant:
 
@@ -116,6 +119,8 @@ And a few that make existing settings usable from Home Assistant:
 | **Car consumption** | `cco` | kWh per 100 km, which the app uses to show range. **Disabled by default** |
 | **Charging duration** | `cdi`, `rbt` | Minutes of the current charge, or of the last one while no car charges |
 | **Minimum charge pause**, **Minimum charging interval**, **Forced single-phase duration**, **Simulated unplugging duration** | `mcpd`, `mci`, `psmd`, `sumd` | Timings from the app, in seconds. 0 switches the first two off. **Disabled by default** |
+| **PV surplus stop hysteresis** | `sh` | The stop hysteresis of PV surplus charging in W, as the app sets it; 200 W on the chargers seen |
+| **Minimum charging current** | `mca` | The lowest current the charger offers, from 6 A up to the variant's maximum. **Disabled by default** |
 
 ### Energy Dashboard
 

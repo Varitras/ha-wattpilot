@@ -26,6 +26,7 @@ from custom_components.wattpilot.redaction import (
     UNEXPECTED_SHAPE,
     sanitize_snapshot,
 )
+from scripts.anonymize_probe import fixture_from
 
 from .test_init import (
     V1_CLOUD_DATA,
@@ -389,3 +390,41 @@ def test_an_empty_time_server_companion_or_chip_name_stays_empty(
         "model": "X",
     }
     assert sanitized["cards"][0]["name"] == empty
+
+
+@pytest.mark.parametrize(
+    ("car_profile", "shown"),
+    [
+        ("default", "default"),
+        ("SkodaEnyaq", "<known profile>"),
+        ("", ""),
+        (None, None),
+        ("Some Car Model", "<unknown: str of 14 chars>"),
+        ({"model": "x"}, "<unknown: dict of 1>"),
+        (["x"], "<unknown: list of 1>"),
+    ],
+)
+def test_the_car_profile_says_whether_it_was_known_not_which(
+    car_profile: Any, shown: Any
+) -> None:
+    """A known profile names the owner's car, so it stays replaced; a value
+    outside the list is what a report needs to see, by its shape (#25)."""
+    assert sanitize_snapshot({"ct": car_profile})["ct"] == shown
+
+
+@pytest.mark.parametrize(
+    ("car_profile", "stand_in"),
+    [
+        ("SkodaEnyaq", "default"),
+        ("My Car Name", "default"),
+        ("default", "default"),
+        ("", ""),
+    ],
+)
+def test_the_fixture_keeps_a_car_profile_the_select_can_show(
+    car_profile: str, stand_in: str
+) -> None:
+    """Diagnostics say <known profile> or <unknown: ...>, neither of which the
+    select offers; a regenerated fixture took that over and the suite went
+    red (post-check F31-01). The owner's car stays out either way."""
+    assert fixture_from({"ct": car_profile, "sse": "123456"})["ct"] == stand_in

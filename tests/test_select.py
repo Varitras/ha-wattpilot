@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -171,3 +172,77 @@ def test_no_presets_no_preset_select() -> None:
         SELECT_DESCRIPTIONS, firmware="42.5", variant=11, properties={"amp": 16}
     )
     assert "amp_preset" not in {d.uid_suffix for d in kept}
+
+
+async def test_a_car_profile_outside_the_list_is_logged_once_by_its_shape(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The select showed unknown without a word, so nobody could tell what
+    the charger had sent (#25). The log names the shape, never the value."""
+    fake_charger._properties["ct"] = "Private Car Name"
+    select = await make_select(hass, fake_charger, "ct")
+    fake_charger.push("ct", "Private Car Name")
+
+    assert select.current_option is None
+    unknown = [
+        r for r in caplog.records if "outside the known options" in r.getMessage()
+    ]
+    assert len(unknown) == 1
+    assert "ct" in unknown[0].getMessage()
+    assert "str of 16 chars" in unknown[0].getMessage()
+    ours = [
+        r for r in caplog.records if r.name.startswith("custom_components.wattpilot")
+    ]
+    assert all("Private Car Name" not in r.getMessage() for r in ours)
+
+    fake_charger.push("ct", "default")
+    fake_charger.push("ct", "Private Car Name")
+    assert (
+        len(
+            [r for r in caplog.records if "outside the known options" in r.getMessage()]
+        )
+        == 2
+    )
+
+
+async def test_a_known_value_or_a_current_between_presets_is_not_logged(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fake_charger._properties.update(
+        {"clp": [6, 10, 12, 14, 16], "amp": 13, "ct": "default"}
+    )
+    await make_select(hass, fake_charger, "amp_preset")
+    await make_select(hass, fake_charger, "ct")
+
+    assert "outside the known options" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "pushes",
+    [
+        [float("nan")] * 3,  # NaN never equals itself
+        ["Car A", "Car B", "Car A"],  # unknown to unknown is no news
+        ["Car A", None, "Car A"],  # nothing reported is not a known value
+    ],
+    ids=["nan", "alternating", "none_between"],
+)
+async def test_an_unknown_value_is_reported_once_until_a_known_one(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+    pushes: list[object],
+) -> None:
+    """Logged on every push before (post-check F31-03)."""
+    fake_charger._properties["ct"] = "default"
+    await make_select(hass, fake_charger, "ct")
+    for value in pushes:
+        fake_charger.push("ct", value)
+
+    unknown = [
+        r for r in caplog.records if "outside the known options" in r.getMessage()
+    ]
+    assert [r.levelno for r in unknown] == [logging.WARNING]

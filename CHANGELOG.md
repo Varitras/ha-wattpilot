@@ -12,6 +12,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   own (L1 to L3 and N), **disabled by default**. They were only attributes of **Charging
   power**, and those are kept out of the recorder, so no history of them
   existed. The attributes stay for templates that read them.
+- **PV surplus stop hysteresis** and **Minimum charging current** as
+  settings; the minimum current is **disabled by default**.
+- **Charging current limit**, the lowest of the charger's hardware limits,
+  with the single limits and the current PV surplus charging offers as
+  attributes, and **Temperature current limit**; both diagnostic and
+  **disabled by default**.
+- **Charging power from solar**, **battery**, **grid** and **other
+  sources**, the live counterpart of the session energy split, on chargers
+  that report it (seen on a Wattpilot Flex with firmware 43.x). **Disabled
+  by default**; their unit has not been measured.
 
 ### Changed
 
@@ -30,6 +40,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A select whose value the charger reports outside its list, such as a
+  **Car profile** the app does not offer, showed as unknown without a
+  word. The log now says so once, naming the kind of value but never the
+  value, and the diagnostics show whether a car profile was a known one,
+  still without naming the car.
 - The repair notices about a refused connection go away once the charger
   is connected again, not only with a reload.
 - A charger that refuses the password after first accepting it drops the

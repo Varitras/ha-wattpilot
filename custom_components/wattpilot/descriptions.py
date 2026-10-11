@@ -595,6 +595,27 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
     _energy_split_sensor("whb", "session_energy_battery"),
     _energy_split_sensor("whg", "session_energy_grid"),
     _energy_split_sensor("who", "session_energy_other"),
+    # Reported by a Wattpilot Flex on firmware 43.x, not by 42.5; documented
+    # nowhere. Watts by analogy with the energy split, not measured: the one
+    # snapshot seen was idle.
+    *(
+        WattpilotSensorEntityDescription(
+            key=f"charging_power_from_{source}",
+            charger_key=charger_key,
+            translation_key=f"charging_power_from_{source}",
+            device_class=SensorDeviceClass.POWER,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement="W",
+            suggested_display_precision=0,
+            entity_registry_enabled_default=False,
+        )
+        for charger_key, source in (
+            ("ws", "solar"),
+            ("wb", "battery"),
+            ("wg", "grid"),
+            ("wo", "other_sources"),
+        )
+    ),
     WattpilotSensorEntityDescription(
         key="charging_allowed",
         charger_key="alw",
@@ -614,6 +635,38 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
         # this reads unknown rather than 0 A most of the time. That is the
         # point of it: "amp" is what the user asked for, this is what the car
         # is actually being offered right now.
+    ),
+    WattpilotSensorEntityDescription(
+        key="charging_current_limit",
+        charger_key="cll",
+        translation_key="charging_current_limit",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="A",
+        entity_registry_enabled_default=False,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        # Measured on firmware 42.5: the lowest of the hardware limits; it
+        # stayed at 16 A while requestedCurrent dropped to 6 A. pvSurplus is
+        # there only during PV surplus charging and always equalled acu.
+        namespace_value="currentLimitMax",
+        namespace_attributes=(
+            "adapterCurrentLimit",
+            "cableCurrentLimit",
+            "temperatureCurrentLimit",
+            "unsymetryCurrentLimit",
+            "requestedCurrent",
+            "pvSurplus",
+        ),
+    ),
+    WattpilotSensorEntityDescription(
+        key="temperature_current_limit",
+        charger_key="amt",
+        translation_key="temperature_current_limit",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="A",
+        entity_registry_enabled_default=False,
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     WattpilotSensorEntityDescription(
         key="average_charging_power",
@@ -915,6 +968,28 @@ NUMBER_DESCRIPTIONS: tuple[WattpilotNumberEntityDescription, ...] = (
         native_unit_of_measurement="A",
         variant=VARIANT_22,
     ),
+    *(
+        WattpilotNumberEntityDescription(
+            key=f"minimum_charging_current_{variant}kw",
+            charger_key="mca",
+            uid=uid,
+            set_as_int=True,
+            translation_key="minimum_charging_current",
+            native_min_value=6.0,
+            native_max_value=ceiling,
+            native_step=1.0,
+            mode=NumberMode.SLIDER,
+            device_class=NumberDeviceClass.CURRENT,
+            native_unit_of_measurement="A",
+            entity_registry_enabled_default=False,
+            entity_category=EntityCategory.CONFIG,
+            variant=variant,
+        )
+        for variant, uid, ceiling in (
+            (VARIANT_11, "mca", 16.0),
+            (VARIANT_22, "mca_22kw", 32.0),
+        )
+    ),
     WattpilotNumberEntityDescription(
         key="max_price",
         charger_key="awp",
@@ -988,6 +1063,17 @@ NUMBER_DESCRIPTIONS: tuple[WattpilotNumberEntityDescription, ...] = (
         key="start_charging_at",
         charger_key="fst",
         translation_key="start_charging_at",
+        native_min_value=0,
+        native_max_value=999999,
+        native_step=1,
+        native_unit_of_measurement="W",
+        device_class=NumberDeviceClass.POWER,
+        entity_category=EntityCategory.CONFIG,
+    ),
+    WattpilotNumberEntityDescription(
+        key="pv_surplus_stop_hysteresis",
+        charger_key="sh",
+        translation_key="pv_surplus_stop_hysteresis",
         native_min_value=0,
         native_max_value=999999,
         native_step=1,

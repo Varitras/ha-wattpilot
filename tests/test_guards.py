@@ -647,8 +647,10 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # and the price sensor (measured: 1322); again the same day for the
     # charging duration and four timings in seconds (measured: 1378). Raised
     # on 2026-10-11 for the fifteen readings per phase, approved by the owner
-    # (measured: 1415).
-    "descriptions.py": 1415,
+    # (measured: 1415); again the same day for the stop hysteresis, the
+    # minimum current, the current limits and the power per source,
+    # owner-approved (measured: 1501).
+    "descriptions.py": 1501,
     # The charger protocol in one class: connection lifecycle, message
     # dispatch, property table and the typed write paths. Adopted at 1220
     # lines; splitting it is a separate decision, not a side effect of taking

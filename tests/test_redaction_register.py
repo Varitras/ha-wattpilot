@@ -54,6 +54,8 @@ REPLACEMENTS = {
     **REPLACE,
     "ts": TIME_SERVER_REPLACEMENT,
     **{f"c{i}n": f"Card {i}" for i in range(10)},
+    # Free text outside the app's car profiles, shown by its shape (#25).
+    "ct": "<unknown: str of 17 chars>",
 }
 
 REPLACED = "replaced"

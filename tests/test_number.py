@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from homeassistant.const import EntityCategory
 
 from custom_components.wattpilot.descriptions import NUMBER_DESCRIPTIONS
 from custom_components.wattpilot.hub import WattpilotHub
@@ -38,9 +39,13 @@ async def make_number(
 
 
 def test_number_parity_with_fork() -> None:
-    # Additions this project chose: car consumption, the energy limit and
-    # the four timings set in seconds.
-    assert_platform_parity("number", NUMBER_DESCRIPTIONS, {"cco", "dwo", *SECOND_UIDS})
+    # Additions this project chose: car consumption, the energy limit, the
+    # four timings set in seconds, the stop hysteresis and the minimum current.
+    assert_platform_parity(
+        "number",
+        NUMBER_DESCRIPTIONS,
+        {"cco", "dwo", *SECOND_UIDS, "sh", "mca", "mca_22kw"},
+    )
 
 
 def test_amp_variants_are_disjoint() -> None:
@@ -202,3 +207,44 @@ async def test_short_timings_are_set_in_seconds(
 def test_the_second_timings_wait_to_be_enabled(uid: str) -> None:
     """Fine-tuning for a few; the owner's call: not created unasked."""
     assert by_uid(uid).entity_registry_enabled_default is False
+
+
+async def test_the_stop_hysteresis_is_set_in_watts(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A PV-surplus setting like the start power, so it ships enabled."""
+    fake_charger._properties["sh"] = 200
+    number = await make_number(hass, fake_charger, "sh")
+
+    assert number.native_value == 200
+    assert number.native_unit_of_measurement == "W"
+    # A fraction proves the wire type: 250 == 250.0 would pass as an int.
+    await number.async_set_native_value(250.5)
+    assert fake_charger.set_calls[-1] == ("sh", 250.5)
+    assert by_uid("sh").entity_registry_enabled_default is True
+    assert by_uid("sh").entity_category is EntityCategory.CONFIG
+
+
+@pytest.mark.parametrize(
+    ("uid", "variant", "ceiling"), [("mca", "11", 16.0), ("mca_22kw", "22", 32.0)]
+)
+async def test_the_minimum_current_stays_within_the_variant(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    uid: str,
+    variant: str,
+    ceiling: float,
+) -> None:
+    """Bounded like the maximum current, so no value outside the charger's
+    range can be written; created disabled, as few need it."""
+    description = by_uid(uid)
+    assert (description.variant, description.native_min_value) == (variant, 6.0)
+    assert description.native_max_value == ceiling
+    assert description.entity_registry_enabled_default is False
+    assert description.entity_category is EntityCategory.CONFIG
+
+    fake_charger._properties["mca"] = 6
+    number = await make_number(hass, fake_charger, uid)
+    await number.async_set_native_value(8.0)
+    assert fake_charger.set_calls[-1] == ("mca", 8)
+    assert isinstance(fake_charger.set_calls[-1][1], int)
