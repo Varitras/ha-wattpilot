@@ -529,6 +529,15 @@ async def test_a_flex_temperature_with_empty_slots_shows_the_hottest(
     assert sensor.extra_state_attributes == {"readings": readings}
 
 
+async def test_a_temperature_that_is_no_number_is_skipped(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """max() over a NaN is NaN (post-check PC6-06)."""
+    fake_charger._properties["tma"] = [float("nan"), 40.0]
+    sensor = await make_sensor(hass, fake_charger, "tma")
+    assert sensor.native_value == 40.0
+
+
 async def test_no_temperature_reading_is_unknown(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
@@ -730,10 +739,11 @@ async def test_one_bad_price_costs_only_itself(
     ]
 
 
-async def test_a_flex_schedule_with_a_text_start_gives_no_prices(
-    hass: HomeAssistant, fake_charger: FakeWattpilot
+@pytest.mark.parametrize("start", ["n/a", 10**400], ids=["text", "beyond_float"])
+async def test_a_flex_schedule_with_a_bad_start_gives_no_prices(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, start: Any
 ) -> None:
-    schedule = {"marketprice": [15.144], "start": "n/a", "interval": 3600}
+    schedule = {"marketprice": [15.144], "start": start, "interval": 3600}
     fake_charger._properties.update({"awcp": PRICE_HOUR, "awpl": schedule})
     sensor = await make_sensor(hass, fake_charger, "awcp")
 
@@ -794,6 +804,8 @@ def test_per_phase_readings_stay_out_of_the_recorder() -> None:
         # json.loads makes NaN and infinity of what the charger could send.
         ({"type": 0, "value": 2217901}, float("inf"), None),
         ({"type": 1, "value": float("nan")}, 14857, None),
+        # Each finite, their difference not (post-check PC6-01).
+        ({"type": 0, "value": -1.7e308}, 1.7e308, None),
     ],
 )
 async def test_charging_duration_in_minutes(

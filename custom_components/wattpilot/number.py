@@ -55,7 +55,8 @@ class WattpilotNumber(WattpilotEntity, NumberEntity):
             value = 0
         try:
             self._attr_native_value = float(value) / self.entity_description.wire_scale
-        except TypeError, ValueError:
+        # OverflowError: infinity, or an int past the float range (PC6-02).
+        except TypeError, ValueError, OverflowError:
             self._attr_native_value = None
 
     async def async_set_native_value(self, value: float) -> None:

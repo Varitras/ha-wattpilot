@@ -8,7 +8,7 @@ wrong shape as well as the right one.
 
 from __future__ import annotations
 
-import math
+import sys
 from typing import Any, TypeGuard
 
 from homeassistant.util import dt as dt_util
@@ -76,7 +76,8 @@ def _price_entry(entry: Any) -> dict[str, Any] | None:  # noqa: ANN401 -- charge
 
 def is_number(value: Any) -> TypeGuard[float]:  # noqa: ANN401 -- charger payload
     """Return whether *value* is finite: HA refuses NaN and infinity (PC5-R-01)."""
-    return isinstance(value, (int, float)) and math.isfinite(value)
+    # Not math.isfinite: an int past the float range raises there (PC6-01).
+    return isinstance(value, (int, float)) and abs(value) <= sys.float_info.max
 
 
 def number_or_none(value: Any) -> float | None:  # noqa: ANN401 -- charger payload
@@ -103,10 +104,18 @@ def charging_minutes(cdi: Any, boot_clock: Any) -> int | None:  # noqa: ANN401 -
     if not is_number(value):
         return None
     if kind == _CHARGING and is_number(boot_clock):
-        return int(boot_clock - value) // MILLISECONDS_PER_MINUTE
+        return _minutes(boot_clock - value)  # each finite, the difference need not be
     if kind == _STOPPED:
-        return int(value) // MILLISECONDS_PER_MINUTE
+        return _minutes(value)
     return None
+
+
+def _minutes(milliseconds: float) -> int | None:
+    return (
+        int(milliseconds) // MILLISECONDS_PER_MINUTE
+        if is_number(milliseconds)
+        else None
+    )
 
 
 def total_power(nrg: Any) -> float | None:  # noqa: ANN401 -- charger payload

@@ -45,7 +45,11 @@ from custom_components.wattpilot.const import (
     CONNECTION_LOCAL,
     DOMAIN,
 )
-from custom_components.wattpilot.descriptions import SENSOR_DESCRIPTIONS
+from custom_components.wattpilot.descriptions import (
+    NUMBER_DESCRIPTIONS,
+    SENSOR_DESCRIPTIONS,
+    TIME_DESCRIPTIONS,
+)
 
 from .conftest import FakeWattpilot
 from .test_config_flow import DISCOVERY, start_discovery_flow
@@ -1384,6 +1388,19 @@ async def test_a_reading_without_total_power_keeps_the_last_sessions_average_awa
     assert hass.states.get(entity_id).state == "0"
 
 
+async def test_a_total_power_that_is_no_number_is_not_idle(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A NaN total power counted as no current, and the average fell to
+    0 W a minute later (post-check PC6-06)."""
+    _, entity_id = await _average_power_while_charging(hass, fake_charger)
+
+    await _live_power(hass, fake_charger, float("nan"), after=5)
+    await _live_power(hass, fake_charger, float("nan"), after=65)
+
+    assert hass.states.get(entity_id).state == "unknown"
+
+
 async def test_an_average_that_is_no_number_mid_session_is_reported(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
@@ -1443,30 +1460,42 @@ NOT_A_NUMBER = {
     "infinity": float("inf"),
     "minus infinity": float("-inf"),
     "infinities": [float("inf")] * 16,
+    # An integer literal past the float range stays an int, and converting
+    # it raises OverflowError (post-check PC6-01).
+    "beyond_float": 10**400,
 }
 HOLDER = "Holder Example"
 
 
+# Every platform that turns a charger value into a number: the time and
+# number platforms raised OverflowError past their catch (post-check PC6-02).
+NUMERIC_DESCRIPTIONS = {
+    "sensor": [
+        description
+        for description in SENSOR_DESCRIPTIONS
+        if description.native_unit_of_measurement or description.state_class
+    ],
+    "number": list(NUMBER_DESCRIPTIONS),
+    "time": list(TIME_DESCRIPTIONS),
+}
+
+
 @pytest.mark.parametrize("kind", NOT_A_NUMBER)
-async def test_no_value_a_charger_sends_keeps_a_numeric_sensor_away(
+async def test_no_value_a_charger_sends_keeps_a_numeric_entity_away(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
     caplog: pytest.LogCaptureFixture,
     kind: str,
 ) -> None:
-    """Every numeric sensor, every malformed shape, at the boundary that
+    """Every numeric entity, every malformed shape, at the boundary that
     raised: the state write. A card's holder name never reaches the log --
     Home Assistant logged the raw card list when the write failed (RF-P-01)."""
-    numeric = [
-        description
-        for description in SENSOR_DESCRIPTIONS
-        if description.native_unit_of_measurement or description.state_class
-    ]
     bad = NOT_A_NUMBER[kind]
-    for description in numeric:
-        for key in (description.charger_key, description.companion_key):
-            if key is not None and key in fake_charger._properties:
-                fake_charger._properties[key] = bad
+    for descriptions in NUMERIC_DESCRIPTIONS.values():
+        for description in descriptions:
+            for key in (description.charger_key, description.companion_key):
+                if key is not None and key in fake_charger._properties:
+                    fake_charger._properties[key] = bad
     fake_charger._properties["cards"] = [{"name": HOLDER, "energy": bad}] * 10
     # A Flex's chips, which the fixture does not have (post-check PC5-T-01).
     fake_charger._properties.update({f"c{i}e": bad for i in range(10)})
@@ -1476,29 +1505,35 @@ async def test_no_value_a_charger_sends_keeps_a_numeric_sensor_away(
     entry.add_to_hass(hass)
     registry = er.async_get(hass)
     entity_ids = {
-        description.uid_suffix: registry.async_get_or_create(
-            "sensor", DOMAIN, f"123456-{description.uid_suffix}", config_entry=entry
+        (platform, description.uid_suffix): registry.async_get_or_create(
+            platform, DOMAIN, f"123456-{description.uid_suffix}", config_entry=entry
         ).entity_id
-        for description in numeric
+        for platform, descriptions in NUMERIC_DESCRIPTIONS.items()
+        for description in descriptions
     }
 
     assert await setup_entry(hass, entry, fake_charger)
 
     assert HOLDER not in caplog.text
-    supported = {description.uid_suffix for description in _supported(fake_charger)}
+    supported = {
+        (platform, description.uid_suffix)
+        for platform, descriptions in NUMERIC_DESCRIPTIONS.items()
+        for description in _supported(fake_charger, descriptions)
+    }
     never_added = sorted(
-        uid
-        for uid in supported & entity_ids.keys()
-        if hass.states.get(entity_ids[uid]) is None
+        key for key in supported if hass.states.get(entity_ids[key]) is None
     )
-    assert supported & entity_ids.keys(), "the sweep checked nothing"
+    platforms = {platform for platform, _ in supported}
+    assert platforms == NUMERIC_DESCRIPTIONS.keys(), "the sweep missed a platform"
     assert not never_added, f"never added: {never_added}"
 
 
+@pytest.mark.parametrize("kind", NOT_A_NUMBER)
 async def test_a_card_energy_that_is_no_number_logs_no_holder_name(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
     caplog: pytest.LogCaptureFixture,
+    kind: str,
 ) -> None:
     """Home Assistant logged the raw card list, holder names included, each
     time the state write of an enabled ID-chip sensor failed (RF-P-01)."""
@@ -1511,20 +1546,22 @@ async def test_a_card_energy_that_is_no_number_logs_no_holder_name(
     )
     assert await setup_entry(hass, entry, fake_charger)
 
-    fake_charger.push("cards", [{"name": HOLDER, "energy": "n/a", "cardId": True}])
+    fake_charger.push(
+        "cards", [{"name": HOLDER, "energy": NOT_A_NUMBER[kind], "cardId": True}]
+    )
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
     await hass.async_block_till_done()
 
     assert HOLDER not in caplog.text
 
 
-def _supported(charger: FakeWattpilot) -> list[Any]:
+def _supported(charger: FakeWattpilot, descriptions: list[Any]) -> list[Any]:
     from custom_components.wattpilot.descriptions import (  # noqa: PLC0415
         filter_supported,
     )
 
     return filter_supported(
-        SENSOR_DESCRIPTIONS,
+        descriptions,
         firmware=charger._properties.get("fwv"),
         variant=charger._properties.get("var"),
         properties=charger._properties,
