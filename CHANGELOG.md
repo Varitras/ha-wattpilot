@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0b1] - 2026-10-12
+
+The first candidate for 0.3.0: Wattpilot Flex support built from one
+owner's diagnostics, the readings per phase as sensors, the charger's
+current limits and the PV-surplus stop hysteresis, a plain device name
+for new installations, and the fixes from two audits. Requires Home
+Assistant 2026.9.0 or newer. Existing installations keep their names and
+entity IDs.
+
 ### Added
 
 - Voltage, current, power and power factor per phase as sensors of their
@@ -500,7 +509,8 @@ former builds on.
 - `trx` starts at its real value: `null` is that property's "no
   transaction", not the absence of a value.
 
-[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.3.0b1...HEAD
+[0.3.0b1]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0...v0.3.0b1
 [0.2.0]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2...v0.2.0
 [0.2.0b3]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0b2...v0.2.0b3
 [0.2.0b2]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0b1...v0.2.0b2
