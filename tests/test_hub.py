@@ -565,3 +565,73 @@ async def test_a_fresh_hub_does_not_claim_to_be_torn_down(
     hub = WattpilotHub(hass, ENTRY_ID, fake_charger)  # type: ignore[arg-type]
 
     assert hub.available
+
+
+async def test_a_recovery_is_announced_with_the_current_values(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The first replayed value announced the recovery, so every entity
+    showed its reading from before the outage -- charging, 11 kW -- until the
+    next flush, and `to: charging` automations fired on stale data. The
+    announcement now waits for the full status and comes after its values
+    (audit A18-20)."""
+    hub = make_hub(hass, fake_charger, update_interval=timedelta(seconds=5))
+    await hub.async_connect()
+    hub.start_dispatch()
+    events: list[tuple[str, Any]] = []
+    async_dispatcher_connect(
+        hass,
+        signal_availability(ENTRY_ID),
+        callback(lambda a: events.append(("available", a))),
+    )
+    async_dispatcher_connect(
+        hass,
+        signal_property(ENTRY_ID, "car"),
+        callback(lambda v: events.append(("car", v))),
+    )
+    start = dt_util.utcnow()
+    fake_charger.connected = False
+    async_fire_time_changed(hass, start + timedelta(seconds=31))
+    await hass.async_block_till_done()
+    assert events[-1] == ("available", False)
+
+    fake_charger.connected = True
+    fake_charger.properties_initialized = False  # the full status is replaying
+    fake_charger.push("car", 1)
+    await hass.async_block_till_done()
+    assert ("available", True) not in events, "announced before the full status"
+
+    fake_charger.properties_initialized = True
+    fake_charger.push("amp", 16)
+    await hass.async_block_till_done()
+    assert events[-2:] == [("car", 1), ("available", True)]
+
+
+async def test_a_recovery_is_logged_once_at_info(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The quality-scale rule log-when-unavailable: one line when the charger
+    goes, one when it comes back -- the serial masked in both."""
+    caplog.set_level(logging.INFO, logger="custom_components.wattpilot.hub")
+    hub = make_hub(hass, fake_charger)
+    await hub.async_connect()
+    hub.start_dispatch()
+    start = dt_util.utcnow()
+    fake_charger.connected = False
+    async_fire_time_changed(hass, start + timedelta(seconds=31))
+    await hass.async_block_till_done()
+    fake_charger.connected = True
+    fake_charger.push("amp", 16)
+    fake_charger.push("amp", 15)
+    await hass.async_block_till_done()
+
+    back = [
+        record
+        for record in caplog.records
+        if record.name == "custom_components.wattpilot.hub"
+        and record.levelno == logging.INFO
+        and record.getMessage() == "Charger ****56 is back online"
+    ]
+    assert len(back) == 1

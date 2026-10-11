@@ -103,7 +103,7 @@ class WattpilotHub:
             raise ConfigEntryError(
                 translation_domain=DOMAIN,
                 translation_key="wrong_charger",
-                # HA logs this message too; the repair notice keeps the full serial.
+                # Home Assistant logs this message as well.
                 translation_placeholders={
                     "expected": mask_serial(self.serial),
                     "found": mask_serial(err.found),
@@ -273,8 +273,12 @@ class WattpilotHub:
         # successful ws.close(), so a close that raised leaves it True while
         # the message loop behind it is already gone. Once this hub has torn
         # itself down, no update can reach an entity again whatever the
-        # client believes (audit VA-04).
-        return not self._torn_down and bool(self.charger.connected)
+        # client believes (audit VA-04). Nor before the full status (A18-20).
+        return (
+            not self._torn_down
+            and bool(self.charger.connected)
+            and bool(self.charger.properties_initialized)
+        )
 
     @property
     def properties(self) -> dict[str, Any]:
@@ -289,10 +293,6 @@ class WattpilotHub:
 
     @callback
     def _handle_property_change(self, key: str, value: Any) -> None:  # noqa: ANN401
-        # Availability is never buffered: a value push is proof the charger is
-        # reachable, and delaying that up to an interval would let a recovered
-        # charger keep showing as unavailable.
-        self._update_availability(available=True)
         if self._update_interval:
             # Held until the next flush; a newer value for the same key
             # overwrites the buffered one, so only the latest is delivered.
@@ -301,9 +301,11 @@ class WattpilotHub:
             async_dispatcher_send(
                 self._hass, signal_property(self._entry_id, key), value
             )
+        # Not buffered: once the full status is in, a recovery shows at once.
+        self._update_availability(available=self.available)
 
     @callback
-    def _flush_pending(self, _now: datetime) -> None:
+    def _flush_pending(self, _now: datetime | None = None) -> None:
         pending, self._pending = self._pending, {}
         for key, value in pending.items():
             async_dispatcher_send(
@@ -345,6 +347,18 @@ class WattpilotHub:
         # first connect is not a recovery and must not be announced as one.
         never_reported = self._last_available is None
         self._last_available = available
+        if available:
+            self._flush_pending()  # the values before the announcement (A18-20)
+        self._log_availability(
+            available=available, expected=expected, never_reported=never_reported
+        )
+        async_dispatcher_send(
+            self._hass, signal_availability(self._entry_id), available
+        )
+
+    def _log_availability(
+        self, *, available: bool, expected: bool, never_reported: bool
+    ) -> None:
         if never_reported:
             _LOGGER.debug("Charger %s connected", mask_serial(self.serial))
         elif available:
@@ -358,9 +372,6 @@ class WattpilotHub:
             # reserves WARNING for faults the user can act on, and a charger
             # that stopped answering is usually one somebody switched off.
             _LOGGER.info("Charger %s is unavailable", mask_serial(self.serial))
-        async_dispatcher_send(
-            self._hass, signal_availability(self._entry_id), available
-        )
 
     # ---- writes ----
 
@@ -388,8 +399,7 @@ class WattpilotHub:
 
     async def async_set_next_trip_energy(self, energy_wh: float) -> None:
         """Set the energy target for the next scheduled trip."""
-        # Verified on firmware 42.5: device holds fte=25000 with esk=True,
-        # i.e. Wh -- despite the vendor's parameter being named energy_kwh.
+        # Verified on firmware 42.5: device holds fte=25000 with esk=True, i.e. Wh.
         try:
             await self.charger.set_next_trip_energy(energy_wh)
         except _WRITE_ERRORS as err:

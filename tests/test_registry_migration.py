@@ -186,3 +186,25 @@ async def test_no_repair_issue_without_a_collision(
         )
         is None
     )
+
+
+async def test_the_collision_notice_goes_with_its_entry(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """Deleting the entry to start over left the notice about its entities
+    standing until Home Assistant restarted (audit A18-23)."""
+    entry = MockConfigEntry(domain=DOMAIN, data=V2_LOCAL_DATA, version=2)
+    entry.add_to_hass(hass)
+    seed(hass, entry, "number", "123456-amp")
+    seed(hass, entry, "number", "Wattpilot-amp")
+    assert await setup_entry(hass, entry, fake_charger)
+
+    await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert (
+        ir.async_get(hass).async_get_issue(
+            DOMAIN, f"migration_collision_{entry.entry_id}"
+        )
+        is None
+    )

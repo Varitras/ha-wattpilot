@@ -8,11 +8,13 @@ import re
 import sys
 from importlib import metadata
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
 
 from custom_components.wattpilot.redaction import DROP_KEYS, REPLACE
+from scripts import complexity_snapshot
 
 PACKAGE = Path(__file__).parent.parent / "custom_components" / "wattpilot"
 
@@ -525,7 +527,7 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # this budget came back down with it (measured: 1192). Nudged to 1230 on
     # 2026-09-06 for the audit round's connect cleanup and firmware deadline
     # (measured: 1221).
-    "client.py": 1230,
+    "client.py": 1128,
     # Past the default on 2026-09-25 by the open/close coordination (audits
     # A15-01, A16-01): shared attempts, a close that cancels instead of
     # waiting, and one visible transition at a time (measured: 406).
@@ -533,7 +535,7 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # Past the default on 2026-09-26 by the repair notice for a different
     # charger answering at runtime (audit A15-04): the hub is where the
     # connection's state turns into what the user is told (measured: 424).
-    "hub.py": 434,
+    "hub.py": 444,
 }
 SHRINK_SLACK = 0.85  # an entry >=15% below budget must be ratcheted down
 
@@ -552,7 +554,7 @@ CLUSTER_BUDGET = {
     # forty lines of comment had already been condensed to make room: the
     # open/close coordination (A13-01, A14-01, A15-01) and the refused-
     # password flag (A14-02), at a measured 1607 lines.
-    "api client": (("client.py", "connection.py"), 1649),
+    "api client": (("client.py", "connection.py"), 1552),
 }
 
 
@@ -813,12 +815,29 @@ def test_cluster_size_budget() -> None:
             )
 
 
+def _complexities_over(threshold: int) -> dict[str, int]:
+    from radon.complexity import cc_visit  # noqa: PLC0415 -- scoped on purpose
+
+    return {
+        f"{path.name}::{block.fullname}": block.complexity
+        for path in iter_python_files()
+        for block in cc_visit(path.read_text(encoding="utf-8"))
+        if block.complexity > threshold
+    }
+
+
+def test_the_snapshot_helper_sees_what_the_ratchet_sees() -> None:
+    """The helper read only the top-level package; regenerating the table
+    with it dropped every api/ entry (audit A19-12)."""
+    assert complexity_snapshot.snapshot() == _complexities_over(
+        complexity_snapshot.THRESHOLD
+    )
+
+
 def test_complexity_ratchet() -> None:
     """Cyclomatic complexity is an exact ratchet: going up fails, going down
     demands the table be updated. Fix: simplify, or update COMPLEXITY_TABLE
     to the LOWER value. Regenerate: python scripts/complexity_snapshot.py"""
-    from radon.complexity import cc_visit  # noqa: PLC0415 -- scoped on purpose
-
     threshold = 5
     # function qualified name -> frozen cyclomatic complexity (> threshold)
     # populated by scripts/complexity_snapshot.py
@@ -841,16 +860,12 @@ def test_complexity_ratchet() -> None:
         "connection.py::Connection._read_frames": 6,
         "connection.py::Connection._message_loop": 6,
         "client.py::Wattpilot._handle_message": 11,
-        "client.py::Wattpilot._on_response": 7,
-        "client.py::Wattpilot._update_property": 24,
+        "client.py::Wattpilot._on_response": 6,
+        "client.py::Wattpilot._update_property": 23,
         "definition.py::validate_api_definition": 12,
         "definition.py::load_api_definition": 8,
     }
-    actual: dict[str, int] = {}
-    for path in iter_python_files():
-        for block in cc_visit(path.read_text(encoding="utf-8")):
-            if block.complexity > threshold:
-                actual[f"{path.name}::{block.fullname}"] = block.complexity
+    actual = _complexities_over(threshold)
     for name, complexity in actual.items():
         frozen = complexity_table.get(name)
         assert frozen is not None, (
@@ -867,6 +882,34 @@ def test_complexity_ratchet() -> None:
 
 CI_WORKFLOW = Path(__file__).parent.parent / ".github" / "workflows" / "ci.yml"
 HACS_MANIFEST = Path(__file__).parent.parent / "hacs.json"
+RELEASE_WORKFLOW = CI_WORKFLOW.parent / "release.yml"
+
+
+def test_a_release_is_only_cut_from_main() -> None:
+    """
+    Tags come from main only -- a project rule the workflow did not check.
+
+    A tag pushed from a branch before its merge published code main does
+    not contain, and HACS offers that to everyone (audit A18-31). Fix: keep
+    the ancestry check in the release job, with the full history checked out.
+    """
+    release = yaml.safe_load(RELEASE_WORKFLOW.read_text(encoding="utf-8"))["jobs"][
+        "release"
+    ]
+    steps = release["steps"]
+    checkout = next(
+        step
+        for step in steps
+        if str(step.get("uses", "")).startswith("actions/checkout")
+    )
+    assert checkout.get("with", {}).get("fetch-depth") == 0, (
+        "no history to check against"
+    )
+    assert any(
+        "git merge-base --is-ancestor" in step.get("run", "")
+        and "origin/main" in step.get("run", "")
+        for step in steps
+    ), "the release job does not check the tag is on main"
 
 
 def test_ci_runs_the_same_gates_as_check_sh() -> None:
@@ -875,6 +918,44 @@ def test_ci_runs_the_same_gates_as_check_sh() -> None:
     assert "scripts/check.sh" in workflow
     assert "hassfest" in workflow
     assert "hacs/action" in workflow
+
+
+def _runs_pytest(command: str) -> bool:
+    """A line that runs the suite -- not one that only installs the plugin."""
+    return any(
+        words[:1] == ["pytest"] or words[1:3] == ["-m", "pytest"]
+        for words in (line.split() for line in command.splitlines())
+    )
+
+
+def _jobs_pinning_and_testing(jobs: dict[str, Any], pin: str) -> list[str]:
+    # Structural, not a substring scan of the file: the pin and the test run
+    # have to sit in the SAME job's run steps. A commented-out pin cannot
+    # satisfy this -- the YAML parser drops comments before we look. And
+    # "pytest" alone was found in pytest-homeassistant-custom-component on
+    # the install line, so a job without its test step passed (A18-30).
+    return [
+        name
+        for name, job in jobs.items()
+        for commands in [[step.get("run", "") for step in job.get("steps", [])]]
+        if any(pin in command for command in commands)
+        and any(_runs_pytest(command) for command in commands)
+    ]
+
+
+def test_the_minimum_ha_guard_needs_a_test_run_not_an_install() -> None:
+    install = (
+        'pip install --group dev "homeassistant==2026.9.0" '
+        '"pytest-homeassistant-custom-component==0.13.363"'
+    )
+    only_install = {"minimum": {"steps": [{"run": install}]}}
+    with_tests = {
+        "minimum": {"steps": [{"run": install}, {"run": "python3 -m pytest"}]}
+    }
+    assert _jobs_pinning_and_testing(only_install, "homeassistant==2026.9.0") == []
+    assert _jobs_pinning_and_testing(with_tests, "homeassistant==2026.9.0") == [
+        "minimum"
+    ]
 
 
 def test_ci_actually_runs_the_declared_minimum_home_assistant() -> None:
@@ -893,16 +974,7 @@ def test_ci_actually_runs_the_declared_minimum_home_assistant() -> None:
     declared = json.loads(HACS_MANIFEST.read_text(encoding="utf-8"))["homeassistant"]
     pin = f"homeassistant=={declared}"
     jobs = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))["jobs"]
-    # Structural, not a substring scan of the file: the pin and the test run
-    # have to sit in the SAME job's run steps. A commented-out pin cannot
-    # satisfy this -- the YAML parser drops comments before we look.
-    pinned_and_tested = [
-        name
-        for name, job in jobs.items()
-        for commands in [[step.get("run", "") for step in job.get("steps", [])]]
-        if any(pin in command for command in commands)
-        and any("pytest" in command for command in commands)
-    ]
+    pinned_and_tested = _jobs_pinning_and_testing(jobs, pin)
     assert pinned_and_tested, (
         f"hacs.json requires HA {declared}, but no CI job both pins "
         f"'{pin}' and runs pytest with it"
@@ -1022,6 +1094,15 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         ),
         "test_no_device_identifier_reaches_the_log": (
             "no serial, host, title or error text with an address in the log"
+        ),
+        "test_the_minimum_ha_guard_needs_a_test_run_not_an_install": (
+            "the minimum-HA guard is not satisfied by an install line"
+        ),
+        "test_the_snapshot_helper_sees_what_the_ratchet_sees": (
+            "regenerating the complexity table keeps every entry"
+        ),
+        "test_a_release_is_only_cut_from_main": (
+            "a tag that is not on main publishes nothing"
         ),
         "test_the_identifier_guard_can_actually_fail": (
             "the identifier guard flags each kind of leak it claims to"

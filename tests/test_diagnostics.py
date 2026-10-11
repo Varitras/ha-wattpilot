@@ -278,3 +278,13 @@ def test_the_flex_chip_readings_survive_the_redaction() -> None:
 )
 def test_text_that_only_looks_like_an_address_is_kept(value: str) -> None:
     assert sanitize_snapshot({"fwv": value})["fwv"] == value
+
+
+@pytest.mark.parametrize("empty", ["", None])
+def test_an_empty_value_is_not_replaced_by_a_real_looking_one(
+    empty: str | None,
+) -> None:
+    """An empty car profile became "default" -- a valid profile -- so the
+    diagnostics contradicted the select showing unknown (audit A18-28). An
+    empty value names nobody; it stays as it is."""
+    assert sanitize_snapshot({"ct": empty, "sse": empty}) == {"ct": empty, "sse": empty}

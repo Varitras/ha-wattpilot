@@ -14,6 +14,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The 0.2.0 notes said fractions work for all three timings now set in
+  minutes. They do for the two phase-switch timings; **Minimum charging
+  time** takes whole minutes from 1 to 60.
+- **Total energy** no longer falls across a reload or restart of Home
+  Assistant. After a charger restart it can report a few Wh less, which the
+  sensor held back -- but only until the integration reloaded, as it does
+  after a firmware update, and the energy dashboard then got a negative
+  hour.
+- Diagnostics keep an empty value empty. An empty car profile showed up
+  as "default", a real profile, contradicting the entity's unknown state.
+- The notice about entities that could not be migrated goes away with
+  the entry it is about, instead of staying until a restart.
+- A malformed address in the setup or reconfigure form -- an IPv6 address
+  without brackets, a mistyped port -- is reported at the address field
+  instead of as an unknown error.
 - On a Wattpilot Flex, three readings now work. **Charger temperature**
   shows the hottest of the Flex's temperature sensors, with all readings
   as an attribute; it stayed unknown, because the first of them is always
@@ -35,6 +50,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reconnect action failed while it was away, or a firmware update took
   longer than the integration waits for it. Either used to leave nothing
   retrying, so the charger stayed unavailable until a reload.
+- After an outage the entities come back with the charger's current
+  readings. They used to show their readings from before the outage --
+  charging at 11 kW, say -- for up to the update interval, which the
+  recorder kept and `to: charging` automations reacted to.
+- A single value the integration cannot read no longer takes the rest of
+  the charger's update with it, and no longer stalls the first connection
+  until it times out. A message that is not valid text is skipped instead
+  of stopping the reader. A charger asking for a password scheme the
+  integration does not know is refused with that scheme named, instead of
+  a bare timeout. A setting the charger accepted with an empty status is no
+  longer reported as unanswered.
 - Diagnostics from a Wattpilot Flex on Ethernet no longer contain the
   serial number in the Ethernet host name, the Ethernet addresses, the name
   servers and search domain, or the charger's address in the last cloud

@@ -160,18 +160,6 @@ class Wattpilot:
         self._all_props: dict[str, Any] = {}
 
         # Named property caches
-        self._voltage1: float | None = None
-        self._voltage2: float | None = None
-        self._voltage3: float | None = None
-        self._voltage_n: float | None = None
-        self._amps1: float | None = None
-        self._amps2: float | None = None
-        self._amps3: float | None = None
-        self._power1: float | None = None
-        self._power2: float | None = None
-        self._power3: float | None = None
-        self._power_n: float | None = None
-        self._power: float | None = None
         self._amp: int | None = None
         self._version: str | None = None
         self._firmware: str | None = None
@@ -291,66 +279,6 @@ class Wattpilot:
     def firmware(self) -> str | None:
         """Return the charger's firmware version, if known."""
         return self._firmware
-
-    @property
-    def voltage1(self) -> float | None:
-        """Return the L1 voltage in V."""
-        return self._voltage1
-
-    @property
-    def voltage2(self) -> float | None:
-        """Return the L2 voltage in V."""
-        return self._voltage2
-
-    @property
-    def voltage3(self) -> float | None:
-        """Return the L3 voltage in V."""
-        return self._voltage3
-
-    @property
-    def voltage_n(self) -> float | None:
-        """Return the neutral voltage in V."""
-        return self._voltage_n
-
-    @property
-    def amps1(self) -> float | None:
-        """Return the L1 current in A."""
-        return self._amps1
-
-    @property
-    def amps2(self) -> float | None:
-        """Return the L2 current in A."""
-        return self._amps2
-
-    @property
-    def amps3(self) -> float | None:
-        """Return the L3 current in A."""
-        return self._amps3
-
-    @property
-    def power1(self) -> float | None:
-        """Return the L1 power in kW."""
-        return self._power1
-
-    @property
-    def power2(self) -> float | None:
-        """Return the L2 power in kW."""
-        return self._power2
-
-    @property
-    def power3(self) -> float | None:
-        """Return the L3 power in kW."""
-        return self._power3
-
-    @property
-    def power_n(self) -> float | None:
-        """Return the neutral power in kW."""
-        return self._power_n
-
-    @property
-    def power(self) -> float | None:
-        """Return the total charging power in kW."""
-        return self._power
 
     @property
     def amp(self) -> int | None:
@@ -699,16 +627,16 @@ class Wattpilot:
         # come back as 08:30 (audit A12-06).
         await self.set_property("ftt", timestamp)
 
-    async def set_next_trip_energy(self, energy_kwh: float) -> None:
+    async def set_next_trip_energy(self, energy_wh: float) -> None:
         """
-        Set the energy requirement for the next trip in kWh.
+        Set the energy requirement for the next trip, in Wh.
 
-        Automatically sets the energy unit to kWh before updating.
+        Sets `esk` first; measured on FW 42.5, `fte` is then Wh (25000 = 25 kWh).
         """
         # FBT003 does not apply: the bool is the value being written to the
         # charger, not a flag steering this function.
         await self.set_property("esk", True)  # noqa: FBT003
-        await self.set_property("fte", energy_kwh)
+        await self.set_property("fte", energy_wh)
 
     async def enable_cloud_api(
         self,
@@ -1020,6 +948,11 @@ class Wattpilot:
 
     async def _on_auth_required(self, msg: SimpleNamespace) -> None:
         if hasattr(msg, "hash"):
+            if msg.hash not in AuthHashType:
+                # Unanswered, this was a timeout with no cause (A18-18).
+                msg_text = f"Unsupported password hash: {msg.hash}"
+                self._connection.fail(WattpilotConnectionError(msg_text))
+                return
             self._auth_hash_type = AuthHashType(msg.hash)
         elif self._device.device_type == WPFLEX_DEVICE_TYPE:
             self._auth_hash_type = AuthHashType.BCRYPT
@@ -1043,16 +976,23 @@ class Wattpilot:
         self._connection.fail(AuthenticationError(error_msg))
 
     def _on_full_status(self, msg: SimpleNamespace) -> None:
-        props = msg.status.__dict__
-        for key, value in props.items():
-            self._update_property(key, value)
+        self._apply_status(msg.status)
         self._connection.receive_full_status(partial=getattr(msg, "partial", False))
 
     def _on_delta_status(self, msg: SimpleNamespace) -> None:
         self._connection.receive_delta_status()
-        props = msg.status.__dict__
-        for key, value in props.items():
-            self._update_property(key, value)
+        self._apply_status(msg.status)
+
+    def _apply_status(self, status: object) -> None:
+        # wattpilot: one property at a time. A value this client cannot
+        # read cost the rest of its frame, and in the last chunk of the
+        # first full status the status never completed (audit A18-16).
+        # A status that is no object (`null`) has nothing to apply.
+        for key, value in getattr(status, "__dict__", {}).items():
+            try:
+                self._update_property(key, value)
+            except ValueError, TypeError, LookupError, AttributeError:
+                _LOGGER.warning("Ignoring an unreadable value for %s", key)
 
     def _on_response(self, msg: SimpleNamespace) -> None:
         # wattpilot: resolve the waiting command (audit VA-03). An answer
@@ -1062,9 +1002,7 @@ class Wattpilot:
         future = self._pending_commands.get(_correlation_key(request_id))
         if msg.success:
             # Nothing in the protocol promises a status on every acceptance.
-            status = getattr(msg, "status", SimpleNamespace())
-            for key, value in vars(status).items():
-                self._update_property(key, value)
+            self._apply_status(getattr(msg, "status", None))
             if future is not None and not future.done():
                 future.set_result(None)
             return
@@ -1079,7 +1017,7 @@ class Wattpilot:
     # The charger's key-to-attribute table, written as a match. Every arm is
     # two lines and independent of the others -- splitting it would turn one
     # readable table into several partial ones.
-    def _update_property(  # noqa: C901, PLR0912, PLR0915
+    def _update_property(  # noqa: C901, PLR0912
         self,
         name: str,
         value: Any,  # noqa: ANN401 -- charger values are dynamically typed
@@ -1117,19 +1055,6 @@ class Wattpilot:
                 self._car_connected = value
             case "alw":
                 self._allow_charging = value
-            case "nrg":
-                self._voltage1 = value[0]
-                self._voltage2 = value[1]
-                self._voltage3 = value[2]
-                self._voltage_n = value[3]
-                self._amps1 = value[4]
-                self._amps2 = value[5]
-                self._amps3 = value[6]
-                self._power1 = value[7] * 0.001
-                self._power2 = value[8] * 0.001
-                self._power3 = value[9] * 0.001
-                self._power_n = value[10] * 0.001
-                self._power = value[11] * 0.001
             case "amp":
                 self._amp = value
             case "version":
@@ -1201,25 +1126,3 @@ class Wattpilot:
         # its signature, and setValue carries whatever is being written.
         _LOGGER.debug("Sending: %s (key=%s)", message.get("type"), message.get("key"))
         await self._connection.send(json.dumps(message))
-
-    def __str__(self) -> str:
-        """Return a short human-readable summary of the charger's state."""
-        if not self.connected:
-            return "Not connected"
-        lines = [
-            f"Wattpilot: {self.name}",
-            f"Serial: {self.serial}",
-            f"Connected: {self.connected}",
-            f"Car Connected: {self.car_connected}",
-            f"Charge Status: {self.allow_charging}",
-            f"Mode: {self.mode}",
-            f"Power: {self.amp}",
-        ]
-        if self.power is not None:
-            lines.append(
-                f"Charge: {self.power:.2f}kW -- "
-                f"{self.voltage1}V/{self.voltage2}V/{self.voltage3}V -- "
-                f"{self.amps1:.2f}A/{self.amps2:.2f}A/{self.amps3:.2f}A -- "
-                f"{self.power1:.2f}kW/{self.power2:.2f}kW/{self.power3:.2f}kW"
-            )
-        return "\n".join(lines)

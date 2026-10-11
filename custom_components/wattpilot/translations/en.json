@@ -21,6 +21,7 @@
     },
     "error": {
       "cannot_connect": "Cannot connect to the charger",
+      "invalid_host": "The address is not a valid host name or IP address; an IPv6 address goes in brackets",
       "invalid_auth": "Invalid password",
       "charger_has_entry": "This charger already has an entry of its own; delete one of the two",
       "wrong_device": "The charger at this address has a different serial number"
@@ -101,7 +102,7 @@
     },
     "migration_collision": {
       "title": "Some entities could not be migrated",
-      "description": "These entities from a previously installed Wattpilot integration keep their old identifier, because an entity with the new one already exists: {entities}.\n\nNothing was deleted. Each of them still holds its history, entity ID and customisations, but no longer belongs to a loaded integration, so it shows as unavailable. The entity that is loaded is the one that was already there.\n\nDecide per entity which one to keep: delete the unavailable one if its history does not matter to you, or delete the loaded one and restart Home Assistant, so the old one is adopted in its place."
+      "description": "These entities from a previously installed Wattpilot integration keep their old identifier, because an entity with the new one already exists: {entities}.\n\nNothing was deleted. Each of them still holds its history, entity ID and customisations, but no longer belongs to a loaded integration, so it shows as unavailable. The entity that is loaded is the one that was already there.\n\nDelete the unavailable ones in their entity settings once their history no longer matters to you; the loaded ones carry on. The old ones cannot take the loaded ones' place: Home Assistant does not let you delete an entity an integration provides."
     }
   },
   "entity": {

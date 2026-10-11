@@ -374,14 +374,14 @@ class Connection:
                 # wrong device's amp reached the cache (audit A12-02).
                 _LOGGER.debug("Dropping a frame that arrived after the refusal")
                 break
-            raw = frame.decode("utf-8") if isinstance(frame, bytes) else frame
             try:
+                raw = frame.decode("utf-8") if isinstance(frame, bytes) else frame
                 await self._handle_frame(raw)
             except ValueError, TypeError, AttributeError, LookupError:
-                # One unreadable frame used to end the loop with the socket
-                # open (A11-06). LookupError: an empty `nrg` is indexed into.
-                # Errors of the connection itself are deliberately not caught.
-                _LOGGER.warning("Ignoring an unreadable frame (%d bytes)", len(raw))
+                # One unreadable frame -- bad JSON, bytes that are not UTF-8 --
+                # ended the loop with the socket open (A11-06, A19-08). Errors
+                # of the connection itself are deliberately not caught.
+                _LOGGER.warning("Ignoring an unreadable frame (%d bytes)", len(frame))
 
     async def _message_loop(self) -> None:
         # Started without a socket (resume_reconnecting), it begins in its backoff.

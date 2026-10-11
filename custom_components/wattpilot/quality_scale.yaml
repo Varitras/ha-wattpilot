@@ -65,7 +65,9 @@ rules:
     comment: Logged once per state change, not once per update.
   parallel-updates: done
   reauthentication-flow: done
-  test-coverage: done
+  # 97 % overall, but api/definition.py 71 % and api/auth.py 92 % (measured
+  # 2026-10-10); the rule asks for above 95 % in every module.
+  test-coverage: todo
 
   # --- Gold ---
   devices: done

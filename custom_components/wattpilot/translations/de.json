@@ -21,6 +21,7 @@
     },
     "error": {
       "cannot_connect": "Verbindung zum Ladegerät nicht möglich",
+      "invalid_host": "Die Adresse ist kein gültiger Hostname und keine gültige IP-Adresse; eine IPv6-Adresse in eckige Klammern setzen",
       "invalid_auth": "Ungültiges Passwort",
       "charger_has_entry": "Für dieses Ladegerät gibt es bereits einen eigenen Eintrag; einen der beiden löschen",
       "wrong_device": "Das Ladegerät unter dieser Adresse hat eine andere Seriennummer"
@@ -101,7 +102,7 @@
     },
     "migration_collision": {
       "title": "Einige Entitäten konnten nicht migriert werden",
-      "description": "Diese Entitäten einer früher installierten Wattpilot-Integration behalten ihre alte Kennung, weil bereits eine Entität mit der neuen existiert: {entities}.\n\nEs wurde nichts gelöscht. Jede von ihnen trägt weiterhin ihre Historie, Entitäts-ID und Anpassungen, gehört aber zu keiner geladenen Integration mehr und erscheint deshalb als nicht verfügbar. Geladen ist jeweils die Entität, die bereits vorhanden war.\n\nEntscheide je Entität, welche bleiben soll: die nicht verfügbare löschen, wenn dir ihre Historie egal ist — oder die geladene löschen und Home Assistant neu starten, damit die alte an ihre Stelle tritt."
+      "description": "Diese Entitäten einer früher installierten Wattpilot-Integration behalten ihre alte Kennung, weil bereits eine Entität mit der neuen existiert: {entities}.\n\nEs wurde nichts gelöscht. Jede von ihnen trägt weiterhin ihre Historie, Entitäts-ID und Anpassungen, gehört aber zu keiner geladenen Integration mehr und erscheint deshalb als nicht verfügbar. Geladen ist jeweils die Entität, die bereits vorhanden war.\n\nDie nicht verfügbaren Entitäten in ihren Einstellungen löschen, sobald ihre Historie nicht mehr gebraucht wird; die geladenen laufen weiter. An die Stelle der geladenen können die alten nicht treten: Eine Entität, die eine Integration bereitstellt, lässt Home Assistant nicht löschen."
     }
   },
   "entity": {
