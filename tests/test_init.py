@@ -1346,6 +1346,25 @@ async def test_the_average_power_falls_to_zero_a_minute_after_charging_stops(
     assert hass.states.get(entity_id).state == "0", "and its end"
 
 
+async def test_a_reading_without_total_power_keeps_the_last_sessions_average_away(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A push without a total power between sessions forgot which average
+    was stale, and the next session's first watt showed it (post-check
+    PC5-R-03)."""
+    _, entity_id = await _average_power_while_charging(hass, fake_charger)
+    await _live_power(hass, fake_charger, 0, after=5)
+    await _live_power(hass, fake_charger, 0, after=60)
+    assert hass.states.get(entity_id).state == "0"
+
+    fake_charger.push("nrg", [])
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
+    await hass.async_block_till_done()
+    await _live_power(hass, fake_charger, 4100, after=5)
+
+    assert hass.states.get(entity_id).state == "0"
+
+
 async def test_an_average_that_is_no_number_mid_session_is_reported(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,

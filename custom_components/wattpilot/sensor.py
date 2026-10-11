@@ -429,8 +429,10 @@ class WattpilotAveragePowerSensor(WattpilotSensor):
 
     def _show_live(self, value: Any, live: float | None) -> None:  # noqa: ANN401 -- charger payload
         if live and value == self._stale:
-            return  # 0 W until this session's own average (RF-D-04)
-        self._stale = None
+            self._attr_native_value = 0  # until this session's own average (RF-D-04)
+            return
+        if live:
+            self._stale = None  # kept through an unknown reading (PC5-R-03)
         # Unknown when the live reading is: no telling a stale average.
         super()._apply_value(value if live else None)
 

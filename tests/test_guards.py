@@ -653,7 +653,9 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # 457 the same day, owner-approved: a new session reads 0 W until its own
     # average arrives (reaudit RF-D-04). 463 the same day, owner-approved: one
     # finite-number check for every number a sensor takes (post-check PC5-R-01).
-    "sensor.py": 463,
+    # 465 the same day, owner-approved: the stale average outlasts an unknown
+    # reading (post-check PC5-R-03).
+    "sensor.py": 465,
     # The charger protocol in one class: connection lifecycle, message
     # dispatch, property table and the typed write paths. Adopted at 1220
     # lines; splitting it is a separate decision, not a side effect of taking
