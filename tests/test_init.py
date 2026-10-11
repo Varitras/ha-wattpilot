@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import errno
 import logging
+from dataclasses import replace
 from datetime import timedelta
+from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
@@ -1029,17 +1031,37 @@ async def test_an_ignored_card_does_not_block_the_serial_adoption(
 async def test_adopting_the_serial_closes_the_charger_s_open_card(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
-    """The card would stay offered for a charger that is configured now."""
+    """The card would stay offered for a charger that is configured now --
+    and only that card: closing every flow of the domain passed too
+    (reaudit RF-E-03)."""
     await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": config_entries.SOURCE_ZEROCONF},
         data=DISCOVERY,
     )
+    other = replace(
+        DISCOVERY,
+        ip_address=ip_address("192.168.1.61"),
+        ip_addresses=[ip_address("192.168.1.61")],
+        properties={**DISCOVERY.properties, "serial": "654321"},
+    )
+    await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=other
+    )
+    await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
     entry = _awaiting_fork_entry()
 
     assert await setup_entry(hass, entry, fake_charger)
 
-    assert hass.config_entries.flow.async_progress_by_handler(DOMAIN) == []
+    left = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    assert sorted(flow["context"]["source"] for flow in left) == ["user", "zeroconf"]
+    assert [
+        flow["context"].get("unique_id")
+        for flow in left
+        if flow["context"]["source"] == "zeroconf"
+    ] == ["654321"]
 
 
 async def test_only_the_adopted_charger_s_ignored_card_is_removed(
