@@ -18,6 +18,7 @@ from custom_components.wattpilot.descriptions import (
     filter_supported,
 )
 from custom_components.wattpilot.hub import WattpilotHub
+from custom_components.wattpilot.readings import describe_shape
 from custom_components.wattpilot.sensor import WattpilotSensor
 
 from .parity import assert_platform_parity
@@ -406,10 +407,10 @@ def test_each_charger_gets_the_chip_sensors_of_its_own_shape(
 
 def test_the_log_names_a_shape_without_repeating_the_value() -> None:
     """What the warning is allowed to say about a payload it cannot use."""
-    assert sensor_platform._describe_shape([1, 2, 3]) == "list of 3"
-    assert sensor_platform._describe_shape((1,)) == "tuple of 1"
-    assert sensor_platform._describe_shape({"a": 1, "b": 2}) == "dict of 2"
-    assert sensor_platform._describe_shape("garbage") == "str"
+    assert describe_shape([1, 2, 3]) == "list of 3"
+    assert describe_shape((1,)) == "tuple of 1"
+    assert describe_shape({"a": 1, "b": 2}) == "dict of 2"
+    assert describe_shape("garbage") == "str"
 
 
 async def test_a_missing_card_slot_leaks_no_names_into_the_log(
