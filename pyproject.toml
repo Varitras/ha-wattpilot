@@ -22,7 +22,9 @@ dev = [
     "websockets>=14.0",
     "pytest>=9.0.0",
     "pytest-homeassistant-custom-component",
-    "ruff>=0.15.0",
+    # Exact as well: a new ruff brings new rules, and a floor let 0.17 fail
+    # lint in a fresh environment with no change to the code.
+    "ruff==0.17.0",
     "mypy>=1.16.0",
     "radon>=6.0.0",
     # Exact, unlike the rest: a new mutmut makes new mutants, so a floor let
