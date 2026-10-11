@@ -245,8 +245,6 @@ class Wattpilot:
         """Return whether the charger has sent its full state once."""
         return self._connection.initialized
 
-    # ---- Additional typed properties ----
-
     # Device info
 
     @property
@@ -606,7 +604,7 @@ class Wattpilot:
             case "authSuccess":
                 self._on_auth_success(ns)
             case "authError":
-                self._on_auth_error(ns)
+                await self._on_auth_error(ns)
             case "fullStatus":
                 self._on_full_status(ns)
             case "deltaStatus":
@@ -671,10 +669,11 @@ class Wattpilot:
         self._connection.mark_authenticated()
         _LOGGER.debug("Authentication successful")
 
-    def _on_auth_error(self, msg: SimpleNamespace) -> None:
+    async def _on_auth_error(self, msg: SimpleNamespace) -> None:
         error_msg = getattr(msg, "message", "Unknown auth error")
         _LOGGER.error("Authentication failed: %s", error_msg)
-        self._connection.fail(AuthenticationError(error_msg))
+        # Rejected, not failed: after authSuccess the socket stayed open (PC2-02).
+        await self._connection.reject(AuthenticationError(error_msg))
 
     def _on_full_status(self, msg: SimpleNamespace) -> None:
         self._apply_status(msg.status)

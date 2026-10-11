@@ -1221,3 +1221,28 @@ async def test_every_way_in_leaves_recovery_as_it_found_it(
     finally:
         await connection.close()
     assert _running_loops() == [], "a loop outlived the close"
+
+
+async def test_a_password_refused_after_sign_in_drops_the_connection(
+    client: Wattpilot,
+) -> None:
+    """An authError after authSuccess set the refusal but left the socket open
+    and the client signed in until the next frame: the entities stayed
+    available while the reauthentication started (post-check PC2-02)."""
+    socket = FakeSocket(
+        [
+            json.dumps({"type": "authSuccess"}),
+            json.dumps({"type": "authError", "message": "wrong password"}),
+        ]
+    )
+    connection = client._connection
+    connection.socket = socket  # type: ignore[assignment]
+    connection.message_loop_task = asyncio.create_task(connection._message_loop())
+    await _settle(lambda: connection.fatal_error is not None)
+    await _settle(lambda: socket.closed)
+
+    try:
+        assert socket.closed, "the refused socket stayed open"
+        assert not client.connected
+    finally:
+        await connection.close()
