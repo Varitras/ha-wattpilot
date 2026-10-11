@@ -976,8 +976,11 @@ async def test_only_the_adopted_charger_s_ignored_card_is_removed(
 
 
 async def _total_energy_after_restore(
-    hass: HomeAssistant, fake_charger: FakeWattpilot, restored: int, reported: int
-) -> tuple[str, int]:
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    restored: int,
+    reported: int | None,
+) -> tuple[str, int | None]:
     """Set the entry up with *restored* Wh saved and *reported* Wh live."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
@@ -1011,8 +1014,10 @@ async def _total_energy_after_restore(
     return entity_id, _total_energy_wh(hass, entity_id)
 
 
-def _total_energy_wh(hass: HomeAssistant, entity_id: str) -> int:
+def _total_energy_wh(hass: HomeAssistant, entity_id: str) -> int | None:
     state = hass.states.get(entity_id)
+    if state.state == "unknown":
+        return None
     factor = 1000 if state.attributes["unit_of_measurement"] == "kWh" else 1
     return round(float(state.state) * factor)
 
@@ -1072,6 +1077,26 @@ async def test_a_restored_total_from_another_charger_does_not_freeze_it(
         if record.name.startswith("custom_components.wattpilot")
         and record.levelno >= logging.WARNING
     ], "every reading must be read without complaint"
+
+
+async def test_a_restored_total_takes_the_first_number_after_an_unknown(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A restored total followed by a non-number dropped the next real
+    reading, with a TypeError warning about the wrong key (post-check PC-03)."""
+    entity_id, total = await _total_energy_after_restore(
+        hass, fake_charger, restored=2681214, reported=None
+    )
+    assert total is None
+
+    fake_charger.push("eto", 2681300)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+    await hass.async_block_till_done()
+
+    assert _total_energy_wh(hass, entity_id) == 2681300
+    assert "TypeError" not in caplog.text
 
 
 async def _average_power_while_charging(
