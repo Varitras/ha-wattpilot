@@ -155,7 +155,6 @@ class Wattpilot:
         self._all_props: dict[str, Any] = {}
 
         # Named property caches
-        self._version: str | None = None
         self._firmware: str | None = None
         self._cak: str | None = None
 
@@ -230,11 +229,6 @@ class Wattpilot:
     def manufacturer(self) -> str:
         """Return the manufacturer as the charger reports it."""
         return self._device.manufacturer
-
-    @property
-    def version(self) -> str | None:
-        """Return the charger's software version, if known."""
-        return self._version or self._device.version or None
 
     @property
     def firmware(self) -> str | None:
@@ -631,8 +625,6 @@ class Wattpilot:
         self._device.serial = msg.serial
         if hasattr(msg, "hostname"):
             self._device.name = msg.hostname
-        if hasattr(msg, "version"):
-            self._device.version = msg.version
         self._device.manufacturer = getattr(msg, "manufacturer", "")
         self._device.device_type = getattr(msg, "devicetype", "")
         if hasattr(msg, "secured"):
@@ -740,8 +732,6 @@ class Wattpilot:
         match name:
             case "cak":
                 self._cak = value
-            case "version":
-                self._version = value
             case "fwv":
                 self._firmware = value
 

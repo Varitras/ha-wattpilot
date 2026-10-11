@@ -17,7 +17,6 @@ from custom_components.wattpilot.api.exceptions import PropertyError
 
 # charger key -> (pushed value, property name on the client, expected value)
 SIMPLE_PROPERTIES: list[tuple[str, Any, str, Any]] = [
-    ("version", "1.2.3", "version", "1.2.3"),
     ("fwv", "42.5", "firmware", "42.5"),
 ]
 

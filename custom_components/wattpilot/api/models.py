@@ -81,8 +81,6 @@ class DeviceInfo:
     manufacturer: str = ""
     device_type: str = ""
     secured: int = 0
-    version: str = ""
-    firmware: str = ""
 
 
 @dataclass(frozen=True, slots=True)
