@@ -1291,6 +1291,36 @@ async def test_a_refusal_during_the_full_status_is_reported_as_itself(
     connection = client._connection
     connection.init_timeout = 30
 
-    async with asyncio.timeout(1):
-        with pytest.raises(AuthenticationError):
-            await connection.open()
+    try:
+        async with asyncio.timeout(1):
+            with pytest.raises(AuthenticationError):
+                await connection.open()
+    finally:
+        await connection.close()
+
+
+async def test_a_refusal_ends_the_wait_of_an_open_into_a_signed_in_reconnect(
+    client: Wattpilot,
+) -> None:
+    """The other branch of open(): the reconnect loop is signed in and the
+    full status pending, as when the reconnect action or the firmware wait
+    opens (post-check PC4-01, sibling of PC3-02)."""
+    from custom_components.wattpilot.api.exceptions import (  # noqa: PLC0415
+        AuthenticationError,
+    )
+
+    connection = client._connection
+    connection._reconnect_delay_min = 3600
+    connection.init_timeout = 30
+    connection.socket = FakeSocket([])  # type: ignore[assignment]
+    connection.message_loop_task = asyncio.create_task(connection._message_loop())
+    connection.mark_authenticated()
+    refusal = AuthenticationError("wrong password")
+    asyncio.get_running_loop().call_later(0.01, connection.fail, refusal)
+
+    try:
+        async with asyncio.timeout(1):
+            with pytest.raises(AuthenticationError):
+                await connection.open()
+    finally:
+        await connection.close()

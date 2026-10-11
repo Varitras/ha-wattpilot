@@ -105,7 +105,8 @@ class Connection:
         Move the authenticated state, and the two events that mirror it.
 
         One place, because there are three that used to flip the flag and a
-        waiter for the opposite edge now depends on them agreeing.
+        waiter for the opposite edge depends on them agreeing (fail() then
+        sets the authenticated one again, as a wake-up only).
         """
         self._authenticated = value
         if value:
@@ -323,7 +324,7 @@ class Connection:
         await self.socket.send(payload)
 
     async def _wait_for(self, what: str, event: asyncio.Event, seconds: float) -> None:
-        """Wait for a connection milestone, naming it if it never arrives."""
+        """Wait for a milestone, naming it if it never arrives; a refusal ends it."""
         try:
             await asyncio.wait_for(event.wait(), seconds)
         except TimeoutError as exc:

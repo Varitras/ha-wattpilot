@@ -27,6 +27,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A charger that refuses the password after first accepting it is shown
+  unavailable at once and asks for the password again. Its entities stayed
+  available for up to ten seconds, and during setup the refusal was
+  reported as a timeout and retried.
 - Diagnostics from a Wattpilot Flex replace three free-text fields nothing
   documents: the OCPP fallback card, the OCPP tariff text and an OTA
   field. Every top-level text field a Flex is known to report now has a
