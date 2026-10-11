@@ -39,7 +39,8 @@ def auto_enable_custom_integrations(
 # missed four (post-check PC5-T-04); 192.0.2.1 is the redaction's stand-in.
 IDENTIFIERS = re.compile(
     r"(?<![\d.])(?:123456|654321|999999|111111|222222|333333"
-    r"|(?!192\.0\.2\.1(?![\d]))\d{1,3}(?:\.\d{1,3}){3})(?![\d])"
+    r"|(?!192\.0\.2\.1(?![\d]))\d{1,3}(?:\.\d{1,3}){3}"
+    r"|(?:2001:db8|fe80):[0-9a-f:]*[0-9a-f])(?![\d])"
 )
 # Entity IDs of a device named after its host name carry the serial: the
 # accepted risk L-027 for installations from before names were stored.

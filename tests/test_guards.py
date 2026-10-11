@@ -16,6 +16,8 @@ import yaml
 from custom_components.wattpilot.redaction import DROP_KEYS, REPLACE
 from scripts import complexity_snapshot
 
+from .conftest import IDENTIFIERS
+
 PACKAGE = Path(__file__).parent.parent / "custom_components" / "wattpilot"
 
 
@@ -1279,6 +1281,13 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
             "regenerating the complexity table keeps every entry"
         ),
         "test_the_release_guard_can_actually_fail": "counter-check for it",
+        "test_the_log_check_knows_every_identifier_shape": (
+            "the log check sees serials, IPv4 and IPv6"
+        ),
+        "test_the_log_check_lets_ordinary_output_pass": "counter-check for it",
+        "test_the_log_check_outlasts_home_assistant": (
+            "the log check also reads what HA logs while it stops"
+        ),
         "test_a_release_is_only_cut_from_main": (
             "a tag that is not on main publishes nothing"
         ),
@@ -1363,3 +1372,50 @@ def test_every_guard_is_listed_in_the_index() -> None:
             f"{file_name}: guard(s) missing from GUARD_INDEX: "
             f"{sorted(actual - set(expected))} -- add one line saying what each holds."
         )
+
+
+# The log check in conftest.py is itself a guard; these keep it honest
+# (post-check PC6-04).
+@pytest.mark.parametrize(
+    "text",
+    [
+        "123456",
+        "333333",
+        "192.168.1.50",
+        "192.0.2.77",
+        "10.0.0.7",
+        "169.254.3.4",
+        "2001:db8::5",
+        "fe80::1",
+    ],
+)
+def test_the_log_check_knows_every_identifier_shape(text: str) -> None:
+    assert IDENTIFIERS.search(f"refused {text}: timeout")
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["192.0.2.1", "2026.10.0", "42.5", "12:34:56", "2026-10-11T08:54:56", "1234567"],
+)
+def test_the_log_check_lets_ordinary_output_pass(text: str) -> None:
+    assert not IDENTIFIERS.search(f"at {text} done")
+
+
+def test_the_log_check_outlasts_home_assistant() -> None:
+    """hass comes in through auto_enable_custom_integrations, and autouse
+    fixtures start in name order: only requesting the log fixtures first sets
+    them up before hass and tears them down after its stop (PC6-04)."""
+    tree = ast.parse(
+        (Path(__file__).parent / "conftest.py").read_text(encoding="utf-8")
+    )
+    hook = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "auto_enable_custom_integrations"
+    )
+    assert [arg.arg for arg in hook.args.args] == [
+        "no_identifier_reaches_the_log",
+        "drop_serial_masks",
+        "enable_custom_integrations",
+    ]
