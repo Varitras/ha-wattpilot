@@ -1285,6 +1285,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
             "the log check sees serials, IPv4 and IPv6"
         ),
         "test_the_log_check_lets_ordinary_output_pass": "counter-check for it",
+        "test_the_mutation_run_keeps_every_logic_module": (
+            "a module cannot drop out of the mutation run"
+        ),
         "test_the_log_check_outlasts_home_assistant": (
             "the log check also reads what HA logs while it stops"
         ),
@@ -1419,3 +1422,18 @@ def test_the_log_check_outlasts_home_assistant() -> None:
         "drop_serial_masks",
         "enable_custom_integrations",
     ]
+
+
+# The modules whose logic the mutation run measures. Code moved out of one
+# of them left the run unless the config followed by hand (post-check PC7-05).
+MUTATED_MODULES = {"__init__.py", "hub.py", "sensor.py", "readings.py"}
+
+
+def test_the_mutation_run_keeps_every_logic_module() -> None:
+    import tomllib  # noqa: PLC0415 -- scoped on purpose, only this test needs it
+
+    pyproject = tomllib.loads(
+        (PACKAGE.parent.parent / "pyproject.toml").read_text(encoding="utf-8")
+    )
+    mutated = {Path(path).name for path in pyproject["tool"]["mutmut"]["source_paths"]}
+    assert mutated >= MUTATED_MODULES, f"missing: {MUTATED_MODULES - mutated}"
