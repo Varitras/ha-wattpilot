@@ -335,10 +335,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # CONF_AWAITING_SERIAL on the local branch only: that entry is keyed
         # on the fork's unique_id (an IP, a friendly name, or nothing), so the
         # first successful connect may replace it with the serial -- see
-        # _adopt_serial. A cloud entry never gets that far, because setup
-        # refuses it outright, so the flag would be unreachable and untestable
-        # here. Whoever makes cloud entries reconfigurable to local adds it
-        # then, together with the test that makes it observable.
+        # _adopt_serial. A cloud entry awaits it by its connection type
+        # (awaits_serial), until Reconfigure makes it local.
         if old.get("connection") == "cloud":
             new_data = {
                 CONF_CONNECTION_TYPE: CONNECTION_CLOUD,
@@ -351,12 +349,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "host": old["ip_address"],
                 "password": old["password"],
                 CONF_AWAITING_SERIAL: True,
-                # Without a name the device took the host name, and every
-                # entity the fork lacked got the serial in its ID (RF-P-04).
-                CONF_NAME: new_device_name(
-                    hass, preferred=old.get("friendly_name"), exclude=entry.entry_id
-                ),
             }
+        # Without a name the device took the host name, and every entity the
+        # fork lacked got the serial in its ID (RF-P-04); a cloud entry too,
+        # once Reconfigure made it local (PC5-R-04).
+        new_data[CONF_NAME] = new_device_name(
+            hass, preferred=old.get("friendly_name"), exclude=entry.entry_id
+        )
         hass.config_entries.async_update_entry(
             entry, data=new_data, version=ENTRY_VERSION
         )

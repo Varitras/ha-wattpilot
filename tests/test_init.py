@@ -684,6 +684,25 @@ async def test_a_fork_entry_without_a_friendly_name_is_named_wattpilot(
     assert entry.data[CONF_NAME] == "Wattpilot"
 
 
+async def test_a_migrated_fork_cloud_entry_is_named_for_its_reconfigure(
+    hass: HomeAssistant,
+) -> None:
+    """Setup sends a cloud entry to Reconfigure, which keeps the stored name;
+    without one the device took the host name and new entity IDs carried the
+    serial (post-check PC5-R-04)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**V1_CLOUD_DATA, "friendly_name": "Garage"},
+        version=1,
+        title="Garage",
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry) is True
+
+    assert entry.data[CONF_NAME] == "Garage"
+
+
 async def test_migrate_keeps_a_current_entry_untouched(hass: HomeAssistant) -> None:
     """Home Assistant only calls this for older entries today, but nothing in
     the integration enforces that -- an entry already on the current version
