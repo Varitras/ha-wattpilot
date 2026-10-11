@@ -249,10 +249,12 @@ signalled at once.
 | **Some entities are missing** | They are either firmware- or variant-gated (not offered by your charger), or disabled by default. Check the disabled entities on the device page. |
 
 For a bug report, attach the entry's **Download diagnostics** output. It is
-redacted before it reaches you: serial number, host address, passwords, cloud
-API tokens, MAC addresses, IP addresses, Wi-Fi SSIDs, the log of
-neighbouring networks and free-text fields such as a load group name or a
-Wi-Fi error message are dropped or replaced.
+redacted before it reaches you: serial number, host names, passwords, cloud
+API tokens, MAC addresses, Wi-Fi SSIDs, ID-chip names, the log of
+neighbouring networks and free-text fields such as a load group name, a
+Wi-Fi error message or the last cloud error are dropped or replaced. MAC
+and IP addresses and the serial number are also replaced wherever they
+appear inside other text. Still look over the file before posting it.
 
 The log is masked as far as this integration reaches: its own messages and
 Home Assistant's messages about setting up the entry show only the last two

@@ -218,3 +218,63 @@ def test_free_text_a_charger_may_fill_is_not_passed_on(field: str, value: str) -
     group can be named after a place, a WiFi error can quote a network name."""
     sanitized = sanitize_snapshot({field: value})
     assert value not in json.dumps(sanitized)
+
+
+# A Wattpilot Flex on Ethernet, shaped after the keys a Flex owner reported
+# leaking; every value here is invented. The reference device reports none
+# of these keys, so name-based rules alone never saw them.
+FLEX_SNAPSHOT: dict[str, Any] = {
+    "sse": "91234567",
+    "hste": "Wattpilot-91234567",
+    "esi": "192.168.178.40",
+    "esg": "192.168.178.1",
+    "ess": "255.255.255.0",
+    "esd0": "192.168.178.1",
+    "esd1": "",
+    "dns": {
+        "dns0": "192.168.178.1",
+        "resolv": "nameserver 192.168.178.1\nsearch example-home.lan",
+    },
+    "cle": "connect to cloud failed via 192.168.178.40 (fe80::1c2b:3aff:fe4d:5e6f)",
+    "c0n": "Alice Example",
+    "c0i": True,
+    "c0e": 1234.5,
+    "c1n": "AB-CD 123",
+    "c1i": True,
+    "c1e": 99.0,
+}
+FLEX_IDENTIFIERS = (
+    "91234567",
+    "192.168.178",
+    "fe80::1c2b",
+    "example-home.lan",
+    "Alice Example",
+    "AB-CD 123",
+)
+
+
+def test_a_flex_on_ethernet_keeps_no_identifier_in_the_diagnostics() -> None:
+    """Diagnostics passed every key nobody had named: the Ethernet hostname
+    with the serial, the Ethernet addresses, resolv.conf, a cloud error
+    quoting the charger's address and the ID chips' holder names."""
+    exported = json.dumps(sanitize_snapshot(FLEX_SNAPSHOT))
+
+    leaked = [value for value in FLEX_IDENTIFIERS if value in exported]
+    assert not leaked, f"identifiers in the diagnostics: {leaked}"
+
+
+def test_the_flex_chip_readings_survive_the_redaction() -> None:
+    sanitized = sanitize_snapshot(FLEX_SNAPSHOT)
+
+    assert sanitized["c0n"] == "Card 0"
+    assert sanitized["c1n"] == "Card 1"
+    assert (sanitized["c0i"], sanitized["c0e"]) == (True, 1234.5)
+    assert sanitized["ess"] == "255.255.255.0", "a netmask names no network"
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["12:34:56", "43.5", "43.4-RC1 - BETA", "2026-10-09T10:00:00Z", "1.2.9", "::"],
+)
+def test_text_that_only_looks_like_an_address_is_kept(value: str) -> None:
+    assert sanitize_snapshot({"fwv": value})["fwv"] == value

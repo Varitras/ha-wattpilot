@@ -14,6 +14,7 @@ consumers, and there is nothing left to keep in sync by hand.
 
 from __future__ import annotations
 
+import ipaddress
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -56,6 +57,8 @@ REPLACE: dict[str, Any] = {
     "host": "Wattpilot_123456",
     "hsta": "Wattpilot_123456",
     "hsts": "Wattpilot_123456",
+    # The Ethernet hostname of a Wattpilot Flex, spelled with a hyphen.
+    "hste": "Wattpilot-123456",
     "wae": True,
     "ct": "default",  # carType free text identifies the owner's specific vehicle model
     # Free text nobody bounds: a load group named after a place, a WiFi error
@@ -63,7 +66,12 @@ REPLACE: dict[str, Any] = {
     # nothing about the next (audit A17-02).
     "log": "<redacted>",
     "wsm": "<redacted>",
+    # Readable on the reference device, a TLS error; on a Flex on Ethernet
+    # it quotes the charger's address.
+    "cle": "<redacted>",
 }
+# Flex chip names (c0n..c9n), the flat counterpart of cards[].name.
+CHIP_NAME_KEY = re.compile(r"c(\d)n")
 # Both separators, colon and hyphen, each consistent across the address.
 # The sentinel below is intentionally non-hex so it is never re-matched here.
 MAC_RE = re.compile(
@@ -92,13 +100,22 @@ NET_FIELDS = frozenset(
         "ssid",
         "bssid",
         "ipv6",
+        "resolv",  # resolv.conf: name servers and the local search domain
     }
 )
 NET_REPLACEMENTS: dict[str, Any] = {
     "ssid": "TestNet",
     "bssid": MAC_SENTINEL,
     "ipv6": ["2001:db8::1"],  # RFC 3849 documentation prefix
+    "resolv": "<redacted>",
 }
+# Value-based nets for addresses inside text, whatever the key: name-based
+# rules only know the keys someone has seen, and a Flex on Ethernet reported
+# a dozen nobody had. ipaddress decides, so times and versions survive.
+IPV4_CANDIDATE = re.compile(r"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d.])")
+IPV6_CANDIDATE = re.compile(
+    r"(?<![\w:])[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?:%\w+)?(?![\w:])"
+)
 # Already-innocuous defaults: skipping them keeps the fixture faithful to what
 # the real firmware reports for unconfigured fields, while still closing the
 # hole for configured (i.e. actually identifying) ones.
@@ -123,14 +140,36 @@ def _is_safe_address(value: Any) -> bool:  # noqa: ANN401 -- untyped JSON
     return isinstance(value, str) and value in SAFE_ADDRESS_VALUES
 
 
-def scrub(value: Any) -> Any:  # noqa: ANN401 -- recurses over untyped JSON
-    """Replace MAC addresses and network-identifying fields in JSON values."""
+def _documentation_address(match: re.Match[str]) -> str:
+    """Swap an address for its documentation-range stand-in."""
+    text = match[0]
+    try:
+        address = ipaddress.ip_address(text.split("%")[0])
+    except ValueError:
+        return text
+    if text in SAFE_ADDRESS_VALUES:
+        return text
+    if address.version == 6:  # noqa: PLR2004 -- the IP version, not a count
+        return "2001:db8::1"
+    return "192.0.2.1"
+
+
+def _scrub_text(text: str, serial: str | None) -> str:
+    # Non-hex sentinel (see MAC_SENTINEL): a hex, MAC-shaped replacement
+    # would be re-matched by MAC_RE and trip the "no MAC leaked" guard.
+    text = MAC_RE.sub(MAC_SENTINEL, text)
+    if serial:
+        text = text.replace(serial, REPLACE["sse"])
+    text = IPV4_CANDIDATE.sub(_documentation_address, text)
+    return IPV6_CANDIDATE.sub(_documentation_address, text)
+
+
+def scrub(value: Any, serial: str | None = None) -> Any:  # noqa: ANN401 -- recurses over untyped JSON
+    """Replace MACs, addresses, the serial and network fields in JSON values."""
     if isinstance(value, str):
-        # Non-hex sentinel (see MAC_SENTINEL): a hex, MAC-shaped replacement
-        # would be re-matched by MAC_RE and trip the "no MAC leaked" guard.
-        return MAC_RE.sub(MAC_SENTINEL, value)
+        return _scrub_text(value, serial)
     if isinstance(value, dict):
-        cleaned = {k: scrub(v) for k, v in value.items()}
+        cleaned = {k: scrub(v, serial) for k, v in value.items()}
         for key, current in cleaned.items():
             net_key = key.lower().removeprefix("static")
             if net_key not in NET_FIELDS or _is_safe_address(current):
@@ -138,7 +177,7 @@ def scrub(value: Any) -> Any:  # noqa: ANN401 -- recurses over untyped JSON
             cleaned[key] = NET_REPLACEMENTS.get(net_key, "192.0.2.1")
         return cleaned
     if isinstance(value, list):
-        return [scrub(item) for item in value]
+        return [scrub(item, serial) for item in value]
     return value
 
 
@@ -167,8 +206,22 @@ def _sanitized_cards(value: Any) -> Any:  # noqa: ANN401 -- untyped JSON
     return [_sanitized_card(i, card) for i, card in enumerate(value)]
 
 
-def sanitize_property(key: str, value: Any) -> Any:  # noqa: ANN401 -- untyped JSON
-    """Sanitize one charger property. Callers must skip DROP_KEYS first."""
+_KEEP = object()
+
+
+def _replacement_for(key: str) -> Any:  # noqa: ANN401 -- untyped JSON
+    chip = CHIP_NAME_KEY.fullmatch(key)
+    if chip:
+        return f"Card {chip[1]}"
+    return REPLACE.get(key, _KEEP)
+
+
+def sanitize_property(key: str, value: Any, serial: str | None = None) -> Any:  # noqa: ANN401 -- untyped JSON
+    """
+    Sanitize one charger property. Callers must skip DROP_KEYS first.
+
+    *serial* is the charger's own, removed from any text that quotes it.
+    """
     if key == "cards":
         return _sanitized_cards(value)
     if key == "cci":
@@ -182,7 +235,7 @@ def sanitize_property(key: str, value: Any) -> Any:  # noqa: ANN401 -- untyped J
             # took the whole diagnostics download with it -- the one thing a
             # user needs when reporting a problem (VA-12).
             return UNEXPECTED_SHAPE
-        companion = scrub(value)
+        companion = scrub(value, serial)
         companion.update(
             id="00000000", label="Companion Device", commonName="companion-0.0e-0_0"
         )
@@ -194,15 +247,19 @@ def sanitize_property(key: str, value: Any) -> Any:  # noqa: ANN401 -- untyped J
         # both match by name at any depth and `smd` carries a numeric `ts` of
         # its own -- a timestamp, which must survive (audit VA-07).
         return TIME_SERVER_REPLACEMENT
-    if key in REPLACE:
-        return REPLACE[key]
-    return scrub(value)
+    replacement = _replacement_for(key)
+    if replacement is not _KEEP:
+        return replacement
+    return scrub(value, serial)
 
 
 def sanitize_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
     """Return a property snapshot with identifying values dropped or replaced."""
+    serial = snapshot.get("sse")
+    if not isinstance(serial, str):
+        serial = None
     return {
-        key: sanitize_property(key, value)
+        key: sanitize_property(key, value, serial)
         for key, value in snapshot.items()
         if key not in DROP_KEYS
     }

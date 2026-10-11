@@ -86,7 +86,8 @@ REGISTER: dict[str, str] = {
     "cid": "readable (LED colour)",
     "cwc": "readable (LED colour)",
     "ccrv": "readable (recommended charge-controller version)",
-    "cle": "readable (last cloud error text, needed for support)",
+    # A TLS error here, but on a Flex on Ethernet it quotes the charger IP.
+    "cle": REPLACED,
     "cy": "readable (country for the tariff, coarse by design)",
     "dfam": "readable (device family, same for every Wattpilot)",
     "ens": "readable (empty on this firmware; no known identifier)",
