@@ -51,7 +51,7 @@ class WattpilotTime(WattpilotEntity, TimeEntity):
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
         try:
             seconds = int(value) % _SECONDS_PER_DAY
-        # OverflowError: infinity, or an int past the float range (PC6-02).
+        # OverflowError: infinity (PC6-02).
         except TypeError, ValueError, OverflowError:
             self._attr_native_value = None
             return
