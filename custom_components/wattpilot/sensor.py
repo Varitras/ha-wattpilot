@@ -7,6 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
+    NON_NUMERIC_DEVICE_CLASSES,
     RestoreSensor,
     SensorDeviceClass,
     SensorEntity,
@@ -101,7 +102,8 @@ def _price_schedule(value: Any) -> list[dict[str, Any]]:  # noqa: ANN401 -- dyna
     prices = _namespace_get(value, "marketprice")
     start = _namespace_get(value, "start")
     interval = _namespace_get(value, "interval")
-    if not isinstance(prices, list) or start is None or interval is None:
+    numbers = all(isinstance(x, (int, float)) for x in (start, interval))
+    if not (numbers and isinstance(prices, list)):
         return []
     return [
         {
@@ -117,14 +119,39 @@ def _price_list(value: Any) -> list[dict[str, Any]]:  # noqa: ANN401 -- dynamica
     """Return the charger's price list, with its unix times as datetimes."""
     if not isinstance(value, list):
         value = _price_schedule(value)
-    return [
-        {
+    return [price for price in map(_price_entry, value) if price is not None]
+
+
+def _price_entry(entry: Any) -> dict[str, Any] | None:  # noqa: ANN401 -- charger payload
+    """One price; None for an entry without usable unix times (RF-D-03)."""
+    try:
+        return {
             "start": dt_util.utc_from_timestamp(_namespace_get(entry, "start")),
             "end": dt_util.utc_from_timestamp(_namespace_get(entry, "end")),
             "price": _namespace_get(entry, "marketprice"),
         }
-        for entry in value
-    ]
+    except TypeError, ValueError, OverflowError, OSError:
+        return None
+
+
+def _number_or_none(value: Any) -> float | None:  # noqa: ANN401 -- charger payload
+    """Pass a number or None on; anything else is a malformed push."""
+    if value is None or isinstance(value, (int, float)):
+        return value
+    raise TypeError(type(value).__name__)
+
+
+def _expects_number(description: WattpilotSensorEntityDescription) -> bool:
+    """Home Assistant's rule: such a sensor's state must be a number (K-A)."""
+    if description.device_class in NON_NUMERIC_DEVICE_CLASSES or description.enum:
+        return False
+    numeric_marks = (
+        description.device_class,
+        description.state_class,
+        description.native_unit_of_measurement,
+        description.suggested_display_precision,
+    )
+    return any(mark is not None for mark in numeric_marks)
 
 
 class WattpilotSensor(WattpilotEntity, SensorEntity):
@@ -135,10 +162,13 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
     # readings that differ in nearly every update while charging: history
     # of either would only fill the recorder.
     _unrecorded_attributes = frozenset({"prices", "readings", *NRG_ATTRIBUTES})
+    # Held against, not an unknown a null left on display (RF-D-02).
+    _last_number: float | None = None
 
     def __init__(self, *args: Any) -> None:  # noqa: ANN401 -- forwards WattpilotEntity's args unchanged
         """Set the ID-chip index placeholder, if this sensor has one."""
         super().__init__(*args)
+        self._expects_number = _expects_number(self.entity_description)
         if self.entity_description.chip_index is not None:
             self._attr_translation_placeholders = {
                 "index": str(self.entity_description.chip_index)
@@ -160,18 +190,8 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
             if description.enum is not None:
                 self._attr_native_value = description.enum.get(value, value)
                 return
-            if isinstance(value, (int, float)):
-                if description.clamp_non_negative:
-                    value = max(0, value)
-                if (
-                    description.reset_tolerant_monotonic
-                    and description.suggested_display_precision is not None
-                ):
-                    # Round before deciding: the decision must match what's
-                    # actually reported, not a raw value HA never sees.
-                    value = round(value, description.suggested_display_precision)
-                if self._should_suppress_decrease(description, value):
-                    return
+            if self._expects_number:
+                value = self._number(description, value)
             self._attr_native_value = value
         except (TypeError, ValueError, LookupError) as err:
             # Bounded, purposeful catch: one malformed push must not kill
@@ -189,6 +209,32 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
                 description.charger_key,
                 type(err).__name__,
             )
+
+    def _number(
+        self,
+        description: WattpilotSensorEntityDescription,
+        value: Any,  # noqa: ANN401 -- charger payload
+    ) -> float | None:
+        """Return the number to show; a held step back shows the last one."""
+        value = _number_or_none(value)
+        return None if value is None else self._held(description, value)
+
+    def _held(
+        self, description: WattpilotSensorEntityDescription, value: float
+    ) -> float | None:
+        if description.clamp_non_negative:
+            value = max(0, value)
+        if (
+            description.reset_tolerant_monotonic
+            and description.suggested_display_precision is not None
+        ):
+            # Round before deciding: the decision must match what's
+            # actually reported, not a raw value HA never sees.
+            value = round(value, description.suggested_display_precision)
+        if self._should_suppress_decrease(description, value):
+            return self._last_number
+        self._last_number = value
+        return value
 
     def _unwrap(self, value: Any) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
         """Pick the reading out of a structured payload, with its attributes."""
@@ -247,7 +293,7 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
             self._attr_extra_state_attributes = {}
             return
         card = value[index]
-        self._attr_native_value = _namespace_get(card, "energy")
+        self._attr_native_value = _number_or_none(_namespace_get(card, "energy"))
         self._attr_extra_state_attributes = {
             "name": _namespace_get(card, "name"),
             "cardId": _namespace_get(card, "cardId"),
@@ -257,7 +303,7 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
         self, description: WattpilotSensorEntityDescription, value: float
     ) -> bool:
         """Decide whether a lower value than last reported should be dropped."""
-        previous = self._attr_native_value
+        previous = self._last_number
         if not isinstance(previous, (int, float)) or value >= previous:
             return False
         if description.monotonic:
@@ -321,6 +367,7 @@ class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):
         last = await self.async_get_last_sensor_data()
         if last is not None and isinstance(last.native_value, (int, float)):
             self._attr_native_value = self._restored_total = last.native_value
+            self._last_number = last.native_value
         await super().async_added_to_hass()
 
     def _should_suppress_decrease(

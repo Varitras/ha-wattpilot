@@ -647,6 +647,10 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # on 2026-10-11 for the fifteen readings per phase, approved by the owner
     # (measured: 1415).
     "descriptions.py": 1415,
+    # Past the default on 2026-10-11 by one conversion point for every
+    # numeric value, a held step back against the last number and price
+    # entries that fail alone (reaudit K-A), owner-approved (measured: 446).
+    "sensor.py": 446,
     # The charger protocol in one class: connection lifecycle, message
     # dispatch, property table and the typed write paths. Adopted at 1220
     # lines; splitting it is a separate decision, not a side effect of taking
@@ -980,7 +984,7 @@ def test_complexity_ratchet() -> None:
         # 7 since the `ts` rule (audit VA-07): one more branch in what is
         # a dispatch table written as code, not added logic.
         "redaction.py::sanitize_property": 6,
-        "sensor.py::WattpilotSensor._apply_value": 12,
+        "sensor.py::WattpilotSensor._apply_value": 8,
         "services.py::_hub_for_device": 6,
         # api/: frozen at what the client had when it was adopted. Every one
         # of these is a dispatch table (message types, property keys, JSON

@@ -706,6 +706,39 @@ async def test_an_incomplete_price_schedule_gives_no_prices(
     assert sensor.extra_state_attributes == {"prices": []}
 
 
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"start": "n/a", "end": 1786399200, "marketprice": 9.0},
+        {"start": 18446744073709551615, "end": 1786399200, "marketprice": 9.0},
+    ],
+    ids=["text", "out_of_range"],
+)
+async def test_one_bad_price_costs_only_itself(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, bad: dict[str, Any]
+) -> None:
+    """A bad entry in the price list took the current price with it, and an
+    out-of-range start escaped the bounded catch (reaudit RF-D-03)."""
+    fake_charger._properties.update({"awcp": PRICE_HOUR, "awpl": [bad, PRICE_HOUR]})
+    sensor = await make_sensor(hass, fake_charger, "awcp")
+
+    assert sensor.native_value == PRICE_HOUR["marketprice"]
+    assert [entry["price"] for entry in sensor.extra_state_attributes["prices"]] == [
+        PRICE_HOUR["marketprice"]
+    ]
+
+
+async def test_a_flex_schedule_with_a_text_start_gives_no_prices(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    schedule = {"marketprice": [15.144], "start": "n/a", "interval": 3600}
+    fake_charger._properties.update({"awcp": PRICE_HOUR, "awpl": schedule})
+    sensor = await make_sensor(hass, fake_charger, "awcp")
+
+    assert sensor.native_value == PRICE_HOUR["marketprice"]
+    assert sensor.extra_state_attributes == {"prices": []}
+
+
 async def test_a_new_price_list_reaches_the_attribute(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:

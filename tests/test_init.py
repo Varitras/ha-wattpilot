@@ -43,6 +43,7 @@ from custom_components.wattpilot.const import (
     CONNECTION_LOCAL,
     DOMAIN,
 )
+from custom_components.wattpilot.descriptions import SENSOR_DESCRIPTIONS
 
 from .conftest import FakeWattpilot
 from .test_config_flow import DISCOVERY
@@ -1134,6 +1135,24 @@ async def test_a_restored_total_from_another_charger_does_not_freeze_it(
     ], "every reading must be read without complaint"
 
 
+async def test_an_unknown_total_keeps_the_hold_against_a_step_back(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The hold compared against what was shown, so one null wiped it and
+    the next small step back reached the energy dashboard (RF-D-02)."""
+    entity_id, total = await _total_energy_after_restore(
+        hass, fake_charger, restored=2681214, reported=2681214
+    )
+    assert total == 2681214
+
+    for value in (None, 2681193):
+        fake_charger.push("eto", value)
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+        await hass.async_block_till_done()
+
+    assert _total_energy_wh(hass, entity_id) == 2681214
+
+
 async def test_a_restored_total_takes_the_first_number_after_an_unknown(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
@@ -1219,3 +1238,92 @@ async def test_an_unloaded_entry_leaves_no_average_power_timer_behind(
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
+
+
+# What a charger could send where a number belongs (reaudit K-A). Never seen
+# on a device, but each one escaped the bounded catch: Home Assistant raised
+# when it wrote the state, and at setup the entity was never added.
+NOT_A_NUMBER = {"text": "n/a", "object": {"bogus": "n/a"}, "list": ["n/a"] * 16}
+HOLDER = "Holder Example"
+
+
+@pytest.mark.parametrize("kind", NOT_A_NUMBER)
+async def test_no_value_a_charger_sends_keeps_a_numeric_sensor_away(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+    kind: str,
+) -> None:
+    """Every numeric sensor, every malformed shape, at the boundary that
+    raised: the state write. A card's holder name never reaches the log --
+    Home Assistant logged the raw card list when the write failed (RF-P-01)."""
+    numeric = [
+        description
+        for description in SENSOR_DESCRIPTIONS
+        if description.native_unit_of_measurement or description.state_class
+    ]
+    bad = NOT_A_NUMBER[kind]
+    for description in numeric:
+        for key in (description.charger_key, description.companion_key):
+            if key is not None and key in fake_charger._properties:
+                fake_charger._properties[key] = bad
+    fake_charger._properties["cards"] = [{"name": HOLDER, "energy": bad}] * 10
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    entity_ids = {
+        description.uid_suffix: registry.async_get_or_create(
+            "sensor", DOMAIN, f"123456-{description.uid_suffix}", config_entry=entry
+        ).entity_id
+        for description in numeric
+    }
+
+    assert await setup_entry(hass, entry, fake_charger)
+
+    assert HOLDER not in caplog.text
+    supported = {description.uid_suffix for description in _supported(fake_charger)}
+    never_added = sorted(
+        uid
+        for uid in supported & entity_ids.keys()
+        if hass.states.get(entity_ids[uid]) is None
+    )
+    assert supported & entity_ids.keys(), "the sweep checked nothing"
+    assert not never_added, f"never added: {never_added}"
+
+
+async def test_a_card_energy_that_is_no_number_logs_no_holder_name(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Home Assistant logged the raw card list, holder names included, each
+    time the state write of an enabled ID-chip sensor failed (RF-P-01)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    entry.add_to_hass(hass)
+    er.async_get(hass).async_get_or_create(
+        "sensor", DOMAIN, "123456-cards_0", config_entry=entry
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+
+    fake_charger.push("cards", [{"name": HOLDER, "energy": "n/a", "cardId": True}])
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+    await hass.async_block_till_done()
+
+    assert HOLDER not in caplog.text
+
+
+def _supported(charger: FakeWattpilot) -> list[Any]:
+    from custom_components.wattpilot.descriptions import (  # noqa: PLC0415
+        filter_supported,
+    )
+
+    return filter_supported(
+        SENSOR_DESCRIPTIONS,
+        firmware=charger._properties.get("fwv"),
+        variant=charger._properties.get("var"),
+        properties=charger._properties,
+    )
