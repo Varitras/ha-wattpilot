@@ -1026,6 +1026,42 @@ HACS_MANIFEST = Path(__file__).parent.parent / "hacs.json"
 RELEASE_WORKFLOW = CI_WORKFLOW.parent / "release.yml"
 
 
+# Word for word: a substring check stayed green with the arguments reversed,
+# with `|| true` and with `echo` in front (reaudit RF-D-05).
+ANCESTRY_CHECK = 'git merge-base --is-ancestor "$GITHUB_SHA" origin/main'
+
+
+def _release_problems(workflow: str) -> list[str]:
+    release = yaml.safe_load(workflow)["jobs"]["release"]
+    steps = release["steps"]
+    checkout = next(
+        step
+        for step in steps
+        if str(step.get("uses", "")).startswith("actions/checkout")
+    )
+    problems = []
+    if checkout.get("with", {}).get("fetch-depth") != 0:
+        problems.append("no history to check against")
+    ancestry = [
+        index
+        for index, step in enumerate(steps)
+        if str(step.get("run", "")).strip() == ANCESTRY_CHECK
+    ]
+    if not ancestry:
+        return [*problems, "the release job does not check the tag is on main"]
+    publish = next(
+        index
+        for index, step in enumerate(steps)
+        if str(step.get("uses", "")).startswith("softprops/action-gh-release")
+    )
+    # After the publish step, or allowed to fail, it would check nothing.
+    if ancestry[0] > publish:
+        problems.append("the tag is checked after it is published")
+    if steps[ancestry[0]].get("continue-on-error") or release.get("continue-on-error"):
+        problems.append("the check may fail")
+    return problems
+
+
 def test_a_release_is_only_cut_from_main() -> None:
     """
     Tags come from main only -- a project rule the workflow did not check.
@@ -1034,34 +1070,22 @@ def test_a_release_is_only_cut_from_main() -> None:
     not contain, and HACS offers that to everyone (audit A18-31). Fix: keep
     the ancestry check in the release job, with the full history checked out.
     """
-    release = yaml.safe_load(RELEASE_WORKFLOW.read_text(encoding="utf-8"))["jobs"][
-        "release"
-    ]
-    steps = release["steps"]
-    checkout = next(
-        step
-        for step in steps
-        if str(step.get("uses", "")).startswith("actions/checkout")
-    )
-    assert checkout.get("with", {}).get("fetch-depth") == 0, (
-        "no history to check against"
-    )
-    ancestry = [
-        index
-        for index, step in enumerate(steps)
-        if "git merge-base --is-ancestor" in step.get("run", "")
-        and "origin/main" in step.get("run", "")
-    ]
-    assert ancestry, "the release job does not check the tag is on main"
-    publish = next(
-        index
-        for index, step in enumerate(steps)
-        if str(step.get("uses", "")).startswith("softprops/action-gh-release")
-    )
-    # After the publish step, or allowed to fail, it would check nothing.
-    assert ancestry[0] < publish, "the tag is checked after it is published"
-    assert not steps[ancestry[0]].get("continue-on-error"), "the check may fail"
-    assert not release.get("continue-on-error"), "the release job may fail"
+    assert _release_problems(RELEASE_WORKFLOW.read_text(encoding="utf-8")) == []
+
+
+@pytest.mark.parametrize(
+    "broken",
+    [
+        'git merge-base --is-ancestor origin/main "$GITHUB_SHA"',
+        ANCESTRY_CHECK + " || true",
+        "echo " + ANCESTRY_CHECK,
+    ],
+    ids=["reversed", "or_true", "echo"],
+)
+def test_the_release_guard_can_actually_fail(broken: str) -> None:
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+    assert workflow.count(ANCESTRY_CHECK) == 1
+    assert _release_problems(workflow.replace(ANCESTRY_CHECK, broken)) != []
 
 
 def test_ci_runs_the_same_gates_as_check_sh() -> None:
@@ -1254,6 +1278,7 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         "test_the_snapshot_helper_sees_what_the_ratchet_sees": (
             "regenerating the complexity table keeps every entry"
         ),
+        "test_the_release_guard_can_actually_fail": "counter-check for it",
         "test_a_release_is_only_cut_from_main": (
             "a tag that is not on main publishes nothing"
         ),
