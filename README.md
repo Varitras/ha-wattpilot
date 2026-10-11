@@ -259,7 +259,8 @@ For a bug report, attach the entry's **Download diagnostics** output. It is
 redacted before it reaches you: serial number, host names, passwords, cloud
 API tokens, MAC addresses, Wi-Fi SSIDs, ID-chip names, the log of
 neighbouring networks and free-text fields such as a load group name, a
-Wi-Fi error message or the last cloud error are dropped or replaced. MAC
+Wi-Fi error message, the last cloud error or a Wattpilot Flex's OCPP
+fallback card and tariff text are dropped or replaced. MAC
 and IP addresses and the serial number are also replaced wherever they
 appear inside other text. Still look over the file before posting it.
 

@@ -27,6 +27,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Diagnostics from a Wattpilot Flex replace three free-text fields nothing
+  documents: the OCPP fallback card, the OCPP tariff text and an OTA
+  field. Every text field a Flex is known to report now has a redaction
+  decision, so a new one shows up in the tests instead of in a download.
 - **Average charging power** reads 0 W once no current has flowed for a
   minute. The charger keeps reporting the last session's average after
   charging, so an automation on it kept firing for hours. A pause shorter
