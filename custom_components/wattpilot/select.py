@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Hashable
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.select import SelectEntity
@@ -66,12 +67,16 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
         allowed = self._hub.get_property(description.companion_key)
         if not isinstance(allowed, list):
             return {}
-        return {value: f"{value} A" for value in allowed}
+        # An unhashable entry raised here, in __init__, and took the whole
+        # platform with it (post-check PC7-02).
+        return {value: f"{value} A" for value in allowed if isinstance(value, Hashable)}
 
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
         options = self._wire_options()
         self._attr_options = list(options.values())
-        self._attr_current_option = options.get(value)
+        self._attr_current_option = (
+            options.get(value) if isinstance(value, Hashable) else None
+        )
 
     async def async_select_option(self, option: str) -> None:
         """Write the wire value matching the chosen label."""

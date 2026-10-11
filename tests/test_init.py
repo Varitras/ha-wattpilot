@@ -46,8 +46,11 @@ from custom_components.wattpilot.const import (
     DOMAIN,
 )
 from custom_components.wattpilot.descriptions import (
+    BINARY_SENSOR_DESCRIPTIONS,
     NUMBER_DESCRIPTIONS,
+    SELECT_DESCRIPTIONS,
     SENSOR_DESCRIPTIONS,
+    SWITCH_DESCRIPTIONS,
     TIME_DESCRIPTIONS,
 )
 
@@ -1477,35 +1480,38 @@ NOT_A_NUMBER = {
     # An integer literal past the float range stays an int, and converting
     # it raises OverflowError (post-check PC6-01).
     "beyond_float": 10**400,
+    # A list of lists: a select's option list keyed on it (post-check PC7-02).
+    "nested": [["n/a"]] * 2,
 }
 HOLDER = "Holder Example"
 
 
-# Every platform that turns a charger value into a number: the time and
-# number platforms raised OverflowError past their catch (post-check PC6-02).
-NUMERIC_DESCRIPTIONS = {
-    "sensor": [
-        description
-        for description in SENSOR_DESCRIPTIONS
-        if description.native_unit_of_measurement or description.state_class
-    ],
+# Every platform with a state: time and number raised OverflowError past
+# their catch (post-check PC6-02), a select an unhashable error (PC7-02).
+# The update entity has its own test: its installed version gates firmware.
+PLATFORM_DESCRIPTIONS = {
+    "sensor": list(SENSOR_DESCRIPTIONS),
     "number": list(NUMBER_DESCRIPTIONS),
     "time": list(TIME_DESCRIPTIONS),
+    "select": list(SELECT_DESCRIPTIONS),
+    "switch": list(SWITCH_DESCRIPTIONS),
+    "binary_sensor": list(BINARY_SENSOR_DESCRIPTIONS),
 }
 
 
 @pytest.mark.parametrize("kind", NOT_A_NUMBER)
-async def test_no_value_a_charger_sends_keeps_a_numeric_entity_away(
+async def test_no_value_a_charger_sends_keeps_an_entity_away(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
     caplog: pytest.LogCaptureFixture,
     kind: str,
 ) -> None:
-    """Every numeric entity, every malformed shape, at the boundary that
-    raised: the state write. A card's holder name never reaches the log --
-    Home Assistant logged the raw card list when the write failed (RF-P-01)."""
+    """Every entity, every malformed shape, at the boundary that raised: the
+    state write, or the entity's own setup. A card's holder name never
+    reaches the log -- Home Assistant logged the raw card list when the
+    write failed (RF-P-01)."""
     bad = NOT_A_NUMBER[kind]
-    for descriptions in NUMERIC_DESCRIPTIONS.values():
+    for descriptions in PLATFORM_DESCRIPTIONS.values():
         for description in descriptions:
             for key in (description.charger_key, description.companion_key):
                 if key is not None and key in fake_charger._properties:
@@ -1522,7 +1528,7 @@ async def test_no_value_a_charger_sends_keeps_a_numeric_entity_away(
         (platform, description.uid_suffix): registry.async_get_or_create(
             platform, DOMAIN, f"123456-{description.uid_suffix}", config_entry=entry
         ).entity_id
-        for platform, descriptions in NUMERIC_DESCRIPTIONS.items()
+        for platform, descriptions in PLATFORM_DESCRIPTIONS.items()
         for description in descriptions
     }
 
@@ -1531,14 +1537,14 @@ async def test_no_value_a_charger_sends_keeps_a_numeric_entity_away(
     assert HOLDER not in caplog.text
     supported = {
         (platform, description.uid_suffix)
-        for platform, descriptions in NUMERIC_DESCRIPTIONS.items()
+        for platform, descriptions in PLATFORM_DESCRIPTIONS.items()
         for description in _supported(fake_charger, descriptions)
     }
     never_added = sorted(
         key for key in supported if hass.states.get(entity_ids[key]) is None
     )
     platforms = {platform for platform, _ in supported}
-    assert platforms == NUMERIC_DESCRIPTIONS.keys(), "the sweep missed a platform"
+    assert platforms == PLATFORM_DESCRIPTIONS.keys(), "the sweep missed a platform"
     assert not never_added, f"never added: {never_added}"
 
 
