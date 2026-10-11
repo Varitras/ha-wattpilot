@@ -1250,6 +1250,23 @@ async def test_an_unknown_total_keeps_the_hold_against_a_step_back(
     assert _total_energy_wh(hass, entity_id) == 2681214
 
 
+async def test_an_infinite_total_does_not_freeze_it(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The hold took infinity as the last number and held every later
+    reading back until a reload (post-check PC5-R-01)."""
+    entity_id, _ = await _total_energy_after_restore(
+        hass, fake_charger, restored=2681214, reported=2681214
+    )
+
+    for value in (float("inf"), 2681300):
+        fake_charger.push("eto", value)
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+        await hass.async_block_till_done()
+
+    assert _total_energy_wh(hass, entity_id) == 2681300
+
+
 async def test_a_restored_total_takes_the_first_number_after_an_unknown(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
@@ -1378,7 +1395,17 @@ async def test_an_unloaded_entry_leaves_no_average_power_timer_behind(
 # What a charger could send where a number belongs (reaudit K-A). Never seen
 # on a device, but each one escaped the bounded catch: Home Assistant raised
 # when it wrote the state, and at setup the entity was never added.
-NOT_A_NUMBER = {"text": "n/a", "object": {"bogus": "n/a"}, "list": ["n/a"] * 16}
+# NaN and infinity are what json.loads makes of NaN, Infinity and a number
+# beyond the float range; Home Assistant refuses those too (post-check PC5-R-01).
+NOT_A_NUMBER = {
+    "text": "n/a",
+    "object": {"bogus": "n/a"},
+    "list": ["n/a"] * 16,
+    "nan": float("nan"),
+    "infinity": float("inf"),
+    "minus infinity": float("-inf"),
+    "infinities": [float("inf")] * 16,
+}
 HOLDER = "Holder Example"
 
 
@@ -1403,6 +1430,8 @@ async def test_no_value_a_charger_sends_keeps_a_numeric_sensor_away(
             if key is not None and key in fake_charger._properties:
                 fake_charger._properties[key] = bad
     fake_charger._properties["cards"] = [{"name": HOLDER, "energy": bad}] * 10
+    # A Flex's chips, which the fixture does not have (post-check PC5-T-01).
+    fake_charger._properties.update({f"c{i}e": bad for i in range(10)})
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )

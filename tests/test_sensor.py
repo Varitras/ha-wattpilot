@@ -789,13 +789,16 @@ def test_per_phase_readings_stay_out_of_the_recorder() -> None:
         ({"type": 1, "value": 0}, 14857, 0),  # after a power cut
         (None, 14857, None),
         ({"type": 7, "value": 1}, 14857, None),
+        # json.loads makes NaN and infinity of what the charger could send.
+        ({"type": 0, "value": 2217901}, float("inf"), None),
+        ({"type": 1, "value": float("nan")}, 14857, None),
     ],
 )
 async def test_charging_duration_in_minutes(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
     cdi: Any,
-    rbt: int,
+    rbt: float,
     minutes: int | None,
 ) -> None:
     fake_charger._properties.update({"cdi": cdi, "rbt": rbt})

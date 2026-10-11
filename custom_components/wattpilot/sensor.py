@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import html
 import logging
-from typing import TYPE_CHECKING, Any
+import math
+from typing import TYPE_CHECKING, Any, TypeGuard
 
 from homeassistant.components.sensor import (
     RestoreSensor,
@@ -102,7 +103,7 @@ def _price_schedule(value: Any) -> list[dict[str, Any]]:  # noqa: ANN401 -- dyna
     prices = _namespace_get(value, "marketprice")
     start = _namespace_get(value, "start")
     interval = _namespace_get(value, "interval")
-    numbers = all(isinstance(x, (int, float)) for x in (start, interval))
+    numbers = all(_is_number(x) for x in (start, interval))
     if not (numbers and isinstance(prices, list)):
         return []
     return [
@@ -134,9 +135,14 @@ def _price_entry(entry: Any) -> dict[str, Any] | None:  # noqa: ANN401 -- charge
         return None
 
 
+def _is_number(value: Any) -> TypeGuard[float]:  # noqa: ANN401 -- charger payload
+    """Return whether *value* is finite: HA refuses NaN and infinity (PC5-R-01)."""
+    return isinstance(value, (int, float)) and math.isfinite(value)
+
+
 def _number_or_none(value: Any) -> float | None:  # noqa: ANN401 -- charger payload
     """Pass a number or None on; anything else is a malformed push."""
-    if value is None or isinstance(value, (int, float)):
+    if value is None or _is_number(value):
         return value
     raise TypeError  # the caller logs the shape, never the value
 
@@ -264,7 +270,7 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
 
     def _unwrap_highest(self, value: Any) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
         self._attr_extra_state_attributes = {"readings": value}
-        readings = [item for item in value if isinstance(item, (int, float))]
+        readings = [item for item in value if _is_number(item)]
         return max(readings, default=None)
 
     def _apply_price_list(self) -> None:
@@ -345,9 +351,9 @@ def _charging_minutes(cdi: Any, boot_clock: Any) -> int | None:  # noqa: ANN401 
     """
     kind = _namespace_get(cdi, "type")
     value = _namespace_get(cdi, "value")
-    if not isinstance(value, int | float):
+    if not _is_number(value):
         return None
-    if kind == _CHARGING and isinstance(boot_clock, int | float):
+    if kind == _CHARGING and _is_number(boot_clock):
         return int(boot_clock - value) // MILLISECONDS_PER_MINUTE
     if kind == _STOPPED:
         return int(value) // MILLISECONDS_PER_MINUTE
@@ -400,7 +406,7 @@ def _total_power(nrg: Any) -> float | None:  # noqa: ANN401 -- charger payload
     if not isinstance(nrg, list) or len(nrg) <= index:
         return None
     reading = nrg[index]
-    return reading if isinstance(reading, (int, float)) else None
+    return reading if _is_number(reading) else None
 
 
 class WattpilotAveragePowerSensor(WattpilotSensor):
