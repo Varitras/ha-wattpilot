@@ -23,6 +23,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   up. Reconfigure and re-authentication refuse to move such an entry onto a
   charger that already has an entry of its own, instead of reporting success
   and failing afterwards.
+- A charger that comes back after an outage is reached again, also when a
+  reconnect action failed while it was away, or a firmware update took
+  longer than the integration waits for it. Either used to leave nothing
+  retrying, so the charger stayed unavailable until a reload.
 - Diagnostics from a Wattpilot Flex on Ethernet no longer contain the
   serial number in the Ethernet host name, the Ethernet addresses, the name
   servers and search domain, or the charger's address in the last cloud
