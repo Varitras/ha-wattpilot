@@ -9,6 +9,7 @@ import sys
 from importlib import metadata
 from pathlib import Path
 
+import pytest
 import yaml
 
 from custom_components.wattpilot.redaction import DROP_KEYS, REPLACE
@@ -25,6 +26,156 @@ def iter_python_files() -> list[Path]:
     files = sorted(PACKAGE.rglob("*.py"))
     assert files, "package scan must never be empty (guard would be blind)"
     return files
+
+
+# Names whose value identifies a device or a network. Logs are what users
+# attach to public issues, and nothing redacts them.
+# err/exc: a socket error's text quotes the charger's address and port.
+# Not entity_id: the device is named after its host name, Wattpilot_<serial>,
+# on purpose, so entity ids carry the serial, and a masked one finds nothing.
+IDENTIFYING_NAMES = frozenset(
+    {
+        "serial",
+        "_serial",
+        "unique_id",
+        "host",
+        "_host",
+        "hostname",
+        "friendly_name",
+        "title",
+        "token",
+        "err",
+        "exc",
+    }
+)
+# Calls whose result carries no identifier, whatever goes in.
+SAFE_WRAPPERS = frozenset({"mask_serial", "describe_error", "type"})
+LOGGER_LEVELS = frozenset(
+    {
+        "debug",
+        "info",
+        "warning",
+        "warn",
+        "error",
+        "exception",
+        "critical",
+        "fatal",
+        "log",
+    }
+)
+# Home Assistant logs these with their placeholders filled in. A repair
+# issue is not among them: it is shown, not logged.
+LOGGED_EXCEPTIONS = frozenset(
+    {
+        "ConfigEntryError",
+        "ConfigEntryAuthFailed",
+        "ConfigEntryNotReady",
+        "HomeAssistantError",
+        "ServiceValidationError",
+    }
+)
+
+
+def _is_logger_call(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "_LOGGER"
+        and node.func.attr in LOGGER_LEVELS
+    )
+
+
+def _logged_values(node: ast.AST) -> list[ast.expr]:
+    """What a log call or a logged exception writes, or nothing."""
+    if _is_logger_call(node):
+        return list(node.args)  # type: ignore[attr-defined]
+    is_logged_exception = isinstance(node, ast.Call) and (
+        getattr(node.func, "id", None) in LOGGED_EXCEPTIONS
+    )
+    if not is_logged_exception:
+        return []
+    return [
+        keyword.value
+        for keyword in node.keywords  # type: ignore[attr-defined]
+        if keyword.arg == "translation_placeholders"
+    ]
+
+
+def _unmasked_identifiers(node: ast.AST) -> list[str]:
+    """Identifying names in *node* that do not pass through a safe wrapper."""
+    is_safe_call = isinstance(node, ast.Call) and (
+        getattr(node.func, "id", None) in SAFE_WRAPPERS
+    )
+    if is_safe_call:
+        return []
+    found = []
+    if isinstance(node, ast.Name) and node.id in IDENTIFYING_NAMES:
+        found.append(node.id)
+    if isinstance(node, ast.Attribute) and node.attr in IDENTIFYING_NAMES:
+        found.append(node.attr)
+    for child in ast.iter_child_nodes(node):
+        found.extend(_unmasked_identifiers(child))
+    return found
+
+
+def _identifier_leaks(source: str) -> list[str]:
+    return [
+        f"{node.lineno} {names}"
+        for node in ast.walk(ast.parse(source))
+        for names in [
+            [
+                name
+                for value in _logged_values(node)
+                for name in _unmasked_identifiers(value)
+            ]
+        ]
+        if names
+    ]
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        '_LOGGER.info("x %s", self.serial)',
+        '_LOGGER.critical("x %s", host)',
+        '_LOGGER.log(20, "x %s", self.hub.title)',
+        '_LOGGER.debug("failed: %s", exc)',
+        'raise ConfigEntryNotReady(translation_placeholders={"error": str(err)})',
+        'raise HomeAssistantError(translation_placeholders={"serial": serial})',
+    ],
+)
+def test_the_identifier_guard_can_actually_fail(snippet: str) -> None:
+    assert _identifier_leaks(snippet), snippet
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        '_LOGGER.info("x %s", mask_serial(self.serial))',
+        '_LOGGER.debug("failed: %s", describe_error(exc))',
+        '_LOGGER.warning("%s: %s", self.entity_id, type(err).__name__)',
+    ],
+)
+def test_the_identifier_guard_lets_masked_values_through(snippet: str) -> None:
+    assert not _identifier_leaks(snippet), snippet
+
+
+def test_no_device_identifier_reaches_the_log() -> None:
+    """
+    A serial, host or token that reaches the log goes through mask_serial.
+
+    The connect and availability messages logged the full serial at INFO,
+    and the wrong-charger setup error carried both serials into the log
+    Home Assistant writes for it -- the log users paste into issues.
+    Fix: wrap the value in api.mask_serial, or leave it out.
+    """
+    offenders = [
+        f"{path.relative_to(PACKAGE)}:{leak}"
+        for path in iter_python_files()
+        for leak in _identifier_leaks(path.read_text(encoding="utf-8"))
+    ]
+    assert not offenders, f"device identifiers logged unmasked: {offenders}"
 
 
 def _strip_vendor_spellings(text: str) -> str:
@@ -382,7 +533,7 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # Past the default on 2026-09-26 by the repair notice for a different
     # charger answering at runtime (audit A15-04): the hub is where the
     # connection's state turns into what the user is told (measured: 424).
-    "hub.py": 430,
+    "hub.py": 434,
 }
 SHRINK_SLACK = 0.85  # an entry >=15% below budget must be ratcheted down
 
@@ -401,7 +552,7 @@ CLUSTER_BUDGET = {
     # forty lines of comment had already been condensed to make room: the
     # open/close coordination (A13-01, A14-01, A15-01) and the refused-
     # password flag (A14-02), at a measured 1607 lines.
-    "api client": (("client.py", "connection.py"), 1610),
+    "api client": (("client.py", "connection.py"), 1628),
 }
 
 
@@ -869,6 +1020,15 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         ),
         "test_no_manifest_requirement_is_unused": (
             "no dependency is installed for nothing"
+        ),
+        "test_no_device_identifier_reaches_the_log": (
+            "no serial, host, title or error text with an address in the log"
+        ),
+        "test_the_identifier_guard_can_actually_fail": (
+            "the identifier guard flags each kind of leak it claims to"
+        ),
+        "test_the_identifier_guard_lets_masked_values_through": (
+            "masked values pass, so the guard is not fixed by deletion"
         ),
         "test_manifest_does_not_declare_what_home_assistant_ships": (
             "hassfest accepts the requirements"

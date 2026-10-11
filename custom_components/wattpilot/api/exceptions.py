@@ -1,5 +1,9 @@
 """Exception hierarchy for the wattpilot-api library."""
 
+from __future__ import annotations
+
+import errno
+
 
 class WattpilotError(Exception):
     """Base exception for all wattpilot-api errors."""
@@ -34,3 +38,19 @@ class DeviceIdentityError(WattpilotError):
         """Keep the serial that answered, for a message that names it."""
         super().__init__(message)
         self.found = found
+
+
+def describe_error(error: BaseException) -> str:
+    """
+    wattpilot: an error fit for the log, which users attach to public issues.
+
+    Our own messages are written to carry no identifier. A socket error's
+    text quotes the charger's address and port, so anything else is named
+    by its class and errno only.
+    """
+    if isinstance(error, WattpilotError):
+        return str(error)
+    code = getattr(error, "errno", None)
+    if code is None:
+        return type(error).__name__
+    return f"{type(error).__name__} ({errno.errorcode.get(code, code)})"

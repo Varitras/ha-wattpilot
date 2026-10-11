@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 import websockets
 import websockets.asyncio.client
 
-from .exceptions import WattpilotConnectionError
+from .exceptions import WattpilotConnectionError, describe_error
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
@@ -397,10 +397,10 @@ class Connection:
                     reconnect_delay = min(
                         reconnect_delay * 2, self._reconnect_delay_max
                     )
-                    # Once per cycle for as long as the charger is away:
-                    # at WARNING this fills the log until it comes back.
+                    cause = describe_error(exc)
+                    # Once per cycle while the charger is away: DEBUG, not WARNING.
                     _LOGGER.debug(
-                        "Reconnect failed: %s, retrying in %.0fs", exc, reconnect_delay
+                        "Reconnect failed: %s, retry in %.0fs", cause, reconnect_delay
                     )
         finally:
             self._set_authenticated(value=False)

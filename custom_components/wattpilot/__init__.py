@@ -6,6 +6,7 @@ import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
+from homeassistant import config_entries
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import callback
 from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
@@ -24,7 +25,7 @@ from .const import (
     awaits_serial,
     signal_property,
 )
-from .hub import WattpilotConfigEntry, WattpilotHub
+from .hub import WattpilotConfigEntry, WattpilotHub, mask_serial
 from .registry_migration import async_migrate_legacy_unique_ids
 from .services import async_setup_services
 
@@ -34,6 +35,8 @@ if TYPE_CHECKING:
     from homeassistant.helpers.typing import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
+# Where Home Assistant logs an entry's setup failures, title included.
+_ENTRY_LOGGERS = (logging.getLogger(config_entries.__name__), _LOGGER)
 
 ENTRY_VERSION = 2
 
@@ -44,9 +47,51 @@ ENTRY_VERSION = 2
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
+class _SerialMask(logging.Filter):
+    """
+    Mask this integration's serials in what Home Assistant logs about it.
+
+    The entry title is the charger's host name, Wattpilot_<serial>, on
+    purpose, and Home Assistant logs it on every failed setup attempt: to
+    its config_entries logger, or to this package's logger once it has
+    loaded the integration itself (retries, reloads). Only records logged on
+    those two loggers pass here; this package's modules mask their own.
+    """
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        super().__init__()
+        self._hass = hass
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Rewrite the record if it quotes a serial; never drop it."""
+        try:
+            message = record.getMessage()
+        except TypeError, ValueError:
+            return True  # a malformed record is logging's to report
+        masked = message
+        for entry in self._hass.config_entries.async_entries(DOMAIN):
+            if entry.unique_id:
+                masked = masked.replace(entry.unique_id, mask_serial(entry.unique_id))
+        if masked != message:
+            record.msg, record.args = masked, None
+        return True
+
+
 async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
-    """Register integration services."""
+    """Register integration services and mask serials in setup messages."""
     async_setup_services(hass)
+    serial_mask = _SerialMask(hass)
+    for logger in _ENTRY_LOGGERS:
+        logger.addFilter(serial_mask)
+
+    @callback
+    def _remove_serial_mask(_event: Event) -> None:
+        # The loggers outlive this Home Assistant; a filter left behind would
+        # keep reading the entries of a stopped one.
+        for logger in _ENTRY_LOGGERS:
+            logger.removeFilter(serial_mask)
+
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _remove_serial_mask)
     return True
 
 
@@ -181,15 +226,15 @@ def _adopt_serial(
             translation_domain=DOMAIN,
             translation_key="wrong_charger",
             translation_placeholders={
-                "expected": str(entry.unique_id),
-                "found": serial,
+                "expected": mask_serial(entry.unique_id),
+                "found": mask_serial(serial),
             },
         )
     if _serial_taken_by_other_entry(hass, entry, serial):
         raise ConfigEntryError(
             translation_domain=DOMAIN,
             translation_key="duplicate_device",
-            translation_placeholders={"serial": serial},
+            translation_placeholders={"serial": mask_serial(serial)},
         )
     hass.config_entries.async_update_entry(
         entry,

@@ -19,7 +19,11 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
-from custom_components.wattpilot import async_migrate_entry, async_setup_entry
+from custom_components.wattpilot import (
+    _SerialMask,
+    async_migrate_entry,
+    async_setup_entry,
+)
 from custom_components.wattpilot.api import (
     AuthenticationError,
     DeviceIdentityError,
@@ -395,7 +399,7 @@ async def test_duplicate_serial_fails_setup(
         await async_setup_entry(hass, second)
     assert raised.value.translation_domain == DOMAIN
     assert raised.value.translation_key == "duplicate_device"
-    assert raised.value.translation_placeholders == {"serial": "123456"}
+    assert raised.value.translation_placeholders == {"serial": "****56"}
     # Rejected hub's connection must be closed before the error is raised,
     # not leaked.
     assert second_charger.disconnect_count >= 1
@@ -450,9 +454,10 @@ async def test_a_different_charger_at_the_same_address_is_refused(
 
     assert raised.value.translation_domain == DOMAIN
     assert raised.value.translation_key == "wrong_charger"
+    # Masked: Home Assistant logs this message as well.
     assert raised.value.translation_placeholders == {
-        "expected": "123456",
-        "found": "999999",
+        "expected": "****56",
+        "found": "****99",
     }
     assert entry.unique_id == "123456", "the entry must keep its identity"
     # The registry is the thing actually at risk: nothing may have moved.
@@ -686,7 +691,111 @@ async def test_a_charger_refused_before_the_password_is_named(
         await async_setup_entry(hass, entry)
     assert raised.value.translation_domain == DOMAIN, "untranslated without it"
     assert raised.value.translation_key == "wrong_charger"
+    # Masked: Home Assistant logs this message as well.
     assert raised.value.translation_placeholders == {
-        "expected": "123456",
-        "found": "999999",
+        "expected": "****56",
+        "found": "****99",
     }
+
+
+async def test_home_assistants_setup_messages_do_not_carry_the_serial(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The entry is titled after the charger's host name, Wattpilot_<serial>,
+    on purpose, and Home Assistant logs that title on every failed setup
+    attempt -- into this integration's own logger."""
+    caplog.set_level(logging.DEBUG)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        title="Wattpilot_123456",
+    )
+    fake_charger.connect_error = OSError("unreachable")
+
+    assert not await setup_entry(hass, entry, fake_charger)
+    # The retry loads the integration itself and logs to its logger instead.
+    with patch_charger(fake_charger):
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    retries = [
+        record
+        for record in caplog.records
+        if record.name == "custom_components.wattpilot"
+        and "Wattpilot_" in record.getMessage()
+    ]
+    assert retries, "the retry must log through this integration's logger"
+    assert "Wattpilot_****56" in caplog.text, "the message itself must stay"
+    assert "123456" not in caplog.text
+
+
+def _record(message: str, *args: object) -> logging.LogRecord:
+    return logging.LogRecord(
+        "custom_components.wattpilot", logging.INFO, "", 0, message, args, None
+    )
+
+
+async def test_a_record_without_a_serial_keeps_its_arguments(
+    hass: HomeAssistant,
+) -> None:
+    MockConfigEntry(domain=DOMAIN, unique_id="123456").add_to_hass(hass)
+    record = _record("Config entry '%s' not ready", "Garage")
+
+    assert _SerialMask(hass).filter(record)
+
+    assert record.args == ("Garage",)
+
+
+async def test_a_malformed_record_is_passed_on_untouched(hass: HomeAssistant) -> None:
+    """Logging reports a broken record itself; the filter must not raise."""
+    MockConfigEntry(domain=DOMAIN, unique_id="123456").add_to_hass(hass)
+    record = _record("%s and %s", "only one")
+
+    assert _SerialMask(hass).filter(record)
+
+    assert record.msg == "%s and %s"
+
+
+async def test_another_integrations_unique_id_is_left_alone(
+    hass: HomeAssistant,
+) -> None:
+    """The filter sits on Home Assistant's config_entries logger, which every
+    integration shares; only this integration's serials are its business."""
+    MockConfigEntry(domain=DOMAIN, unique_id="123456").add_to_hass(hass)
+    MockConfigEntry(domain="other", unique_id="777777").add_to_hass(hass)
+    record = _record("Config entry '%s' not ready", "Other_777777")
+
+    assert _SerialMask(hass).filter(record)
+
+    assert record.getMessage() == "Config entry 'Other_777777' not ready"
+
+
+async def test_the_serial_mask_is_removed_when_home_assistant_stops(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The loggers are process-wide and outlive Home Assistant."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+
+    def masks() -> list[logging.Filter]:
+        return [
+            log_filter
+            for logger in (
+                logging.getLogger("homeassistant.config_entries"),
+                logging.getLogger("custom_components.wattpilot"),
+            )
+            for log_filter in logger.filters
+            if isinstance(log_filter, _SerialMask)
+        ]
+
+    assert len(masks()) == 2
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
+    await hass.async_block_till_done()
+    assert masks() == []

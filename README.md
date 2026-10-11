@@ -254,6 +254,13 @@ API tokens, MAC addresses, IP addresses, Wi-Fi SSIDs, the log of
 neighbouring networks and free-text fields such as a load group name or a
 Wi-Fi error message are dropped or replaced.
 
+The log is masked as far as this integration reaches: its own messages and
+Home Assistant's messages about setting up the entry show only the last two
+digits of the serial number. Entity IDs contain the serial number, though --
+the device is named after its host name, `Wattpilot_<serial>` -- and other
+parts of Home Assistant log them, recorder warnings for example. Look over a
+log before posting it.
+
 ## Removing the integration
 
 Settings → Devices & Services → **Fronius Wattpilot** → ⋮ → **Delete**. That
