@@ -1,8 +1,10 @@
 # Secret scanning configuration, used by `gitleaks git .` before a push.
 #
-# The default ruleset applies in full. The single allowlist below records one
+# The default ruleset applies in full. Each allowlist below records one
 # measured false positive so that a real finding is never the third line of a
-# report nobody reads any more.
+# report nobody reads any more. Matched by the reported value only: with a
+# `paths` entry, gitleaks 8.30.1 exempted every finding in that file, whatever
+# the regex or `condition` said (measured with a planted key).
 
 [extend]
 useDefault = true
@@ -13,10 +15,8 @@ The bundled protocol definition lists, in a comment, which APIs each property
 exists in: "available for: wattpilot, go-eCharger-API-v1, go-eCharger-API-v2".
 The generic-api-key rule reads the token after that colon as a key. Verified
 by reading the line: it is documentation in a vendored YAML file, not a
-credential. Scoped to that file and that exact token, so any other match in
-the same file is still reported.
+credential.
 """
-paths = ['''resources/wattpilot\.yaml$''']
 regexes = ['''go-eCharger-API-v[12]''']
 
 [[allowlists]]
@@ -24,7 +24,6 @@ description = """
 A diagnostics test feeds a property named "newKey" holding a made-up
 Wattpilot host name; the generic-api-key rule reads the name as a key and
 the host name as its value. Verified by reading the line: the serial in it
-is synthetic. Scoped to that test file and that exact value.
+is synthetic.
 """
-paths = ['''tests/test_diagnostics\.py$''']
-regexes = ['''Wattpilot-91234567''']
+regexes = ['''^Wattpilot-91234567$''']
