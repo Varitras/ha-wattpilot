@@ -829,10 +829,20 @@ async def test_average_power_is_zero_while_nothing_flows(
     assert sensor.native_value == 0
 
 
+async def test_a_single_watt_counts_as_charging(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The charger reports exactly 0 W while idle; any power is a session."""
+    fake_charger._properties.update({"tpa": 4121.5, "nrg": nrg_reading(1)})
+    sensor = await make_sensor(hass, fake_charger, "tpa")
+
+    assert sensor.native_value == 4121.5
+
+
 @pytest.mark.parametrize(
     "nrg",
-    [nrg_reading(None), nrg_reading(0)[:11], None],
-    ids=["null", "short", "missing"],  # type: ignore[arg-type]
+    [nrg_reading(None), nrg_reading("n/a"), nrg_reading(0)[:11], None],
+    ids=["null", "text", "short", "missing"],  # type: ignore[arg-type]
 )
 async def test_unknown_live_power_makes_the_average_unknown(
     hass: HomeAssistant, fake_charger: FakeWattpilot, nrg: Any
