@@ -69,6 +69,11 @@ REPLACE: dict[str, Any] = {
     # Readable on the reference device, a TLS error; on a Flex on Ethernet
     # it quotes the charger's address.
     "cle": "<redacted>",
+    # Flex free text nothing documents: an OCPP fallback card and tariff
+    # text, an OTA field. Placeholders on the one Flex seen (audit A18-15).
+    "ocppfd": "<redacted>",
+    "ocpptt": "<redacted>",
+    "otaif": "<redacted>",
 }
 # Flex chip names (c0n..c9n), the flat counterpart of cards[].name.
 CHIP_NAME_KEY = re.compile(r"c(\d)n")

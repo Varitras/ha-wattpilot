@@ -63,9 +63,12 @@ def _plain_json(value: Any) -> Any:  # noqa: ANN401 -- recurses over untyped JSO
     return value
 
 
-def _nested_ssid(value: Any) -> str | None:  # noqa: ANN401 -- untyped JSON
-    """Return the SSID inside a `ccw` object, if one was sent at all."""
-    return value.get("ssid") if isinstance(value, dict) else None
+def _status_object(msg: SimpleNamespace) -> SimpleNamespace:
+    """Return a status frame's status; anything else completed it unread (finding 6)."""
+    if isinstance(status := getattr(msg, "status", None), SimpleNamespace):
+        return status
+    msg_text = "Status frame without a status object, skipped as unreadable"
+    raise TypeError(msg_text)
 
 
 def _correlation_key(request_id: object) -> str:
@@ -160,10 +163,7 @@ class Wattpilot:
         self._all_props: dict[str, Any] = {}
 
         # Named property caches
-        self._amp: int | None = None
-        self._version: str | None = None
         self._firmware: str | None = None
-        self._wifi_ssid: str | None = None
         self._cak: str | None = None
 
         # Lazy-loaded API definition for type coercion
@@ -234,49 +234,14 @@ class Wattpilot:
         return self._device.name
 
     @property
-    def hostname(self) -> str:
-        """Return the charger's network hostname."""
-        return self._device.hostname
-
-    @property
     def manufacturer(self) -> str:
         """Return the manufacturer as the charger reports it."""
         return self._device.manufacturer
 
     @property
-    def device_type(self) -> str:
-        """Return the device type, e.g. "wattpilot_V2"."""
-        return self._device.device_type
-
-    @property
-    def protocol(self) -> int:
-        """Return the protocol version the charger speaks."""
-        return self._device.protocol
-
-    @property
-    def secured(self) -> int:
-        """Return whether writes must be signed (0 = no)."""
-        return self._device.secured
-
-    @property
-    def version(self) -> str | None:
-        """Return the charger's software version, if known."""
-        return self._version or self._device.version or None
-
-    @property
     def firmware(self) -> str | None:
         """Return the charger's firmware version, if known."""
         return self._firmware
-
-    @property
-    def amp(self) -> int | None:
-        """Return the requested charging current in A."""
-        return self._amp
-
-    @property
-    def wifi_ssid(self) -> str | None:
-        """Return the SSID the charger is connected to."""
-        return self._wifi_ssid
 
     @property
     def all_properties(self) -> dict[str, Any]:
@@ -287,8 +252,6 @@ class Wattpilot:
     def properties_initialized(self) -> bool:
         """Return whether the charger has sent its full state once."""
         return self._connection.initialized
-
-    # ---- Additional typed properties ----
 
     # Device info
 
@@ -313,13 +276,6 @@ class Wattpilot:
         if isinstance(val, str) and val:
             return [val]
         return []
-
-    # Cloud API
-
-    @property
-    def cloud_api_key(self) -> str | None:
-        """Cloud API key (available when cloud is enabled)."""
-        return self._cak
 
     # ---- Commands ----
 
@@ -441,6 +397,9 @@ class Wattpilot:
                 raise PropertyError(msg)
             version = versions[0]
 
+        # Counted from here: a close in the wait for the reboot ended that
+        # wait as if the charger had gone, and the update reconnected (RF-L-01).
+        closes = self._connection.close_count
         await self.set_property("oct", version)
 
         # A monotonic deadline: a sum of sleeps never counted the reconnect
@@ -456,9 +415,9 @@ class Wattpilot:
             raise WattpilotConnectionError(msg)
 
         # No disconnect() of its own: it counted as an unload (PC-01).
-        await self._reconnect_before(deadline)
+        await self._reconnect_before(deadline, closes)
 
-    async def _reconnect_before(self, deadline: float) -> None:
+    async def _reconnect_before(self, deadline: float, closes: int) -> None:
         """
         Keep trying to reach the rebooted charger until the deadline passes.
 
@@ -469,7 +428,6 @@ class Wattpilot:
         """
         loop = asyncio.get_running_loop()
         # Another close (an unload) ends the wait; reconnecting outlived it (R1-11).
-        closes = self._connection.close_count
         while self._connection.close_count == closes:
             remaining = deadline - loop.time()
             if remaining <= 0:
@@ -656,7 +614,7 @@ class Wattpilot:
             case "authSuccess":
                 self._on_auth_success(ns)
             case "authError":
-                self._on_auth_error(ns)
+                await self._on_auth_error(ns)
             case "fullStatus":
                 self._on_full_status(ns)
             case "deltaStatus":
@@ -675,14 +633,8 @@ class Wattpilot:
         self._device.serial = msg.serial
         if hasattr(msg, "hostname"):
             self._device.name = msg.hostname
-            self._device.hostname = msg.hostname
-        if hasattr(msg, "friendly_name"):
-            self._device.friendly_name = msg.friendly_name
-        if hasattr(msg, "version"):
-            self._device.version = msg.version
         self._device.manufacturer = getattr(msg, "manufacturer", "")
         self._device.device_type = getattr(msg, "devicetype", "")
-        self._device.protocol = getattr(msg, "protocol", 0)
         if hasattr(msg, "secured"):
             self._device.secured = msg.secured
 
@@ -727,18 +679,20 @@ class Wattpilot:
         self._connection.mark_authenticated()
         _LOGGER.debug("Authentication successful")
 
-    def _on_auth_error(self, msg: SimpleNamespace) -> None:
+    async def _on_auth_error(self, msg: SimpleNamespace) -> None:
         error_msg = getattr(msg, "message", "Unknown auth error")
         _LOGGER.error("Authentication failed: %s", error_msg)
-        self._connection.fail(AuthenticationError(error_msg))
+        # Rejected, not failed: after authSuccess the socket stayed open (PC2-02).
+        await self._connection.reject(AuthenticationError(error_msg))
 
     def _on_full_status(self, msg: SimpleNamespace) -> None:
-        self._apply_status(msg.status)
+        self._apply_status(_status_object(msg))
         self._connection.receive_full_status(partial=getattr(msg, "partial", False))
 
     def _on_delta_status(self, msg: SimpleNamespace) -> None:
+        status = _status_object(msg)
         self._connection.receive_delta_status()
-        self._apply_status(msg.status)
+        self._apply_status(status)
 
     def _apply_status(self, status: object) -> None:
         # wattpilot: one property at a time. A value this client cannot
@@ -788,20 +742,8 @@ class Wattpilot:
         match name:
             case "cak":
                 self._cak = value
-            case "amp":
-                self._amp = value
-            case "version":
-                self._version = value
             case "fwv":
                 self._firmware = value
-            case "wss":
-                self._wifi_ssid = value
-            case "ccw":
-                # Current firmware reports the connected AP here rather than
-                # in ``wss``; the value is an object carrying the SSID.
-                ssid = _nested_ssid(value)
-                if ssid:
-                    self._wifi_ssid = ssid
 
         # Fire property callbacks
         for cb in self._property_callbacks:

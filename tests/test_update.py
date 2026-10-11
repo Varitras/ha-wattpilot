@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
+
 from custom_components.wattpilot.descriptions import UPDATE_DESCRIPTIONS
 from custom_components.wattpilot.hub import WattpilotHub
 from custom_components.wattpilot.update import WattpilotUpdate
@@ -134,3 +136,32 @@ async def test_installed_version_reacts_to_its_own_push(
 
     fake_charger.push("fwv", "43.0")
     assert entity.installed_version == "43.0"
+
+
+# What a charger could send instead of a version string. Home Assistant
+# compares versions through a cache, and an unhashable one raised there, so
+# the entity was never added (post-check PC7-02).
+ODD_VERSIONS = {"object": {"v": "43.0"}, "list_of_lists": [["43.0"]], "number": 43}
+
+
+@pytest.mark.parametrize("kind", ODD_VERSIONS)
+async def test_an_odd_available_version_falls_back_to_the_installed_one(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, kind: str
+) -> None:
+    fake_charger._properties["fwv"] = "42.5"
+    fake_charger._properties["onv"] = ODD_VERSIONS[kind]
+    entity = await make_update(hass, fake_charger)
+    assert entity.latest_version == "42.5"
+    assert entity.state is not None
+
+
+@pytest.mark.parametrize("kind", ODD_VERSIONS)
+async def test_an_odd_installed_version_is_unknown(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, kind: str
+) -> None:
+    fake_charger._properties["fwv"] = ODD_VERSIONS[kind]
+    fake_charger._properties["onv"] = "43.0"
+    entity = await make_update(hass, fake_charger)
+    assert entity.installed_version is None
+    fake_charger.push("fwv", ODD_VERSIONS[kind])
+    assert entity.installed_version is None

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
-from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 
 from custom_components.wattpilot import sensor as sensor_platform
 from custom_components.wattpilot.descriptions import (
@@ -18,6 +18,7 @@ from custom_components.wattpilot.descriptions import (
     filter_supported,
 )
 from custom_components.wattpilot.hub import WattpilotHub
+from custom_components.wattpilot.readings import describe_shape
 from custom_components.wattpilot.sensor import WattpilotSensor
 
 from .parity import assert_platform_parity
@@ -29,10 +30,30 @@ if TYPE_CHECKING:
 
 ENTRY_ID = "entry1"
 ENERGY_SPLIT_UIDS = {"whs", "whb", "whg", "who"}
+# uid, nrg slot and unit; N carries no current.
+PHASE_READINGS = [
+    *(
+        (f"{phase}_voltage", slot, "V")
+        for slot, phase in enumerate(("l1", "l2", "l3", "n"))
+    ),
+    *(
+        (f"{phase}_current", slot, "A")
+        for slot, phase in enumerate(("l1", "l2", "l3"), 4)
+    ),
+    *(
+        (f"{phase}_power", slot, "W")
+        for slot, phase in enumerate(("l1", "l2", "l3", "n"), 7)
+    ),
+    *(
+        (f"{phase}_power_factor", slot, "%")
+        for slot, phase in enumerate(("l1", "l2", "l3", "n"), 12)
+    ),
+]
+
 # Additions this project chose on top of the frozen fork uids: the energy
 # split, the phase count (pnp), charging permission and current (alw, acu),
-# average power (tpa), grid frequency (fhz), the electricity price (awcp)
-# and the charging duration (cdi).
+# average power (tpa), grid frequency (fhz), the electricity price (awcp),
+# the charging duration (cdi) and the readings per phase.
 # See tests/parity.py before widening this to make a test pass.
 EXTRA_SENSOR_UIDS = ENERGY_SPLIT_UIDS | {
     "pnp",
@@ -44,6 +65,8 @@ EXTRA_SENSOR_UIDS = ENERGY_SPLIT_UIDS | {
     "cdi",
     # The ID chips of a charger without a `cards` list (Wattpilot Flex).
     *(f"chip_{i}" for i in range(10)),
+    # The readings per phase, beside Charging power's attributes.
+    *(uid for uid, _, _ in PHASE_READINGS),
 }
 
 
@@ -384,10 +407,10 @@ def test_each_charger_gets_the_chip_sensors_of_its_own_shape(
 
 def test_the_log_names_a_shape_without_repeating_the_value() -> None:
     """What the warning is allowed to say about a payload it cannot use."""
-    assert sensor_platform._describe_shape([1, 2, 3]) == "list of 3"
-    assert sensor_platform._describe_shape((1,)) == "tuple of 1"
-    assert sensor_platform._describe_shape({"a": 1, "b": 2}) == "dict of 2"
-    assert sensor_platform._describe_shape("garbage") == "str"
+    assert describe_shape([1, 2, 3]) == "list of 3"
+    assert describe_shape((1,)) == "tuple of 1"
+    assert describe_shape({"a": 1, "b": 2}) == "dict of 2"
+    assert describe_shape("garbage") == "str"
 
 
 async def test_a_missing_card_slot_leaks_no_names_into_the_log(
@@ -504,6 +527,15 @@ async def test_a_flex_temperature_with_empty_slots_shows_the_hottest(
     sensor = await make_sensor(hass, fake_charger, "tma")
     assert sensor.native_value == 36.875
     assert sensor.extra_state_attributes == {"readings": readings}
+
+
+async def test_a_temperature_that_is_no_number_is_skipped(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """max() over a NaN is NaN (post-check PC6-06)."""
+    fake_charger._properties["tma"] = [float("nan"), 40.0]
+    sensor = await make_sensor(hass, fake_charger, "tma")
+    assert sensor.native_value == 40.0
 
 
 async def test_no_temperature_reading_is_unknown(
@@ -684,6 +716,41 @@ async def test_an_incomplete_price_schedule_gives_no_prices(
     assert sensor.extra_state_attributes == {"prices": []}
 
 
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"start": "n/a", "end": 1786399200, "marketprice": 9.0},
+        {"start": 18446744073709551615, "end": 1786399200, "marketprice": 9.0},
+        {"start": 1e13, "end": 1786399200, "marketprice": 9.0},  # past year 9999
+    ],
+    ids=["text", "out_of_range", "past_the_calendar"],
+)
+async def test_one_bad_price_costs_only_itself(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, bad: dict[str, Any]
+) -> None:
+    """A bad entry in the price list took the current price with it, and an
+    out-of-range start escaped the bounded catch (reaudit RF-D-03)."""
+    fake_charger._properties.update({"awcp": PRICE_HOUR, "awpl": [bad, PRICE_HOUR]})
+    sensor = await make_sensor(hass, fake_charger, "awcp")
+
+    assert sensor.native_value == PRICE_HOUR["marketprice"]
+    assert [entry["price"] for entry in sensor.extra_state_attributes["prices"]] == [
+        PRICE_HOUR["marketprice"]
+    ]
+
+
+@pytest.mark.parametrize("start", ["n/a", 10**400], ids=["text", "beyond_float"])
+async def test_a_flex_schedule_with_a_bad_start_gives_no_prices(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, start: Any
+) -> None:
+    schedule = {"marketprice": [15.144], "start": start, "interval": 3600}
+    fake_charger._properties.update({"awcp": PRICE_HOUR, "awpl": schedule})
+    sensor = await make_sensor(hass, fake_charger, "awcp")
+
+    assert sensor.native_value == PRICE_HOUR["marketprice"]
+    assert sensor.extra_state_attributes == {"prices": []}
+
+
 async def test_a_new_price_list_reaches_the_attribute(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
@@ -734,13 +801,18 @@ def test_per_phase_readings_stay_out_of_the_recorder() -> None:
         ({"type": 1, "value": 0}, 14857, 0),  # after a power cut
         (None, 14857, None),
         ({"type": 7, "value": 1}, 14857, None),
+        # json.loads makes NaN and infinity of what the charger could send.
+        ({"type": 0, "value": 2217901}, float("inf"), None),
+        ({"type": 1, "value": float("nan")}, 14857, None),
+        # Each finite, their difference not (post-check PC6-01).
+        ({"type": 0, "value": -1.7e308}, 1.7e308, None),
     ],
 )
 async def test_charging_duration_in_minutes(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
     cdi: Any,
-    rbt: int,
+    rbt: float,
     minutes: int | None,
 ) -> None:
     fake_charger._properties.update({"cdi": cdi, "rbt": rbt})
@@ -778,3 +850,83 @@ async def test_only_a_price_companion_becomes_the_prices_attribute(
     sensor.entity_id = "sensor.test_cdi_plain"
     await sensor.async_added_to_hass()
     assert "prices" not in (sensor.extra_state_attributes or {})
+
+
+def nrg_reading(total_power: float) -> list[float]:
+    """An nrg reading, as on firmware 42.5, with *total_power* at slot 11."""
+    nrg = [235.6, 233.7, 234.0, 1.5] + [0.0] * 12
+    nrg[11] = total_power
+    return nrg
+
+
+async def _average_power_while_charging(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> WattpilotSensor:
+    fake_charger._properties.update({"tpa": 4121.5, "nrg": nrg_reading(4100)})
+    return await make_sensor(hass, fake_charger, "tpa")
+
+
+async def test_average_power_is_zero_while_nothing_flows(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """tpa keeps the last session's average after charging -- recorded on
+    firmware 42.5 with the car plugged in and every power slot at 0, and
+    reported on a Flex -- so threshold automations kept firing for hours
+    (audit A18-13). Nothing flowing when the entry starts is already idle."""
+    fake_charger._properties.update({"tpa": 4121.5, "nrg": nrg_reading(0)})
+    sensor = await make_sensor(hass, fake_charger, "tpa")
+
+    assert sensor.native_value == 0
+
+
+async def test_a_single_watt_counts_as_charging(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The charger reports exactly 0 W while idle; any power is a session."""
+    fake_charger._properties.update({"tpa": 4121.5, "nrg": nrg_reading(1)})
+    sensor = await make_sensor(hass, fake_charger, "tpa")
+
+    assert sensor.native_value == 4121.5
+
+
+@pytest.mark.parametrize(
+    "nrg",
+    [nrg_reading(None), nrg_reading("n/a"), nrg_reading(0)[:11], None],
+    ids=["null", "text", "short", "missing"],  # type: ignore[arg-type]
+)
+async def test_unknown_live_power_makes_the_average_unknown(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, nrg: Any
+) -> None:
+    """Without the live reading there is no telling a stale average apart."""
+    sensor = await _average_power_while_charging(hass, fake_charger)
+
+    fake_charger.push("nrg", nrg)
+
+    assert sensor.native_value is None
+
+
+@pytest.mark.parametrize(("uid", "index", "unit"), PHASE_READINGS)
+async def test_each_phase_reading_has_a_sensor_of_its_own(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, uid: str, index: int, unit: str
+) -> None:
+    """The per-phase readings were only attributes of Charging power, and
+    those stay out of the recorder: no history of them existed at all."""
+    fake_charger._properties["nrg"] = [float(slot) for slot in range(16)]
+    sensor = await make_sensor(hass, fake_charger, uid)
+
+    assert sensor.native_value == index
+    assert sensor.native_unit_of_measurement == unit
+    assert by_uid(uid).entity_registry_enabled_default is False, "recorder load"
+
+
+@pytest.mark.parametrize(
+    "description", SENSOR_DESCRIPTIONS, ids=[d.uid_suffix for d in SENSOR_DESCRIPTIONS]
+)
+def test_the_numeric_rule_is_home_assistants(description: Any) -> None:
+    """The conversion checks for a number exactly where Home Assistant
+    will insist on one when it writes the state (reaudit K-A)."""
+    entity = SensorEntity()
+    entity.entity_description = description
+
+    expected = entity._numeric_state_expected and not description.enum
+    assert sensor_platform._expects_number(description) is expected

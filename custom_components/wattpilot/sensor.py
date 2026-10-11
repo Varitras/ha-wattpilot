@@ -11,10 +11,12 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
 )
+from homeassistant.components.sensor.const import NON_NUMERIC_DEVICE_CLASSES
+from homeassistant.core import callback
+from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt as dt_util
 
 from .descriptions import (
-    MILLISECONDS_PER_MINUTE,
     NRG_ATTRIBUTES,
     SENSOR_DESCRIPTIONS,
     CompanionRole,
@@ -22,9 +24,20 @@ from .descriptions import (
     filter_supported,
 )
 from .entity import WattpilotEntity
+from .readings import (
+    charging_minutes,
+    describe_shape,
+    is_number,
+    namespace_get,
+    number_or_none,
+    price_list,
+    total_power,
+)
 
 if TYPE_CHECKING:
-    from homeassistant.core import HomeAssistant
+    from datetime import datetime
+
+    from homeassistant.core import CALLBACK_TYPE, HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
     from .hub import WattpilotConfigEntry
@@ -37,6 +50,8 @@ PARALLEL_UPDATES = 0
 # reset apart from measurement noise (reset_detected() in
 # homeassistant.components.sensor.recorder: `fstate < 0.9 * previous_fstate`).
 _RESET_THRESHOLD_RATIO = 0.9
+# A pause inside a session, a phase switch for one, is not its end.
+_IDLE_AFTER_SECONDS = 60
 
 
 async def async_setup_entry(
@@ -65,58 +80,22 @@ def _sensor_class(
         return WattpilotChargingDurationSensor
     if description.monotonic:
         return WattpilotTotalSensor
+    if description.companion_role is CompanionRole.LIVE_POWER:
+        return WattpilotAveragePowerSensor
     return WattpilotSensor
 
 
-def _describe_shape(value: object) -> str:
-    """Name what a value is without repeating what it says."""
-    if isinstance(value, (list, tuple)):
-        return f"{type(value).__name__} of {len(value)}"
-    if isinstance(value, dict):
-        return f"dict of {len(value)}"
-    return type(value).__name__
-
-
-def _namespace_get(value: Any, field: str) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
-    if isinstance(value, dict):
-        return value.get(field)
-    return getattr(value, field, None)
-
-
-def _price_schedule(value: Any) -> list[dict[str, Any]]:  # noqa: ANN401 -- dynamically shaped charger payload
-    """
-    Expand a Wattpilot Flex price list into the usual entries.
-
-    The Flex sends one object -- the prices, the first start, the interval --
-    whose start and first price match awcp (FW 43.5 diagnostics).
-    """
-    prices = _namespace_get(value, "marketprice")
-    start = _namespace_get(value, "start")
-    interval = _namespace_get(value, "interval")
-    if not isinstance(prices, list) or start is None or interval is None:
-        return []
-    return [
-        {
-            "start": start + i * interval,
-            "end": start + (i + 1) * interval,
-            "marketprice": price,
-        }
-        for i, price in enumerate(prices)
-    ]
-
-
-def _price_list(value: Any) -> list[dict[str, Any]]:  # noqa: ANN401 -- dynamically shaped charger payload
-    """Return the charger's price list, with its unix times as datetimes."""
-    if not isinstance(value, list):
-        value = _price_schedule(value)
-    return [
-        {
-            "start": dt_util.utc_from_timestamp(_namespace_get(entry, "start")),
-            "end": dt_util.utc_from_timestamp(_namespace_get(entry, "end")),
-            "price": _namespace_get(entry, "marketprice"),
-        }
-        for entry in value
-    ]
+def _expects_number(description: WattpilotSensorEntityDescription) -> bool:
+    """Home Assistant's rule: such a sensor's state must be a number (K-A)."""
+    if description.device_class in NON_NUMERIC_DEVICE_CLASSES or description.enum:
+        return False
+    numeric_marks = (
+        description.device_class,
+        description.state_class,
+        description.native_unit_of_measurement,
+        description.suggested_display_precision,
+    )
+    return any(mark is not None for mark in numeric_marks)
 
 
 class WattpilotSensor(WattpilotEntity, SensorEntity):
@@ -127,10 +106,13 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
     # readings that differ in nearly every update while charging: history
     # of either would only fill the recorder.
     _unrecorded_attributes = frozenset({"prices", "readings", *NRG_ATTRIBUTES})
+    # Held against, not an unknown a null left on display (RF-D-02).
+    _last_number: float | None = None
 
     def __init__(self, *args: Any) -> None:  # noqa: ANN401 -- forwards WattpilotEntity's args unchanged
         """Set the ID-chip index placeholder, if this sensor has one."""
         super().__init__(*args)
+        self._expects_number = _expects_number(self.entity_description)
         if self.entity_description.chip_index is not None:
             self._attr_translation_placeholders = {
                 "index": str(self.entity_description.chip_index)
@@ -152,18 +134,8 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
             if description.enum is not None:
                 self._attr_native_value = description.enum.get(value, value)
                 return
-            if isinstance(value, (int, float)):
-                if description.clamp_non_negative:
-                    value = max(0, value)
-                if (
-                    description.reset_tolerant_monotonic
-                    and description.suggested_display_precision is not None
-                ):
-                    # Round before deciding: the decision must match what's
-                    # actually reported, not a raw value HA never sees.
-                    value = round(value, description.suggested_display_precision)
-                if self._should_suppress_decrease(description, value):
-                    return
+            if self._expects_number:
+                value = self._number(description, value)
             self._attr_native_value = value
         except (TypeError, ValueError, LookupError) as err:
             # Bounded, purposeful catch: one malformed push must not kill
@@ -177,10 +149,36 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
             _LOGGER.warning(
                 "%s: unexpected %s for %s (%s)",
                 description.key,
-                _describe_shape(value),
+                describe_shape(value),
                 description.charger_key,
                 type(err).__name__,
             )
+
+    def _number(
+        self,
+        description: WattpilotSensorEntityDescription,
+        value: Any,  # noqa: ANN401 -- charger payload
+    ) -> float | None:
+        """Return the number to show; a held step back shows the last one."""
+        value = number_or_none(value)
+        return None if value is None else self._held(description, value)
+
+    def _held(
+        self, description: WattpilotSensorEntityDescription, value: float
+    ) -> float | None:
+        if description.clamp_non_negative:
+            value = max(0, value)
+        if (
+            description.reset_tolerant_monotonic
+            and description.suggested_display_precision is not None
+        ):
+            # Round before deciding: the decision must match what's
+            # actually reported, not a raw value HA never sees.
+            value = round(value, description.suggested_display_precision)
+        if self._should_suppress_decrease(description, value):
+            return self._last_number
+        self._last_number = value
+        return value
 
     def _unwrap(self, value: Any) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
         """Pick the reading out of a structured payload, with its attributes."""
@@ -203,14 +201,14 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
 
     def _unwrap_namespace(self, value: Any, field: str) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
         self._attr_extra_state_attributes = {
-            name: _namespace_get(value, name)
+            name: namespace_get(value, name)
             for name in self.entity_description.namespace_attributes
         }
-        return _namespace_get(value, field)
+        return namespace_get(value, field)
 
     def _unwrap_highest(self, value: Any) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
         self._attr_extra_state_attributes = {"readings": value}
-        readings = [item for item in value if isinstance(item, (int, float))]
+        readings = [item for item in value if is_number(item)]
         return max(readings, default=None)
 
     def _apply_price_list(self) -> None:
@@ -221,7 +219,7 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
         ):
             return
         self._attr_extra_state_attributes = {
-            "prices": _price_list(self._hub.get_property(key))
+            "prices": price_list(self._hub.get_property(key))
         }
 
     def _apply_card(self, value: Any, index: int) -> None:  # noqa: ANN401 -- charger payload
@@ -239,17 +237,17 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
             self._attr_extra_state_attributes = {}
             return
         card = value[index]
-        self._attr_native_value = _namespace_get(card, "energy")
+        self._attr_native_value = number_or_none(namespace_get(card, "energy"))
         self._attr_extra_state_attributes = {
-            "name": _namespace_get(card, "name"),
-            "cardId": _namespace_get(card, "cardId"),
+            "name": namespace_get(card, "name"),
+            "cardId": namespace_get(card, "cardId"),
         }
 
     def _should_suppress_decrease(
         self, description: WattpilotSensorEntityDescription, value: float
     ) -> bool:
         """Decide whether a lower value than last reported should be dropped."""
-        previous = self._attr_native_value
+        previous = self._last_number
         if not isinstance(previous, (int, float)) or value >= previous:
             return False
         if description.monotonic:
@@ -277,29 +275,6 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
         )
 
 
-# cdi's "type" as measured on firmware 42.5 (2026-09-25 recordings).
-_CHARGING = 0  # value: the boot clock (rbt) when charging began
-_STOPPED = 1  # value: the duration in ms
-
-
-def _charging_minutes(cdi: Any, boot_clock: Any) -> int | None:  # noqa: ANN401 -- charger payloads
-    """
-    Return the whole minutes of the current or last charging session.
-
-    A reboot mid-session makes the start negative, so the subtraction holds
-    across it (recorded: -8301127 at rbt 41170, the minutes carried on).
-    """
-    kind = _namespace_get(cdi, "type")
-    value = _namespace_get(cdi, "value")
-    if not isinstance(value, int | float):
-        return None
-    if kind == _CHARGING and isinstance(boot_clock, int | float):
-        return int(boot_clock - value) // MILLISECONDS_PER_MINUTE
-    if kind == _STOPPED:
-        return int(value) // MILLISECONDS_PER_MINUTE
-    return None
-
-
 class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):
     """A total that never falls, also across a reload or restart."""
 
@@ -313,6 +288,7 @@ class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):
         last = await self.async_get_last_sensor_data()
         if last is not None and isinstance(last.native_value, (int, float)):
             self._attr_native_value = self._restored_total = last.native_value
+            self._last_number = last.native_value
         await super().async_added_to_hass()
 
     def _should_suppress_decrease(
@@ -336,4 +312,63 @@ class WattpilotChargingDurationSensor(WattpilotSensor):
         boot_clock = self._hub.get_property(
             self.entity_description.companion_key  # type: ignore[arg-type]
         )
-        self._attr_native_value = _charging_minutes(value, boot_clock)
+        self._attr_native_value = charging_minutes(value, boot_clock)
+
+
+class WattpilotAveragePowerSensor(WattpilotSensor):
+    """Average charging power, 0 W once the current has stopped for a minute."""
+
+    _cancel_idle: CALLBACK_TYPE | None = None
+    _stale: object = None  # the average the last session left behind
+
+    def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- charger payload
+        # tpa keeps the last session's average after charging, and threshold
+        # automations kept firing on it for hours (audit A18-13).
+        live = total_power(
+            self._hub.get_property(self.entity_description.companion_key)  # type: ignore[arg-type]
+        )
+        if live is None or live > 0:
+            self._stop_idle_timer()
+            self._show_live(value, live)
+        else:
+            self._hold_while_idle()
+
+    def _show_live(self, value: Any, live: float | None) -> None:  # noqa: ANN401 -- charger payload
+        if not live or value is None:
+            # Unknown, whichever reading is: no telling a stale average, and
+            # which one is stale stays known (PC5-R-03, PC6-03, PC7-01).
+            super()._apply_value(None)
+            return
+        if value == self._stale:
+            self._attr_native_value = 0  # until this session's own average (RF-D-04)
+            return
+        self._stale = None
+        super()._apply_value(value)
+
+    def _hold_while_idle(self) -> None:
+        if not self._attr_native_value:
+            # Nothing to hold, as when the entry starts with nothing flowing.
+            self._show_idle()
+        elif self._cancel_idle is None:
+            self._cancel_idle = async_call_later(
+                self.hass, _IDLE_AFTER_SECONDS, self._went_idle
+            )
+
+    @callback
+    def _went_idle(self, _now: datetime) -> None:
+        self._show_idle()
+        self.async_write_ha_state()
+
+    def _show_idle(self) -> None:
+        self._attr_native_value = 0
+        self._stale = self._hub.get_property(self.entity_description.charger_key)
+
+    def _stop_idle_timer(self) -> None:
+        if self._cancel_idle is not None:
+            self._cancel_idle()
+            self._cancel_idle = None
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Cancel a pending switch to 0 W."""
+        self._stop_idle_timer()
+        await super().async_will_remove_from_hass()

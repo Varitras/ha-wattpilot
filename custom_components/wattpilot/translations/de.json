@@ -92,17 +92,17 @@
       "message": "Unbekannte Option: {option}"
     },
     "wrong_charger": {
-      "message": "Dieser Eintrag gehört zu Ladegerät {expected}, das Gerät unter dieser Adresse meldet aber die Seriennummer {found}. Wurde das Ladegerät ersetzt, diesen Eintrag löschen und das neue hinzufügen."
+      "message": "Dieser Eintrag gehört zu Ladegerät {expected}, das Gerät unter dieser Adresse meldet aber die Seriennummer {found}. Hat das Ladegerät eine neue Adresse, Neu konfigurieren wählen; wurde es ersetzt, diesen Eintrag löschen und das neue hinzufügen."
     }
   },
   "issues": {
     "wrong_charger": {
       "title": "Unter der Adresse dieses Ladegeräts antwortet ein anderes",
-      "description": "Home Assistant hat unter der Adresse des Ladegeräts mit der Seriennummer {serial} ein anderes Ladegerät erreicht und die Verbindung eingestellt, damit dessen Werte nicht als die dieses Geräts erscheinen. Vermutlich wurde die Adresse an ein anderes Gerät vergeben.\n\nHat das Ladegerät jetzt eine andere Adresse, in der Integration **Neu konfigurieren** wählen und sie eintragen. Dieser Hinweis verschwindet, wenn die Integration neu geladen wird."
+      "description": "Home Assistant hat unter der Adresse des Ladegeräts mit der Seriennummer {serial} ein anderes Ladegerät erreicht und die Verbindung eingestellt, damit dessen Werte nicht als die dieses Geräts erscheinen. Vermutlich wurde die Adresse an ein anderes Gerät vergeben.\n\nHat das Ladegerät jetzt eine andere Adresse, in der Integration **Neu konfigurieren** wählen und sie eintragen. Dieser Hinweis verschwindet, sobald das Ladegerät wieder verbunden ist oder die Integration neu geladen wird."
     },
     "charger_refused": {
       "title": "Das Ladegerät hat die Verbindung abgelehnt",
-      "description": "Das Ladegerät hat die Verbindung abgelehnt: {error}. Home Assistant hat die Verbindung eingestellt, weil ein neuer Versuch nur dieselbe Ablehnung brächte. Vermutlich verlangt das Ladegerät ein Anmeldeverfahren, das diese Version der Integration nicht kennt.\n\nNach einem Update der Integration sehen. Dieser Hinweis verschwindet, wenn die Integration neu geladen wird."
+      "description": "Das Ladegerät hat die Verbindung abgelehnt: {error}. Home Assistant hat die Verbindung eingestellt, weil ein neuer Versuch nur dieselbe Ablehnung brächte. Vermutlich verlangt das Ladegerät ein Anmeldeverfahren, das diese Version der Integration nicht kennt.\n\nNach einem Update der Integration sehen. Dieser Hinweis verschwindet, sobald das Ladegerät wieder verbunden ist oder die Integration neu geladen wird."
     },
     "migration_collision": {
       "title": "Einige Entitäten konnten nicht migriert werden",
@@ -129,6 +129,21 @@
       "local_time": {"name": "Lokale Zeit"},
       "charging_reason": {"name": "Ladegrund"},
       "charging_power": {"name": "Ladeleistung"},
+      "l1_voltage": {"name": "Spannung L1"},
+      "l2_voltage": {"name": "Spannung L2"},
+      "l3_voltage": {"name": "Spannung L3"},
+      "n_voltage": {"name": "Spannung N"},
+      "l1_current": {"name": "Strom L1"},
+      "l2_current": {"name": "Strom L2"},
+      "l3_current": {"name": "Strom L3"},
+      "l1_power": {"name": "Leistung L1"},
+      "l2_power": {"name": "Leistung L2"},
+      "l3_power": {"name": "Leistung L3"},
+      "n_power": {"name": "Leistung N"},
+      "l1_power_factor": {"name": "Leistungsfaktor L1"},
+      "l2_power_factor": {"name": "Leistungsfaktor L2"},
+      "l3_power_factor": {"name": "Leistungsfaktor L3"},
+      "n_power_factor": {"name": "Leistungsfaktor N"},
       "webserver_queue": {"name": "Webserver-Warteschlange"},
       "reboot_counter": {"name": "Neustartzähler"},
       "reboot_timer": {"name": "Laufzeit"},

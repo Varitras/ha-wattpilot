@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_NAME, Platform
 
 if TYPE_CHECKING:
@@ -111,20 +112,50 @@ def serial_taken_by_other_entry(
     )
 
 
-def new_device_name(hass: HomeAssistant) -> str:
+def _names_taken(hass: HomeAssistant, exclude: str | None) -> set[str | None]:
+    entries = [
+        entry
+        for entry in hass.config_entries.async_entries(DOMAIN, include_ignore=False)
+        if entry.entry_id != exclude
+    ]
+    return {entry.title for entry in entries} | {
+        entry.data.get(CONF_NAME) for entry in entries
+    }
+
+
+def new_device_name(
+    hass: HomeAssistant, *, preferred: str | None = None, exclude: str | None = None
+) -> str:
     """
     Name a new charger Wattpilot, numbered from the second one on.
 
     Not its host name, Wattpilot_<serial>: entity IDs follow the device
     name, and the serial in every one of them reached logs and posts. A
-    renamed entry's device keeps the name it was created with.
+    renamed entry's device keeps the name it was created with. *preferred*
+    wins while no other entry has it; *exclude* is the entry being named.
     """
-    entries = hass.config_entries.async_entries(DOMAIN, include_ignore=False)
-    taken = {entry.title for entry in entries} | {
-        entry.data.get(CONF_NAME) for entry in entries
-    }
+    taken = _names_taken(hass, exclude)
+    if preferred and preferred not in taken:
+        return preferred
     name, number = DEVICE_NAME, 1
     while name in taken:
         number += 1
         name = f"{DEVICE_NAME} {number}"
     return name
+
+
+def reload_failed_entry(
+    hass: HomeAssistant, entry: ConfigEntry | None, updates: dict[str, str] | None
+) -> None:
+    """
+    Give a failed entry its charger's announced address, and reload it.
+
+    Home Assistant reloads only a loaded or retrying entry after a discovery
+    update: one that met another charger at its old address and failed stayed
+    failed with the right address stored (reaudit RF-E-01). Only a change
+    reloads, or every announcement would.
+    """
+    if entry is None or not updates or entry.state is not ConfigEntryState.SETUP_ERROR:
+        return
+    if hass.config_entries.async_update_entry(entry, data={**entry.data, **updates}):
+        hass.config_entries.async_schedule_reload(entry.entry_id)

@@ -184,9 +184,7 @@ class WattpilotHub:
         close; one that starts later is refused.
         """
         self._retired = True
-        # They describe this hub's connection; a new setup finds out afresh.
-        for kind in _REFUSAL_ISSUES:
-            ir.async_delete_issue(self._hass, DOMAIN, f"{kind}_{self._entry_id}")
+        self._clear_refusals()  # this hub's connection; a new setup finds out afresh
         await self.async_disconnect()
 
     async def async_disconnect(self) -> None:
@@ -328,6 +326,10 @@ class WattpilotHub:
             # A sign-in scheme the client does not know (reaudit R1-13).
             self._report_refusal("charger_refused", {"error": describe_error(refusal)})
 
+    def _clear_refusals(self) -> None:
+        for kind in _REFUSAL_ISSUES:
+            ir.async_delete_issue(self._hass, DOMAIN, f"{kind}_{self._entry_id}")
+
     def _report_refusal(self, kind: str, placeholders: dict[str, str]) -> None:
         ir.async_create_issue(
             self._hass,
@@ -349,6 +351,7 @@ class WattpilotHub:
         self._last_available = available
         if available:
             self._flush_pending()  # the values before the announcement (A18-20)
+            self._clear_refusals()  # a reconnect left them up beside it (RF-L-03)
         self._log_availability(
             available=available, expected=expected, never_reported=never_reported
         )

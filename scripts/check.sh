@@ -52,15 +52,27 @@ mutation_gate() {
     # of them ever dies here, the reason is in the log.
     accepted=$(grep -v -e '^#' -e '^$' scripts/equivalent-mutants.txt)
     for mutant in $accepted; do
-        sed -i "/^ *${mutant}: /d" mutants/results.txt
-        mutmut tests-for-mutant "$mutant" | grep '::' >mutants/tests-for-accepted.txt
-        # One argument per test id, on purpose: the list is word-split.
-        # shellcheck disable=SC2046
-        if (cd mutants && MUTANT_UNDER_TEST="$mutant" python3 -m pytest -x -q --rootdir=. -p no:cacheprovider $(cat tests-for-accepted.txt)); then
-            echo "    ${mutant}: survived" >>mutants/results.txt
-        else
-            echo "    ${mutant}: killed" >>mutants/results.txt
+        # A name mutmut no longer has ran the original code and was booked
+        # "survived" below, so a renumbered entry was never caught (RF-D-06).
+        if ! grep -q "^ *${mutant}: " mutants/results.txt; then
+            echo "accepted mutant ${mutant} does not exist; renumbered?" >&2
+            return 1
         fi
+        sed -i "/^ *${mutant}: /d" mutants/results.txt
+        # One argument per line: a test id can hold a space ([minus infinity]).
+        mapfile -t tests < <(mutmut tests-for-mutant "$mutant" | grep '::')
+        status=0
+        (cd mutants && MUTANT_UNDER_TEST="$mutant" python3 -m pytest -x -q --rootdir=. -p no:cacheprovider "${tests[@]}") || status=$?
+        # Only a failing test kills; any other non-zero exit is pytest unable
+        # to run them, which once read as "killed" and hid the error.
+        case $status in
+            0) echo "    ${mutant}: survived" >>mutants/results.txt ;;
+            1) echo "    ${mutant}: killed" >>mutants/results.txt ;;
+            *)
+                echo "pytest could not judge ${mutant} (exit ${status})" >&2
+                return 1
+                ;;
+        esac
     done
     python3 scripts/judge_mutants.py mutants/results.txt scripts/equivalent-mutants.txt
 }

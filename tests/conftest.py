@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -18,8 +19,72 @@ pytest_plugins = "pytest_homeassistant_custom_component"
 
 
 @pytest.fixture(autouse=True)
-def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
-    """Allow HA to load custom_components/wattpilot in tests."""
+def auto_enable_custom_integrations(
+    no_identifier_reaches_the_log: None,
+    drop_serial_masks: None,
+    enable_custom_integrations: None,
+) -> None:
+    """
+    Allow HA to load custom_components/wattpilot in tests.
+
+    After the log fixtures, which then outlast hass: autouse fixtures are set
+    up by name, so the stop of Home Assistant went unchecked (PC5-T-03).
+    """
+
+
+# Serials and addresses the tests hand out. None may reach a log record
+# unmasked, tracebacks included: the static guard was widened three rounds
+# running and still missed shapes, so every test now checks the real output
+# (reaudit RF-P-03). Any IPv4 literal, as a list of the tests' addresses
+# missed four (post-check PC5-T-04); 192.0.2.1 is the redaction's stand-in.
+IDENTIFIERS = re.compile(
+    r"(?<![\d.])(?:123456|654321|999999|111111|222222|333333"
+    r"|(?!192\.0\.2\.1(?![\d]))\d{1,3}(?:\.\d{1,3}){3}"
+    r"|(?:2001:db8|fe80):[0-9a-f:]*[0-9a-f])(?![\d])"
+)
+# Entity IDs of a device named after its host name carry the serial: the
+# accepted risk L-027 for installations from before names were stored.
+ENTITY_ID = re.compile(r"\b[a-z_]+\.[a-z0-9_]+")
+
+
+class _LogLines(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__(logging.DEBUG)
+        self.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+        self.lines: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.lines.append(self.format(record))
+
+
+@pytest.fixture(autouse=True)
+def no_identifier_reaches_the_log(request: pytest.FixtureRequest) -> Iterator[None]:
+    """Fail a test whose log names a charger; mark the few that must."""
+    handler = _LogLines()
+    # Home Assistant's setup DEBUG lines too: it logs a setup retry's
+    # traceback there (post-check PC5-T-04).
+    loggers = [
+        logging.getLogger(name)
+        for name in (
+            "custom_components.wattpilot",
+            "homeassistant.config_entries",
+            "homeassistant.setup",
+        )
+    ]
+    levels = [logger.level for logger in loggers]
+    for logger in loggers:
+        logger.setLevel(logging.DEBUG)
+    logging.getLogger().addHandler(handler)
+    yield
+    logging.getLogger().removeHandler(handler)
+    for logger, level in zip(loggers, levels, strict=True):
+        logger.setLevel(level)
+    if request.node.get_closest_marker("logs_identifiers"):
+        return
+    leaked = [
+        line for line in handler.lines if IDENTIFIERS.search(ENTITY_ID.sub("", line))
+    ]
+    assert not leaked, f"identifier(s) in the log: {leaked[:3]}"
 
 
 @pytest.fixture(autouse=True)

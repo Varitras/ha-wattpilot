@@ -73,8 +73,7 @@ class WattpilotDescriptionMixin:
     # Buttons/update trigger keys are write-only: no presence check.
     requires_property: bool = True
     # A second property the entity reads; its pushes refresh the entity too.
-    # What it means is the platform's to say: select, the list of allowed
-    # values; sensor, whatever its companion_role names.
+    # select: the allowed values; sensor: whatever its companion_role names.
     companion_key: str | None = None
 
     @property
@@ -201,6 +200,7 @@ class CompanionRole(StrEnum):
 
     PRICES = "prices"  # a price list, shown as an attribute
     BOOT_CLOCK = "boot_clock"  # rbt, which a running cdi counts from
+    LIVE_POWER = "live_power"  # nrg, whose total power tells an idle charger
 
 
 NRG_ATTRIBUTES = {
@@ -472,6 +472,30 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
         value_index=11,
         index_attributes=NRG_ATTRIBUTES,
     ),
+    # Per phase with history: Charging power's attributes, which the fork had
+    # and templates read, stay out of the recorder.
+    *(
+        WattpilotSensorEntityDescription(
+            key=f"{phase}_{quantity}",
+            charger_key="nrg",
+            uid=f"{phase}_{quantity}",
+            translation_key=f"{phase}_{quantity}",
+            device_class=device_class,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement=unit,
+            suggested_display_precision=precision,
+            value_index=NRG_ATTRIBUTES[f"{phase.upper()}_{slot}"],
+            entity_registry_enabled_default=False,
+        )
+        for quantity, slot, device_class, unit, precision in (
+            ("voltage", "Voltage", SensorDeviceClass.VOLTAGE, "V", 1),
+            ("current", "Ampere", SensorDeviceClass.CURRENT, "A", 1),
+            ("power", "Power", SensorDeviceClass.POWER, "W", 0),
+            ("power_factor", "PowerRelative", SensorDeviceClass.POWER_FACTOR, "%", 0),
+        )
+        for phase in ("l1", "l2", "l3", "n")
+        if f"{phase.upper()}_{slot}" in NRG_ATTRIBUTES  # no current on N
+    ),
     WattpilotSensorEntityDescription(
         key="webserver_queue",
         charger_key="qsw",
@@ -599,9 +623,9 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
         native_unit_of_measurement="W",
         translation_key="average_charging_power",
         suggested_display_precision=0,
-        # The charger's own 30-second average of total power. Steadier than
-        # the instantaneous value in "nrg", which is what threshold
-        # automations want.
+        # The charger's 30 s average; it keeps the last session's after one.
+        companion_key="nrg",
+        companion_role=CompanionRole.LIVE_POWER,
     ),
     WattpilotSensorEntityDescription(
         key="grid_frequency",

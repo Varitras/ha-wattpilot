@@ -6,9 +6,15 @@ import json
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from homeassistant.const import CONF_NAME
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.wattpilot.const import DOMAIN
+from custom_components.wattpilot import async_migrate_entry
+from custom_components.wattpilot.const import (
+    CONF_AWAITING_SERIAL,
+    CONF_CONNECTION_TYPE,
+    DOMAIN,
+)
 from custom_components.wattpilot.diagnostics import (
     TO_REDACT,
     async_get_config_entry_diagnostics,
@@ -21,7 +27,13 @@ from custom_components.wattpilot.redaction import (
     sanitize_snapshot,
 )
 
-from .test_init import V2_LOCAL_DATA, setup_entry
+from .test_init import (
+    V1_CLOUD_DATA,
+    V1_LOCAL_DATA,
+    V2_AWAITING_SERIAL,
+    V2_LOCAL_DATA,
+    setup_entry,
+)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -29,11 +41,43 @@ if TYPE_CHECKING:
     from .conftest import FakeWattpilot
 
 
-def test_redact_set_covers_entry_data() -> None:
-    """TO_REDACT only needs the entry-level connection settings; device
-    properties are covered by redaction.sanitize_snapshot instead (see
-    diagnostics.py's module docstring for why the two are split)."""
-    assert {"password", "host"} == TO_REDACT
+# Entry fields that identify nothing; every other field must be redacted.
+ENTRY_FIELDS_KEPT = frozenset({CONF_CONNECTION_TYPE, CONF_AWAITING_SERIAL})
+
+
+async def test_every_entry_field_has_a_redaction_decision(
+    hass: HomeAssistant,
+) -> None:
+    """A fork entry gained a stored name, which went out in the clear while
+    the same name was replaced among the properties (README audit RM2-01).
+    The shapes come from the writers themselves: the config flow's and the
+    migration of both fork entry kinds."""
+    shapes = [{**V2_LOCAL_DATA, CONF_NAME: "Wattpilot"}, V2_AWAITING_SERIAL]
+    for v1_data in (V1_LOCAL_DATA, V1_CLOUD_DATA):
+        entry = MockConfigEntry(domain=DOMAIN, data=v1_data, version=1)
+        entry.add_to_hass(hass)
+        assert await async_migrate_entry(hass, entry)
+        shapes.append(dict(entry.data))
+
+    fields = {field for shape in shapes for field in shape}
+
+    assert fields - TO_REDACT - ENTRY_FIELDS_KEPT == set()
+
+
+async def test_a_carried_over_device_name_is_not_in_the_diagnostics(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**V1_LOCAL_DATA, "friendly_name": "Garage Example"},
+        version=1,
+        unique_id="192.168.1.50",
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+
+    dump = json.dumps(await async_get_config_entry_diagnostics(hass, entry))
+
+    assert "Garage Example" not in dump
 
 
 # Written out here on purpose, NOT derived from redaction.DROP_KEYS. Building

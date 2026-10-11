@@ -38,6 +38,7 @@ from .const import (
     awaits_serial,
     entry_awaiting_serial_at,
     new_device_name,
+    reload_failed_entry,
     serial_taken_by_other_entry,
 )
 from .hub import WattpilotHub
@@ -141,9 +142,8 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
             # the address raised, and the form showed "Unknown error" (A18-21).
             return {"host": "invalid_host"}, ""
         finally:
-            # The probe connection is disposable; a failure closing it must
-            # not replace the validation result -- a success, or the auth/
-            # connect error the user needs to see -- with a disconnect error.
+            # The probe connection is disposable: a failure closing it must
+            # not replace the validation result with a disconnect error.
             try:
                 await hub.async_shutdown()
             except HomeAssistantError:
@@ -232,7 +232,9 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
         if not serial:
             return self.async_abort(reason="incomplete_discovery")
         known = await self.async_set_unique_id(serial)
-        self._abort_if_unique_id_configured(updates=_address_update(known, ipv4))
+        updates = _address_update(known, ipv4)
+        reload_failed_entry(self.hass, known, updates)
+        self._abort_if_unique_id_configured(updates=updates)
         self._abort_if_awaiting_entry_at(ipv4)
         self._discovered_host = ipv4
         # A TXT key can be present without a value.
@@ -323,11 +325,9 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
             errors, serial = await self._async_validate(
                 entry.data["host"], user_input["password"]
             )
-            # The same check reconfigure makes. Reauth threw the serial away,
-            # so a password accepted by whatever answers at the address was
-            # written into the entry and reported as success -- the setup
-            # afterwards then refused the device, and the entry was left
-            # broken with its credentials already replaced (audit A12-07).
+            # The check reconfigure makes: without it a password accepted by
+            # whatever answers at the address was written in and reported as
+            # success, leaving the entry broken (audit A12-07).
             if not errors and (identity := self._identity_error(entry, serial)):
                 errors = {"base": identity}
             if not errors:

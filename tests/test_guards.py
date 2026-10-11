@@ -16,6 +16,8 @@ import yaml
 from custom_components.wattpilot.redaction import DROP_KEYS, REPLACE
 from scripts import complexity_snapshot
 
+from .conftest import IDENTIFIERS
+
 PACKAGE = Path(__file__).parent.parent / "custom_components" / "wattpilot"
 
 
@@ -643,8 +645,10 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # The entity table is data, not logic. Raised from 1230 on 2026-09-26
     # for seven new entities: two binary sensors, two selects, two numbers
     # and the price sensor (measured: 1322); again the same day for the
-    # charging duration and four timings in seconds (measured: 1378).
-    "descriptions.py": 1391,
+    # charging duration and four timings in seconds (measured: 1378). Raised
+    # on 2026-10-11 for the fifteen readings per phase, approved by the owner
+    # (measured: 1415).
+    "descriptions.py": 1415,
     # The charger protocol in one class: connection lifecycle, message
     # dispatch, property table and the typed write paths. Adopted at 1220
     # lines; splitting it is a separate decision, not a side effect of taking
@@ -654,16 +658,26 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # this budget came back down with it (measured: 1192). Nudged to 1230 on
     # 2026-09-06 for the audit round's connect cleanup and firmware deadline
     # (measured: 1221). Down on 2026-10-11 with the 45 accessors nothing read
-    # (audit A18-37), keeping room for the refusal in the firmware wait.
-    "client.py": 862,
+    # (audit A18-37), keeping room for the refusal in the firmware wait. Down
+    # again the same day with the seven getters only tests read, then with
+    # `version` (measured: 793). Up to 803 the same day, owner-approved, for
+    # status frames without a status object and the close count of the
+    # firmware wait (findings 6 and RF-L-01).
+    "client.py": 803,
     # Past the default on 2026-09-25 by the open/close coordination (audits
     # A15-01, A16-01): shared attempts, a close that cancels instead of
-    # waiting, and one visible transition at a time (measured: 406).
+    # waiting, and one visible transition at a time (measured: 406). Raised
+    # on 2026-10-10, owner-approved: to 424 for recovery after a failed
+    # reconnect action (A18-05/06), to 440 for a deliberate close winning
+    # over recovery (R1-11/12) (measured on 2026-10-11: 437).
     "connection.py": 440,
     # Past the default on 2026-09-26 by the repair notice for a different
     # charger answering at runtime (audit A15-04): the hub is where the
     # connection's state turns into what the user is told (measured: 424).
-    "hub.py": 444,
+    # Owner-approved raises: 444 on 2026-10-10 for announcing a recovery with
+    # the current values (A18-20), 446 on 2026-10-11 for refusal notices
+    # that go once the charger is back (reaudit RF-L-03).
+    "hub.py": 446,
 }
 SHRINK_SLACK = 0.85  # an entry >=15% below budget must be ratcheted down
 
@@ -682,8 +696,9 @@ CLUSTER_BUDGET = {
     # forty lines of comment had already been condensed to make room: the
     # open/close coordination (A13-01, A14-01, A15-01) and the refused-
     # password flag (A14-02), at a measured 1607 lines. Down with client.py
-    # on 2026-10-11 (A18-37).
-    "api client": (("client.py", "connection.py"), 1302),
+    # on 2026-10-11 (A18-37), and again with the last unread getters (1233); up
+    # to 1240 with client.py (owner-approved).
+    "api client": (("client.py", "connection.py"), 1240),
 }
 
 
@@ -976,7 +991,7 @@ def test_complexity_ratchet() -> None:
         # 7 since the `ts` rule (audit VA-07): one more branch in what is
         # a dispatch table written as code, not added logic.
         "redaction.py::sanitize_property": 6,
-        "sensor.py::WattpilotSensor._apply_value": 12,
+        "sensor.py::WattpilotSensor._apply_value": 8,
         "services.py::_hub_for_device": 6,
         # api/: frozen at what the client had when it was adopted. Every one
         # of these is a dispatch table (message types, property keys, JSON
@@ -984,13 +999,12 @@ def test_complexity_ratchet() -> None:
         # each. The point of freezing them is that they cannot grow further
         # without someone saying so in a diff.
         "auth.py::_bcryptjs_base64_encode": 6,
-        "client.py::Wattpilot._on_hello": 6,
         "client.py::Wattpilot._coerce_to_json_type": 17,
         "connection.py::Connection._read_frames": 6,
         "connection.py::Connection._message_loop": 6,
         "client.py::Wattpilot._handle_message": 11,
         "client.py::Wattpilot._on_response": 6,
-        "client.py::Wattpilot._update_property": 11,
+        "client.py::Wattpilot._update_property": 6,
         "definition.py::validate_api_definition": 12,
         "definition.py::load_api_definition": 8,
     }
@@ -1014,6 +1028,42 @@ HACS_MANIFEST = Path(__file__).parent.parent / "hacs.json"
 RELEASE_WORKFLOW = CI_WORKFLOW.parent / "release.yml"
 
 
+# Word for word: a substring check stayed green with the arguments reversed,
+# with `|| true` and with `echo` in front (reaudit RF-D-05).
+ANCESTRY_CHECK = 'git merge-base --is-ancestor "$GITHUB_SHA" origin/main'
+
+
+def _release_problems(workflow: str) -> list[str]:
+    release = yaml.safe_load(workflow)["jobs"]["release"]
+    steps = release["steps"]
+    checkout = next(
+        step
+        for step in steps
+        if str(step.get("uses", "")).startswith("actions/checkout")
+    )
+    problems = []
+    if checkout.get("with", {}).get("fetch-depth") != 0:
+        problems.append("no history to check against")
+    ancestry = [
+        index
+        for index, step in enumerate(steps)
+        if str(step.get("run", "")).strip() == ANCESTRY_CHECK
+    ]
+    if not ancestry:
+        return [*problems, "the release job does not check the tag is on main"]
+    publish = next(
+        index
+        for index, step in enumerate(steps)
+        if str(step.get("uses", "")).startswith("softprops/action-gh-release")
+    )
+    # After the publish step, or allowed to fail, it would check nothing.
+    if ancestry[0] > publish:
+        problems.append("the tag is checked after it is published")
+    if steps[ancestry[0]].get("continue-on-error") or release.get("continue-on-error"):
+        problems.append("the check may fail")
+    return problems
+
+
 def test_a_release_is_only_cut_from_main() -> None:
     """
     Tags come from main only -- a project rule the workflow did not check.
@@ -1022,34 +1072,22 @@ def test_a_release_is_only_cut_from_main() -> None:
     not contain, and HACS offers that to everyone (audit A18-31). Fix: keep
     the ancestry check in the release job, with the full history checked out.
     """
-    release = yaml.safe_load(RELEASE_WORKFLOW.read_text(encoding="utf-8"))["jobs"][
-        "release"
-    ]
-    steps = release["steps"]
-    checkout = next(
-        step
-        for step in steps
-        if str(step.get("uses", "")).startswith("actions/checkout")
-    )
-    assert checkout.get("with", {}).get("fetch-depth") == 0, (
-        "no history to check against"
-    )
-    ancestry = [
-        index
-        for index, step in enumerate(steps)
-        if "git merge-base --is-ancestor" in step.get("run", "")
-        and "origin/main" in step.get("run", "")
-    ]
-    assert ancestry, "the release job does not check the tag is on main"
-    publish = next(
-        index
-        for index, step in enumerate(steps)
-        if str(step.get("uses", "")).startswith("softprops/action-gh-release")
-    )
-    # After the publish step, or allowed to fail, it would check nothing.
-    assert ancestry[0] < publish, "the tag is checked after it is published"
-    assert not steps[ancestry[0]].get("continue-on-error"), "the check may fail"
-    assert not release.get("continue-on-error"), "the release job may fail"
+    assert _release_problems(RELEASE_WORKFLOW.read_text(encoding="utf-8")) == []
+
+
+@pytest.mark.parametrize(
+    "broken",
+    [
+        'git merge-base --is-ancestor origin/main "$GITHUB_SHA"',
+        ANCESTRY_CHECK + " || true",
+        "echo " + ANCESTRY_CHECK,
+    ],
+    ids=["reversed", "or_true", "echo"],
+)
+def test_the_release_guard_can_actually_fail(broken: str) -> None:
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+    assert workflow.count(ANCESTRY_CHECK) == 1
+    assert _release_problems(workflow.replace(ANCESTRY_CHECK, broken)) != []
 
 
 def test_ci_runs_the_same_gates_as_check_sh() -> None:
@@ -1242,6 +1280,17 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         "test_the_snapshot_helper_sees_what_the_ratchet_sees": (
             "regenerating the complexity table keeps every entry"
         ),
+        "test_the_release_guard_can_actually_fail": "counter-check for it",
+        "test_the_log_check_knows_every_identifier_shape": (
+            "the log check sees serials, IPv4 and IPv6"
+        ),
+        "test_the_log_check_lets_ordinary_output_pass": "counter-check for it",
+        "test_the_mutation_run_keeps_every_logic_module": (
+            "a module cannot drop out of the mutation run"
+        ),
+        "test_the_log_check_outlasts_home_assistant": (
+            "the log check also reads what HA logs while it stops"
+        ),
         "test_a_release_is_only_cut_from_main": (
             "a tag that is not on main publishes nothing"
         ),
@@ -1326,3 +1375,65 @@ def test_every_guard_is_listed_in_the_index() -> None:
             f"{file_name}: guard(s) missing from GUARD_INDEX: "
             f"{sorted(actual - set(expected))} -- add one line saying what each holds."
         )
+
+
+# The log check in conftest.py is itself a guard; these keep it honest
+# (post-check PC6-04).
+@pytest.mark.parametrize(
+    "text",
+    [
+        "123456",
+        "333333",
+        "192.168.1.50",
+        "192.0.2.77",
+        "10.0.0.7",
+        "169.254.3.4",
+        "2001:db8::5",
+        "fe80::1",
+    ],
+)
+def test_the_log_check_knows_every_identifier_shape(text: str) -> None:
+    assert IDENTIFIERS.search(f"refused {text}: timeout")
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["192.0.2.1", "2026.10.0", "42.5", "12:34:56", "2026-10-11T08:54:56", "1234567"],
+)
+def test_the_log_check_lets_ordinary_output_pass(text: str) -> None:
+    assert not IDENTIFIERS.search(f"at {text} done")
+
+
+def test_the_log_check_outlasts_home_assistant() -> None:
+    """hass comes in through auto_enable_custom_integrations, and autouse
+    fixtures start in name order: only requesting the log fixtures first sets
+    them up before hass and tears them down after its stop (PC6-04)."""
+    tree = ast.parse(
+        (Path(__file__).parent / "conftest.py").read_text(encoding="utf-8")
+    )
+    hook = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "auto_enable_custom_integrations"
+    )
+    assert [arg.arg for arg in hook.args.args] == [
+        "no_identifier_reaches_the_log",
+        "drop_serial_masks",
+        "enable_custom_integrations",
+    ]
+
+
+# The modules whose logic the mutation run measures. Code moved out of one
+# of them left the run unless the config followed by hand (post-check PC7-05).
+MUTATED_MODULES = {"__init__.py", "hub.py", "sensor.py", "readings.py"}
+
+
+def test_the_mutation_run_keeps_every_logic_module() -> None:
+    import tomllib  # noqa: PLC0415 -- scoped on purpose, only this test needs it
+
+    pyproject = tomllib.loads(
+        (PACKAGE.parent.parent / "pyproject.toml").read_text(encoding="utf-8")
+    )
+    mutated = {Path(path).name for path in pyproject["tool"]["mutmut"]["source_paths"]}
+    assert mutated >= MUTATED_MODULES, f"missing: {MUTATED_MODULES - mutated}"

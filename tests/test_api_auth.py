@@ -40,6 +40,23 @@ def test_hashing_is_deterministic_and_serial_bound(hash_type: AuthHashType) -> N
     assert first
 
 
+@pytest.mark.parametrize(
+    ("hash_type", "expected"),
+    [
+        (AuthHashType.PBKDF2, b"2KD2CVpSAYgJK5kjRXdiCtYuILZAHdgH"),
+        (AuthHashType.BCRYPT, b"Ral54UYgULpUf2wkOLRGyhq/m8sMChi"),
+    ],
+)
+def test_the_password_hash_keeps_its_value(
+    hash_type: AuthHashType, expected: bytes
+) -> None:
+    """Without a value, a change to rounds, salt or encoding still hashed
+    deterministically and passed (audit A18-17). There is no vendor test
+    vector; these come from the implementation, which logs in on a Home 11 J
+    (PBKDF2) and a Flex (bcrypt)."""
+    assert hash_password(PASSWORD, SERIAL, hash_type) == expected
+
+
 def test_an_unknown_hash_type_is_refused() -> None:
     with pytest.raises(ValueError, match="Unknown hash type"):
         hash_password(PASSWORD, SERIAL, "argon2")  # type: ignore[arg-type]

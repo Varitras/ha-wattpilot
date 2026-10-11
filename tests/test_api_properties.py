@@ -8,7 +8,6 @@ wrong number somewhere else.
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -18,11 +17,7 @@ from custom_components.wattpilot.api.exceptions import PropertyError
 
 # charger key -> (pushed value, property name on the client, expected value)
 SIMPLE_PROPERTIES: list[tuple[str, Any, str, Any]] = [
-    ("cak", "key", "cloud_api_key", "key"),
-    ("amp", 16, "amp", 16),
-    ("version", "1.2.3", "version", "1.2.3"),
     ("fwv", "42.5", "firmware", "42.5"),
-    ("wss", "TestNet", "wifi_ssid", "TestNet"),
 ]
 
 
@@ -39,15 +34,6 @@ def test_a_pushed_property_reaches_its_getter(
     assert getattr(client, attribute) == expected
     # Every property is also kept raw, whatever the table does with it.
     assert client.all_properties[key] == pushed
-
-
-def test_the_connected_access_point_also_yields_the_ssid(client: Wattpilot) -> None:
-    """Current firmware reports the AP in `ccw`, not in `wss`."""
-    client._update_property("ccw", SimpleNamespace(ssid="TestNet"))
-    assert client.wifi_ssid == "TestNet"
-
-    client._update_property("ccw", SimpleNamespace(ssid=""))
-    assert client.wifi_ssid == "TestNet", "an empty ssid must not erase the known one"
 
 
 def test_an_unknown_property_is_kept_without_a_getter(client: Wattpilot) -> None:

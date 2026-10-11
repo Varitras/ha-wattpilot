@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Voltage, current, power and power factor per phase as sensors of their
+  own (L1 to L3 and N), **disabled by default**. They were only attributes of **Charging
+  power**, and those are kept out of the recorder, so no history of them
+  existed. The attributes stay for templates that read them.
+
 ### Changed
 
 - A new installation names the charger's device and entry **Wattpilot**, a
@@ -13,13 +20,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   host name `Wattpilot_<serial>`. Entity IDs follow the device name, so
   they no longer carry the serial number: `sensor.wattpilot_total_energy`
   instead of `sensor.wattpilot_<serial>_total_energy`. Existing
-  installations keep their names and entity IDs.
+  installations keep their names and entity IDs. An installation carried
+  over from a fork names its device after the fork's friendly name: its
+  entities keep their IDs, and the ones the fork did not have get IDs
+  without the serial number.
 - Requires Home Assistant 2026.9.0 or newer (was 2026.8.0). Home Assistant
   replaced its schema library in 2026.9, and the integration now uses the
   new one directly instead of relying on the alias for the old name.
 
 ### Fixed
 
+- The repair notices about a refused connection go away once the charger
+  is connected again, not only with a reload.
+- A charger that refuses the password after first accepting it drops the
+  connection at once; its entities go unavailable and the password is asked
+  for again at the next availability check, within 30 seconds. During setup
+  the refusal was reported as a timeout and retried.
+- Diagnostics from a Wattpilot Flex replace three free-text fields nothing
+  documents: the OCPP fallback card, the OCPP tariff text and an OTA
+  field. Every top-level text field a Flex is known to report now has a
+  redaction decision, so a new one shows up in the tests instead of in a
+  download.
+- **Average charging power** reads 0 W once no current has flowed for a
+  minute. The charger keeps reporting the last session's average after
+  charging, so an automation on it kept firing for hours. A pause shorter
+  than a minute keeps the average, meant to bridge a phase switch. A new
+  session reads 0 W until the charger reports that session's average.
 - The 0.2.0 notes gave 0.5 minutes as an example for all three timings
   now set in minutes. **Minimum charging time** starts at 1 minute, so 0.5
   is refused there; fractions above 1 minute work, as for the two

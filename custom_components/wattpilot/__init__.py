@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
+from ipaddress import ip_address
 from typing import TYPE_CHECKING
 
 from homeassistant import config_entries
@@ -23,6 +24,7 @@ from .const import (
     DOMAIN,
     PLATFORMS,
     awaits_serial,
+    new_device_name,
     serial_taken_by_other_entry,
     signal_property,
 )
@@ -50,7 +52,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 class _SerialMask(logging.Filter):
     """
-    Mask this integration's serials in what Home Assistant logs about it.
+    Mask this integration's serials and address titles in HA's log about it.
 
     Entries created before new ones were named Wattpilot are titled after
     the charger's host name, Wattpilot_<serial>, and Home Assistant logs
@@ -71,20 +73,39 @@ class _SerialMask(logging.Filter):
         except TypeError, ValueError:
             return True  # a malformed record is logging's to report
         masked = message
-        for serial in self._serials():
-            masked = masked.replace(serial, mask_serial(serial))
+        for found, stand_in in self._replacements():
+            masked = masked.replace(found, stand_in)
         if masked != message:
             record.msg, record.args = masked, None
         return True
 
-    def _serials(self) -> list[str]:
-        # A serial is all digits; an entry awaiting it is keyed on a name or
-        # address, which got masked in every other title as well (R1-17).
-        return [
-            entry.unique_id
-            for entry in self._hass.config_entries.async_entries(DOMAIN)
-            if entry.unique_id and entry.unique_id.isdigit()
-        ]
+    def _replacements(self) -> list[tuple[str, str]]:
+        entries = self._hass.config_entries.async_entries(DOMAIN)
+        return [*_serial_masks(entries), *_address_title_masks(entries)]
+
+
+def _serial_masks(entries: list[ConfigEntry]) -> list[tuple[str, str]]:
+    # A serial is all digits; an entry awaiting it is keyed on a name or
+    # address, which got masked in every other title as well (R1-17).
+    return [
+        (entry.unique_id, mask_serial(entry.unique_id))
+        for entry in entries
+        if entry.unique_id and entry.unique_id.isdigit()
+    ]
+
+
+def _address_title_masks(entries: list[ConfigEntry]) -> list[tuple[str, str]]:
+    # A fork entry titled by its address put it into every setup message
+    # (RF-P-02). An address literal, unlike a name, means nothing else.
+    return [(entry.title, "<address>") for entry in entries if _is_address(entry.title)]
+
+
+def _is_address(text: str) -> bool:
+    try:
+        ip_address(text)
+    except ValueError:
+        return False
+    return True
 
 
 async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
@@ -314,10 +335,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # CONF_AWAITING_SERIAL on the local branch only: that entry is keyed
         # on the fork's unique_id (an IP, a friendly name, or nothing), so the
         # first successful connect may replace it with the serial -- see
-        # _adopt_serial. A cloud entry never gets that far, because setup
-        # refuses it outright, so the flag would be unreachable and untestable
-        # here. Whoever makes cloud entries reconfigurable to local adds it
-        # then, together with the test that makes it observable.
+        # _adopt_serial. A cloud entry awaits it by its connection type
+        # (awaits_serial), until Reconfigure makes it local.
         if old.get("connection") == "cloud":
             new_data = {
                 CONF_CONNECTION_TYPE: CONNECTION_CLOUD,
@@ -331,6 +350,12 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "password": old["password"],
                 CONF_AWAITING_SERIAL: True,
             }
+        # Without a name the device took the host name, and every entity the
+        # fork lacked got the serial in its ID (RF-P-04); a cloud entry too,
+        # once Reconfigure made it local (PC5-R-04).
+        new_data[CONF_NAME] = new_device_name(
+            hass, preferred=old.get("friendly_name"), exclude=entry.entry_id
+        )
         hass.config_entries.async_update_entry(
             entry, data=new_data, version=ENTRY_VERSION
         )

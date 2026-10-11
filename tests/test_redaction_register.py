@@ -36,10 +36,25 @@ from custom_components.wattpilot.redaction import (
 )
 
 FIXTURE = Path(__file__).parent / "fixtures" / "device_properties.json"
+# String fields a Wattpilot Flex reports that neither the reference device nor
+# the definition knows: names only, from a Flex diagnostics download
+# (2026-10-09). Without them a new Flex text field reached no decision, as
+# the chip holder names once did (audit A18-15).
+FLEX_STRING_FIELDS = frozenset(
+    {
+        *(f"c{i}n" for i in range(10)),
+        *("cbm", "esd0", "esd1", "esd2", "esg", "esi", "ess", "hste", "mace"),
+        *("macp", "obm", "ocppfd", "ocpptt", "otaif", "smmp", "smms", "styp"),
+    }
+)
 # `ts` is replaced by sanitize_property rather than through the REPLACE
 # table -- see the comment there for why it cannot live in a name-matched
 # rule. The register still has to know what to expect.
-REPLACEMENTS = {**REPLACE, "ts": TIME_SERVER_REPLACEMENT}
+REPLACEMENTS = {
+    **REPLACE,
+    "ts": TIME_SERVER_REPLACEMENT,
+    **{f"c{i}n": f"Card {i}" for i in range(10)},
+}
 
 REPLACED = "replaced"
 SCRUBBED = "scrubbed"
@@ -113,6 +128,25 @@ REGISTER: dict[str, str] = {
     "wsm": REPLACED,
     # Was the one known gap (audit VA-07); replaced since e6aec24's follow-up.
     "ts": REPLACED,
+    # Wattpilot Flex only (FLEX_STRING_FIELDS).
+    **{f"c{i}n": REPLACED for i in range(10)},  # ID chip holder names
+    "hste": REPLACED,
+    "ocppfd": REPLACED,
+    "ocpptt": REPLACED,
+    "otaif": REPLACED,
+    "cbm": SCRUBBED,
+    "mace": SCRUBBED,
+    "macp": SCRUBBED,
+    "obm": SCRUBBED,
+    "esd0": "readable (Ethernet DNS address; the address net replaces any IP)",
+    "esd1": "readable (Ethernet DNS address; the address net replaces any IP)",
+    "esd2": "readable (Ethernet DNS address; the address net replaces any IP)",
+    "esg": "readable (Ethernet gateway; the address net replaces any IP)",
+    "esi": "readable (Ethernet address; the address net replaces any IP)",
+    "ess": "readable (Ethernet netmask; the address net replaces any IP)",
+    "smmp": "readable (mDNS service protocol of the smart meter, a constant)",
+    "smms": "readable (mDNS service type of the smart meter)",
+    "styp": "readable (device subtype, same for every such model)",
 }
 
 # `log` (load group id) and `wsm` (WiFi error text) are free text whose
@@ -136,7 +170,7 @@ def _actual_fields() -> set[str]:
         for key, prop in load_api_definition().properties.items()
         if prop.get("jsonType") == "string"
     }
-    return observed | declared
+    return observed | declared | FLEX_STRING_FIELDS
 
 
 def test_every_string_field_has_an_explicit_decision() -> None:

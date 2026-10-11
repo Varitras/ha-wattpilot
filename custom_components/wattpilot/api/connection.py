@@ -105,7 +105,8 @@ class Connection:
         Move the authenticated state, and the two events that mirror it.
 
         One place, because there are three that used to flip the flag and a
-        waiter for the opposite edge now depends on them agreeing.
+        waiter for the opposite edge depends on them agreeing (fail() then
+        sets the authenticated one again, as a wake-up only).
         """
         self._authenticated = value
         if value:
@@ -142,14 +143,11 @@ class Connection:
         self._initialized_event.set()
 
     def fail(self, error: WattpilotError) -> None:
-        """
-        Record what makes this connection unusable and unblock open().
-
-        The event is set rather than left alone so a caller waiting for the
-        handshake stops waiting; open() checks fatal_error before it returns.
-        """
+        """Record the refusal, sign out at once and wake open()'s waits (PC3-01/02)."""
         self.fatal_error = error
+        self._set_authenticated(value=False)
         self._authenticated_event.set()
+        self._initialized_event.set()
 
     async def reject(self, error: WattpilotError) -> None:
         """Refuse the connection outright: record the reason and drop the socket."""
@@ -212,8 +210,6 @@ class Connection:
             await self._wait_for(
                 "authentication", self._authenticated_event, self.connect_timeout
             )
-            if self.fatal_error is not None:
-                raise self.fatal_error
             await self._wait_for(
                 "property initialization",
                 self._initialized_event,
@@ -300,11 +296,10 @@ class Connection:
         try:
             if task is not None:
                 task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-                except Exception as err:  # noqa: BLE001 -- whatever ended the loop
+                # wait(), not await: catching the reader's cancellation also
+                # swallowed a close aimed at the caller (RF-L-02).
+                await asyncio.wait({task})
+                if not task.cancelled() and (err := task.exception()) is not None:
                     # A failed loop re-raised here, before the socket closed
                     # (A11-06). No traceback: it can quote the address (PC-02).
                     _LOGGER.debug("Message loop ended: %s", describe_error(err))
@@ -328,12 +323,14 @@ class Connection:
         await self.socket.send(payload)
 
     async def _wait_for(self, what: str, event: asyncio.Event, seconds: float) -> None:
-        """Wait for a connection milestone, naming it if it never arrives."""
+        """Wait for a milestone, naming it if it never arrives; a refusal ends it."""
         try:
             await asyncio.wait_for(event.wait(), seconds)
         except TimeoutError as exc:
             msg = f"Timeout waiting for {what}"
             raise WattpilotConnectionError(msg) from exc
+        if self.fatal_error is not None:
+            raise self.fatal_error
 
     def _cancel_readiness_guard(self) -> None:
         """Stop watching a connection that is being replaced or torn down."""

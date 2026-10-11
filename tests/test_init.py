@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import errno
 import logging
+from dataclasses import replace
 from datetime import timedelta
+from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
@@ -43,9 +45,18 @@ from custom_components.wattpilot.const import (
     CONNECTION_LOCAL,
     DOMAIN,
 )
+from custom_components.wattpilot.descriptions import (
+    BINARY_SENSOR_DESCRIPTIONS,
+    NUMBER_DESCRIPTIONS,
+    SELECT_DESCRIPTIONS,
+    SENSOR_DESCRIPTIONS,
+    SWITCH_DESCRIPTIONS,
+    TIME_DESCRIPTIONS,
+)
 
 from .conftest import FakeWattpilot
-from .test_config_flow import DISCOVERY
+from .test_config_flow import DISCOVERY, start_discovery_flow
+from .test_sensor import nrg_reading
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -179,6 +190,37 @@ async def test_a_charger_asking_for_an_unknown_sign_in_is_reported(
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+@pytest.mark.parametrize(
+    ("refusal", "kind"),
+    [
+        (DeviceIdentityError("refused", found="999999"), "wrong_charger"),
+        (WattpilotConnectionError("Unsupported password hash: x9"), "charger_refused"),
+    ],
+)
+async def test_a_refusal_notice_goes_once_the_charger_is_back(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, refusal: Any, kind: str
+) -> None:
+    """After a successful reconnect the notice still said the integration
+    had stopped connecting, next to available entities (reaudit RF-L-03)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    issue_id = f"{kind}_{entry.entry_id}"
+    fake_charger.connected = False
+    fake_charger.refusal = refusal
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=1))
+    await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
+
+    fake_charger.refusal = None
+    fake_charger.connected = True
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=2))
+    await hass.async_block_till_done()
+
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
 
 
@@ -581,7 +623,7 @@ async def test_migrate_v1_local_entry(
     with caplog.at_level(logging.INFO):
         assert await setup_entry(hass, entry, fake_charger)
     assert entry.version == 2
-    assert entry.data == V2_LOCAL_DATA
+    assert entry.data == {**V2_LOCAL_DATA, CONF_NAME: "Wattpilot"}
     assert entry.title == "Garage Wattpilot"
     assert entry.unique_id == "123456"
     # A one-way schema rewrite of someone else's config entry should say so,
@@ -592,6 +634,80 @@ async def test_migrate_v1_local_entry(
         == f"Migrated fork config entry {entry.entry_id} to version 2"
         for record in caplog.records
     )
+
+
+async def test_a_migrated_fork_entry_names_new_entities_without_the_serial(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A fork entry kept no name, so its device took the host name and every
+    entity the fork lacked got the serial in its ID (reaudit RF-P-04). The
+    fork's own friendly name is what its entity IDs were made from."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**V1_LOCAL_DATA, "friendly_name": "Garage"},
+        version=1,
+        unique_id="192.168.1.50",
+        title="Garage",
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+
+    assert entry.data[CONF_NAME] == "Garage"
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id("sensor", DOMAIN, "123456-tpa")
+    assert entity_id == "sensor.garage_average_charging_power"
+
+
+async def test_a_fork_name_another_entry_has_is_numbered_instead(
+    hass: HomeAssistant,
+) -> None:
+    """Two devices of one name would hand out entity IDs ending in _2."""
+    MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="111111",
+        title="Wattpilot",
+        version=2,
+        data={**V2_LOCAL_DATA, CONF_NAME: "Wattpilot"},
+    ).add_to_hass(hass)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V1_LOCAL_DATA, version=1, title="Wattpilot"
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry) is True
+
+    assert entry.data[CONF_NAME] == "Wattpilot 2"
+
+
+async def test_a_fork_entry_without_a_friendly_name_is_named_wattpilot(
+    hass: HomeAssistant,
+) -> None:
+    """Its own title does not count as taken: the name is for this entry."""
+    data = {k: v for k, v in V1_LOCAL_DATA.items() if k != "friendly_name"}
+    entry = MockConfigEntry(domain=DOMAIN, data=data, version=1, title="Wattpilot")
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry) is True
+
+    assert entry.data[CONF_NAME] == "Wattpilot"
+
+
+async def test_a_migrated_fork_cloud_entry_is_named_for_its_reconfigure(
+    hass: HomeAssistant,
+) -> None:
+    """Setup sends a cloud entry to Reconfigure, which keeps the stored name;
+    without one the device took the host name and new entity IDs carried the
+    serial (post-check PC5-R-04)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**V1_CLOUD_DATA, "friendly_name": "Garage"},
+        version=1,
+        title="Garage",
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry) is True
+
+    assert entry.data[CONF_NAME] == "Garage"
 
 
 async def test_migrate_keeps_a_current_entry_untouched(hass: HomeAssistant) -> None:
@@ -624,7 +740,7 @@ async def test_migrate_v1_entry_without_unique_id(
     )
     assert await setup_entry(hass, entry, fake_charger)
     assert entry.version == 2
-    assert entry.data == V2_LOCAL_DATA
+    assert entry.data == {**V2_LOCAL_DATA, CONF_NAME: "Wattpilot"}
     assert entry.unique_id == "123456"
 
 
@@ -804,6 +920,50 @@ async def test_home_assistants_setup_messages_do_not_carry_the_serial(
     assert "123456" not in caplog.text
 
 
+async def test_an_entry_titled_by_its_address_does_not_log_it(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A fork entry can be titled by its IP address, and Home Assistant logs
+    the title on every failed setup; the mask knew only serials (reaudit
+    RF-P-02)."""
+    caplog.set_level(logging.DEBUG)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**V2_LOCAL_DATA, "host": "192.0.2.50"},
+        version=2,
+        unique_id="123456",
+        title="192.0.2.50",
+    )
+    fake_charger.connect_error = OSError("unreachable")
+
+    assert not await setup_entry(hass, entry, fake_charger)
+    with patch_charger(fake_charger):
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+        await hass.async_block_till_done()
+
+    assert "192.0.2.50" not in caplog.text
+    assert "'<address>'" in caplog.text, "the message itself must stay"
+
+
+async def test_an_entry_titled_by_a_name_keeps_it_in_the_log(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Only an address is masked: a name means something else elsewhere."""
+    caplog.set_level(logging.DEBUG)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456", title="Garage"
+    )
+    fake_charger.connect_error = OSError("unreachable")
+
+    assert not await setup_entry(hass, entry, fake_charger)
+
+    assert "Garage" in caplog.text
+
+
 async def test_a_setup_retry_does_not_log_the_chargers_address(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
@@ -941,17 +1101,37 @@ async def test_an_ignored_card_does_not_block_the_serial_adoption(
 async def test_adopting_the_serial_closes_the_charger_s_open_card(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
-    """The card would stay offered for a charger that is configured now."""
+    """The card would stay offered for a charger that is configured now --
+    and only that card: closing every flow of the domain passed too
+    (reaudit RF-E-03)."""
     await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": config_entries.SOURCE_ZEROCONF},
         data=DISCOVERY,
     )
+    other = replace(
+        DISCOVERY,
+        ip_address=ip_address("192.168.1.61"),
+        ip_addresses=[ip_address("192.168.1.61")],
+        properties={**DISCOVERY.properties, "serial": "654321"},
+    )
+    await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=other
+    )
+    await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
     entry = _awaiting_fork_entry()
 
     assert await setup_entry(hass, entry, fake_charger)
 
-    assert hass.config_entries.flow.async_progress_by_handler(DOMAIN) == []
+    left = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    assert sorted(flow["context"]["source"] for flow in left) == ["user", "zeroconf"]
+    assert [
+        flow["context"].get("unique_id")
+        for flow in left
+        if flow["context"]["source"] == "zeroconf"
+    ] == ["654321"]
 
 
 async def test_only_the_adopted_charger_s_ignored_card_is_removed(
@@ -975,8 +1155,11 @@ async def test_only_the_adopted_charger_s_ignored_card_is_removed(
 
 
 async def _total_energy_after_restore(
-    hass: HomeAssistant, fake_charger: FakeWattpilot, restored: int, reported: int
-) -> tuple[str, int]:
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    restored: int,
+    reported: int | None,
+) -> tuple[str, int | None]:
     """Set the entry up with *restored* Wh saved and *reported* Wh live."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
@@ -1010,8 +1193,10 @@ async def _total_energy_after_restore(
     return entity_id, _total_energy_wh(hass, entity_id)
 
 
-def _total_energy_wh(hass: HomeAssistant, entity_id: str) -> int:
+def _total_energy_wh(hass: HomeAssistant, entity_id: str) -> int | None:
     state = hass.states.get(entity_id)
+    if state.state == "unknown":
+        return None
     factor = 1000 if state.attributes["unit_of_measurement"] == "kWh" else 1
     return round(float(state.state) * factor)
 
@@ -1071,3 +1256,398 @@ async def test_a_restored_total_from_another_charger_does_not_freeze_it(
         if record.name.startswith("custom_components.wattpilot")
         and record.levelno >= logging.WARNING
     ], "every reading must be read without complaint"
+
+
+async def test_an_unknown_total_keeps_the_hold_against_a_step_back(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The hold compared against what was shown, so one null wiped it and
+    the next small step back reached the energy dashboard (RF-D-02)."""
+    entity_id, total = await _total_energy_after_restore(
+        hass, fake_charger, restored=2681214, reported=2681214
+    )
+    assert total == 2681214
+
+    for value in (None, 2681193):
+        fake_charger.push("eto", value)
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+        await hass.async_block_till_done()
+
+    assert _total_energy_wh(hass, entity_id) == 2681214
+
+
+async def test_an_infinite_total_does_not_freeze_it(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The hold took infinity as the last number and held every later
+    reading back until a reload (post-check PC5-R-01)."""
+    entity_id, _ = await _total_energy_after_restore(
+        hass, fake_charger, restored=2681214, reported=2681214
+    )
+
+    for value in (float("inf"), 2681300):
+        fake_charger.push("eto", value)
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+        await hass.async_block_till_done()
+
+    assert _total_energy_wh(hass, entity_id) == 2681300
+
+
+async def test_a_restored_total_takes_the_first_number_after_an_unknown(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A restored total followed by a non-number dropped the next real
+    reading, with a TypeError warning about the wrong key (post-check PC-03)."""
+    entity_id, total = await _total_energy_after_restore(
+        hass, fake_charger, restored=2681214, reported=None
+    )
+    assert total is None
+
+    fake_charger.push("eto", 2681300)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+    await hass.async_block_till_done()
+
+    assert _total_energy_wh(hass, entity_id) == 2681300
+    assert "TypeError" not in caplog.text
+
+
+async def _average_power_while_charging(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> tuple[MockConfigEntry, str]:
+    fake_charger._properties.update({"tpa": 4121.5, "nrg": nrg_reading(4100)})
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    entity_id = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, "123456-tpa")
+    assert entity_id is not None
+    return entry, entity_id
+
+
+async def _live_power(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, watts: float, *, after: int
+) -> None:
+    """Report *watts* as the total power, then let *after* seconds pass."""
+    fake_charger.push("nrg", nrg_reading(watts))
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=after))
+    await hass.async_block_till_done()
+
+
+async def test_a_short_pause_keeps_the_average_power(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A phase switch stops the current for a moment, inside one session."""
+    _, entity_id = await _average_power_while_charging(hass, fake_charger)
+
+    await _live_power(hass, fake_charger, 0, after=50)
+    assert hass.states.get(entity_id).state == "4121.5"
+
+    await _live_power(hass, fake_charger, 4000, after=120)
+    assert hass.states.get(entity_id).state == "4121.5", "the pause ended"
+
+    await _live_power(hass, fake_charger, 0, after=5)
+    await _live_power(hass, fake_charger, 0, after=60)
+    assert hass.states.get(entity_id).state == "0", "a later stop still counts"
+
+
+async def test_the_average_power_falls_to_zero_a_minute_after_charging_stops(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    _, entity_id = await _average_power_while_charging(hass, fake_charger)
+
+    await _live_power(hass, fake_charger, 0, after=5)
+    await _live_power(hass, fake_charger, 0, after=60)
+    assert hass.states.get(entity_id).state == "0"
+
+    await _live_power(hass, fake_charger, 4100, after=5)
+    assert hass.states.get(entity_id).state == "0", "not the last session's average"
+    fake_charger.push("tpa", 3800.5)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "3800.5", "the next session's own"
+    await _live_power(hass, fake_charger, 0, after=5)
+    await _live_power(hass, fake_charger, 0, after=60)
+    assert hass.states.get(entity_id).state == "0", "and its end"
+
+
+async def test_a_reading_without_total_power_keeps_the_last_sessions_average_away(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A push without a total power between sessions forgot which average
+    was stale, and the next session's first watt showed it (post-check
+    PC5-R-03)."""
+    _, entity_id = await _average_power_while_charging(hass, fake_charger)
+    await _live_power(hass, fake_charger, 0, after=5)
+    await _live_power(hass, fake_charger, 0, after=60)
+    assert hass.states.get(entity_id).state == "0"
+
+    fake_charger.push("nrg", [])
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
+    await hass.async_block_till_done()
+    await _live_power(hass, fake_charger, 4100, after=5)
+
+    assert hass.states.get(entity_id).state == "0"
+
+
+async def test_a_null_average_keeps_the_stale_one_known(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A null average in a new session forgot which average was the last
+    session's, and it came back after (post-check PC7-01)."""
+    _, entity_id = await _average_power_while_charging(hass, fake_charger)
+    await _live_power(hass, fake_charger, 0, after=5)
+    await _live_power(hass, fake_charger, 0, after=60)
+    await _live_power(hass, fake_charger, 4100, after=5)
+
+    for value in (None, 4121.5):
+        fake_charger.push("tpa", value)
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
+        await hass.async_block_till_done()
+
+    assert hass.states.get(entity_id).state == "0"
+
+
+async def test_a_null_average_while_charging_is_unknown_not_zero(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """None stood for "nothing stale" too, so a null average while power
+    flowed read 0 W (post-check PC6-03)."""
+    _, entity_id = await _average_power_while_charging(hass, fake_charger)
+
+    fake_charger.push("tpa", None)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(entity_id).state == "unknown"
+
+
+async def test_a_total_power_that_is_no_number_is_not_idle(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A NaN total power counted as no current, and the average fell to
+    0 W a minute later (post-check PC6-06)."""
+    _, entity_id = await _average_power_while_charging(hass, fake_charger)
+
+    await _live_power(hass, fake_charger, float("nan"), after=5)
+    await _live_power(hass, fake_charger, float("nan"), after=65)
+
+    assert hass.states.get(entity_id).state == "unknown"
+
+
+async def test_an_average_that_is_no_number_mid_session_is_reported(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Only the last session's average is skipped silently, nothing else."""
+    _, entity_id = await _average_power_while_charging(hass, fake_charger)
+
+    fake_charger.push("tpa", "")
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(entity_id).state == "4121.5"
+    assert "unexpected str for tpa" in caplog.text
+
+
+async def test_a_session_after_an_idle_start_waits_for_its_own_average(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """At the first watt the last session's average came back until the
+    charger sent this session's (reaudit RF-D-04); also after an idle start."""
+    fake_charger._properties.update({"tpa": 4121.5, "nrg": nrg_reading(0)})
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    entity_id = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, "123456-tpa")
+    assert hass.states.get(entity_id).state == "0"
+
+    await _live_power(hass, fake_charger, 4100, after=5)
+
+    assert hass.states.get(entity_id).state == "0"
+
+
+async def test_an_unloaded_entry_leaves_no_average_power_timer_behind(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The pending switch to 0 W goes with the entity; the test harness fails
+    any test that ends with a timer still scheduled."""
+    entry, _ = await _average_power_while_charging(hass, fake_charger)
+    await _live_power(hass, fake_charger, 0, after=5)
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+# What a charger could send where a number belongs (reaudit K-A). Never seen
+# on a device, but each one escaped the bounded catch: Home Assistant raised
+# when it wrote the state, and at setup the entity was never added.
+# NaN and infinity are what json.loads makes of NaN, Infinity and a number
+# beyond the float range; Home Assistant refuses those too (post-check PC5-R-01).
+NOT_A_NUMBER = {
+    "text": "n/a",
+    "object": {"bogus": "n/a"},
+    "list": ["n/a"] * 16,
+    "nan": float("nan"),
+    "infinity": float("inf"),
+    "minus infinity": float("-inf"),
+    "infinities": [float("inf")] * 16,
+    # An integer literal past the float range stays an int, and converting
+    # it raises OverflowError (post-check PC6-01).
+    "beyond_float": 10**400,
+    # A list of lists: a select's option list keyed on it (post-check PC7-02).
+    "nested": [["n/a"]] * 2,
+}
+HOLDER = "Holder Example"
+
+
+# Every platform with a state: time and number raised OverflowError past
+# their catch (post-check PC6-02), a select an unhashable error (PC7-02).
+# The update entity has its own test: its installed version gates firmware.
+PLATFORM_DESCRIPTIONS = {
+    "sensor": list(SENSOR_DESCRIPTIONS),
+    "number": list(NUMBER_DESCRIPTIONS),
+    "time": list(TIME_DESCRIPTIONS),
+    "select": list(SELECT_DESCRIPTIONS),
+    "switch": list(SWITCH_DESCRIPTIONS),
+    "binary_sensor": list(BINARY_SENSOR_DESCRIPTIONS),
+}
+
+
+@pytest.mark.parametrize("kind", NOT_A_NUMBER)
+async def test_no_value_a_charger_sends_keeps_an_entity_away(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+    kind: str,
+) -> None:
+    """Every entity, every malformed shape, at the boundary that raised: the
+    state write, or the entity's own setup. A card's holder name never
+    reaches the log -- Home Assistant logged the raw card list when the
+    write failed (RF-P-01)."""
+    bad = NOT_A_NUMBER[kind]
+    for descriptions in PLATFORM_DESCRIPTIONS.values():
+        for description in descriptions:
+            for key in (description.charger_key, description.companion_key):
+                if key is not None and key in fake_charger._properties:
+                    fake_charger._properties[key] = bad
+    fake_charger._properties["cards"] = [{"name": HOLDER, "energy": bad}] * 10
+    # A Flex's chips, which the fixture does not have (post-check PC5-T-01).
+    fake_charger._properties.update({f"c{i}e": bad for i in range(10)})
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    entity_ids = {
+        (platform, description.uid_suffix): registry.async_get_or_create(
+            platform, DOMAIN, f"123456-{description.uid_suffix}", config_entry=entry
+        ).entity_id
+        for platform, descriptions in PLATFORM_DESCRIPTIONS.items()
+        for description in descriptions
+    }
+
+    assert await setup_entry(hass, entry, fake_charger)
+
+    assert HOLDER not in caplog.text
+    supported = {
+        (platform, description.uid_suffix)
+        for platform, descriptions in PLATFORM_DESCRIPTIONS.items()
+        for description in _supported(fake_charger, descriptions)
+    }
+    never_added = sorted(
+        key for key in supported if hass.states.get(entity_ids[key]) is None
+    )
+    platforms = {platform for platform, _ in supported}
+    assert platforms == PLATFORM_DESCRIPTIONS.keys(), "the sweep missed a platform"
+    assert not never_added, f"never added: {never_added}"
+
+
+@pytest.mark.parametrize("kind", NOT_A_NUMBER)
+async def test_a_card_energy_that_is_no_number_logs_no_holder_name(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+    kind: str,
+) -> None:
+    """Home Assistant logged the raw card list, holder names included, each
+    time the state write of an enabled ID-chip sensor failed (RF-P-01)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    entry.add_to_hass(hass)
+    er.async_get(hass).async_get_or_create(
+        "sensor", DOMAIN, "123456-cards_0", config_entry=entry
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+
+    fake_charger.push(
+        "cards", [{"name": HOLDER, "energy": NOT_A_NUMBER[kind], "cardId": True}]
+    )
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+    await hass.async_block_till_done()
+
+    assert HOLDER not in caplog.text
+
+
+def _supported(charger: FakeWattpilot, descriptions: list[Any]) -> list[Any]:
+    from custom_components.wattpilot.descriptions import (  # noqa: PLC0415
+        filter_supported,
+    )
+
+    return filter_supported(
+        descriptions,
+        firmware=charger._properties.get("fwv"),
+        variant=charger._properties.get("var"),
+        properties=charger._properties,
+    )
+
+
+async def test_a_failed_entry_whose_charger_announces_a_new_address_recovers(
+    hass: HomeAssistant, device_properties: dict[str, Any]
+) -> None:
+    """Two chargers swapped addresses: this entry met the other charger and
+    failed. Discovery stored the right address, but Home Assistant reloads
+    only a loaded or retrying entry, so it stayed failed (reaudit RF-E-01)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    swapped = FakeWattpilot(device_properties)
+    swapped.serial = "999999"
+    assert not await setup_entry(hass, entry, swapped)
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+
+    with patch_charger(FakeWattpilot(device_properties)):
+        await start_discovery_flow(hass)
+        await hass.async_block_till_done()
+
+    assert entry.data["host"] == DISCOVERY.ip_address.compressed
+    assert entry.state is ConfigEntryState.LOADED
+
+
+async def test_a_failed_entry_is_not_reloaded_by_every_announcement(
+    hass: HomeAssistant, device_properties: dict[str, Any]
+) -> None:
+    """Only a new address reloads: the charger announces itself again and
+    again, and each reload of an entry that fails would fail once more."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**V2_LOCAL_DATA, "host": DISCOVERY.ip_address.compressed},
+        version=2,
+        unique_id="123456",
+    )
+    swapped = FakeWattpilot(device_properties)
+    swapped.serial = "999999"
+    assert not await setup_entry(hass, entry, swapped)
+
+    with (
+        patch_charger(swapped),
+        patch.object(hass.config_entries, "async_schedule_reload") as reload,
+    ):
+        await start_discovery_flow(hass)
+        await hass.async_block_till_done()
+
+    reload.assert_not_called()
