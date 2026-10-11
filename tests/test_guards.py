@@ -662,8 +662,10 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # (measured: 1221). Down on 2026-10-11 with the 45 accessors nothing read
     # (audit A18-37), keeping room for the refusal in the firmware wait. Down
     # again the same day with the seven getters only tests read, then with
-    # `version` (measured: 793).
-    "client.py": 793,
+    # `version` (measured: 793). Up to 803 the same day, owner-approved, for
+    # status frames without a status object and the close count of the
+    # firmware wait (findings 6 and RF-L-01).
+    "client.py": 803,
     # Past the default on 2026-09-25 by the open/close coordination (audits
     # A15-01, A16-01): shared attempts, a close that cancels instead of
     # waiting, and one visible transition at a time (measured: 406).
@@ -690,8 +692,9 @@ CLUSTER_BUDGET = {
     # forty lines of comment had already been condensed to make room: the
     # open/close coordination (A13-01, A14-01, A15-01) and the refused-
     # password flag (A14-02), at a measured 1607 lines. Down with client.py
-    # on 2026-10-11 (A18-37), and again with the last unread getters (1233).
-    "api client": (("client.py", "connection.py"), 1233),
+    # on 2026-10-11 (A18-37), and again with the last unread getters (1233); up
+    # to 1240 with client.py (owner-approved).
+    "api client": (("client.py", "connection.py"), 1240),
 }
 
 

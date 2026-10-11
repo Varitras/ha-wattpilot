@@ -9,6 +9,7 @@ covered -- a frame arriving under the wrong name is the failure this catches.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 from typing import Any
@@ -219,3 +220,28 @@ async def test_an_unknown_password_hash_drops_the_socket(client: Wattpilot) -> N
         client, {"type": "authRequired", "token1": "a", "token2": "b", "hash": "argon2"}
     )
     assert socket.closed
+
+
+@pytest.mark.parametrize("status", [None, [], "text", 3])
+async def test_an_unreadable_full_status_does_not_complete_the_snapshot(
+    client: Wattpilot, status: Any
+) -> None:
+    """A last chunk whose status is no object completed the snapshot: setup
+    then built its entities without the properties, and later deltas never
+    added them (branch audit 2026-10-11, finding 6; new in 44fa329)."""
+    await send(client, {"type": "fullStatus", "partial": True, "status": {"fwv": "1"}})
+    with contextlib.suppress(TypeError):
+        await send(client, {"type": "fullStatus", "partial": False, "status": status})
+
+    assert not client.properties_initialized
+
+
+@pytest.mark.parametrize("status", [None, [], "text", 3])
+async def test_an_unreadable_delta_does_not_complete_the_snapshot(
+    client: Wattpilot, status: Any
+) -> None:
+    """Firmware without a streamed full status counts a delta as complete."""
+    with contextlib.suppress(TypeError):
+        await send(client, {"type": "deltaStatus", "status": status})
+
+    assert not client.properties_initialized

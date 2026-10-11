@@ -63,6 +63,14 @@ def _plain_json(value: Any) -> Any:  # noqa: ANN401 -- recurses over untyped JSO
     return value
 
 
+def _status_object(msg: SimpleNamespace) -> SimpleNamespace:
+    """Return a status frame's status; anything else completed it unread (finding 6)."""
+    if isinstance(status := getattr(msg, "status", None), SimpleNamespace):
+        return status
+    msg_text = "Status frame without a status object, skipped as unreadable"
+    raise TypeError(msg_text)
+
+
 def _correlation_key(request_id: object) -> str:
     """
     wattpilot: one spelling for a request id, whatever the wire used.
@@ -676,12 +684,13 @@ class Wattpilot:
         await self._connection.reject(AuthenticationError(error_msg))
 
     def _on_full_status(self, msg: SimpleNamespace) -> None:
-        self._apply_status(msg.status)
+        self._apply_status(_status_object(msg))
         self._connection.receive_full_status(partial=getattr(msg, "partial", False))
 
     def _on_delta_status(self, msg: SimpleNamespace) -> None:
+        status = _status_object(msg)
         self._connection.receive_delta_status()
-        self._apply_status(msg.status)
+        self._apply_status(status)
 
     def _apply_status(self, status: object) -> None:
         # wattpilot: one property at a time. A value this client cannot
