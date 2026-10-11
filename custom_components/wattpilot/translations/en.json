@@ -98,11 +98,11 @@
   "issues": {
     "wrong_charger": {
       "title": "Another charger answers at this charger's address",
-      "description": "Home Assistant reached a different charger at the address of the charger with serial {serial}, and stopped connecting so it does not show that charger's readings as this one's. The address was probably handed to another device.\n\nIf the charger now has a different address, open the integration and choose **Reconfigure** to enter it. This notice goes away when the integration is reloaded."
+      "description": "Home Assistant reached a different charger at the address of the charger with serial {serial}, and stopped connecting so it does not show that charger's readings as this one's. The address was probably handed to another device.\n\nIf the charger now has a different address, open the integration and choose **Reconfigure** to enter it. This notice goes away once the charger is connected again, or when the integration is reloaded."
     },
     "charger_refused": {
       "title": "The charger refused the connection",
-      "description": "The charger refused the connection: {error}. Home Assistant stopped connecting, as retrying would only repeat the refusal. The charger probably asks for a sign-in method this version of the integration does not know.\n\nLook for an update of the integration. This notice goes away when the integration is reloaded."
+      "description": "The charger refused the connection: {error}. Home Assistant stopped connecting, as retrying would only repeat the refusal. The charger probably asks for a sign-in method this version of the integration does not know.\n\nLook for an update of the integration. This notice goes away once the charger is connected again, or when the integration is reloaded."
     },
     "migration_collision": {
       "title": "Some entities could not be migrated",

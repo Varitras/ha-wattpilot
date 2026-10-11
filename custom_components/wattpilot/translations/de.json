@@ -98,11 +98,11 @@
   "issues": {
     "wrong_charger": {
       "title": "Unter der Adresse dieses Ladegeräts antwortet ein anderes",
-      "description": "Home Assistant hat unter der Adresse des Ladegeräts mit der Seriennummer {serial} ein anderes Ladegerät erreicht und die Verbindung eingestellt, damit dessen Werte nicht als die dieses Geräts erscheinen. Vermutlich wurde die Adresse an ein anderes Gerät vergeben.\n\nHat das Ladegerät jetzt eine andere Adresse, in der Integration **Neu konfigurieren** wählen und sie eintragen. Dieser Hinweis verschwindet, wenn die Integration neu geladen wird."
+      "description": "Home Assistant hat unter der Adresse des Ladegeräts mit der Seriennummer {serial} ein anderes Ladegerät erreicht und die Verbindung eingestellt, damit dessen Werte nicht als die dieses Geräts erscheinen. Vermutlich wurde die Adresse an ein anderes Gerät vergeben.\n\nHat das Ladegerät jetzt eine andere Adresse, in der Integration **Neu konfigurieren** wählen und sie eintragen. Dieser Hinweis verschwindet, sobald das Ladegerät wieder verbunden ist oder die Integration neu geladen wird."
     },
     "charger_refused": {
       "title": "Das Ladegerät hat die Verbindung abgelehnt",
-      "description": "Das Ladegerät hat die Verbindung abgelehnt: {error}. Home Assistant hat die Verbindung eingestellt, weil ein neuer Versuch nur dieselbe Ablehnung brächte. Vermutlich verlangt das Ladegerät ein Anmeldeverfahren, das diese Version der Integration nicht kennt.\n\nNach einem Update der Integration sehen. Dieser Hinweis verschwindet, wenn die Integration neu geladen wird."
+      "description": "Das Ladegerät hat die Verbindung abgelehnt: {error}. Home Assistant hat die Verbindung eingestellt, weil ein neuer Versuch nur dieselbe Ablehnung brächte. Vermutlich verlangt das Ladegerät ein Anmeldeverfahren, das diese Version der Integration nicht kennt.\n\nNach einem Update der Integration sehen. Dieser Hinweis verschwindet, sobald das Ladegerät wieder verbunden ist oder die Integration neu geladen wird."
     },
     "migration_collision": {
       "title": "Einige Entitäten konnten nicht migriert werden",

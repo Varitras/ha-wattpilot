@@ -30,6 +30,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The repair notices about a refused connection go away once the charger
+  is connected again, not only with a reload.
 - A charger that refuses the password after first accepting it is shown
   unavailable at once and asks for the password again. Its entities stayed
   available for up to ten seconds, and during setup the refusal was

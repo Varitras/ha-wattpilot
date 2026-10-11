@@ -184,6 +184,37 @@ async def test_a_charger_asking_for_an_unknown_sign_in_is_reported(
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
 
 
+@pytest.mark.parametrize(
+    ("refusal", "kind"),
+    [
+        (DeviceIdentityError("refused", found="999999"), "wrong_charger"),
+        (WattpilotConnectionError("Unsupported password hash: x9"), "charger_refused"),
+    ],
+)
+async def test_a_refusal_notice_goes_once_the_charger_is_back(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, refusal: Any, kind: str
+) -> None:
+    """After a successful reconnect the notice still said the integration
+    had stopped connecting, next to available entities (reaudit RF-L-03)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    issue_id = f"{kind}_{entry.entry_id}"
+    fake_charger.connected = False
+    fake_charger.refusal = refusal
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=1))
+    await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
+
+    fake_charger.refusal = None
+    fake_charger.connected = True
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=2))
+    await hass.async_block_till_done()
+
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
 async def test_the_device_takes_the_name_the_entry_was_created_with(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
