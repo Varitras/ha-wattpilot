@@ -42,6 +42,8 @@ EXTRA_SENSOR_UIDS = ENERGY_SPLIT_UIDS | {
     "fhz",
     "awcp",
     "cdi",
+    # The ID chips of a charger without a `cards` list (Wattpilot Flex).
+    *(f"chip_{i}" for i in range(10)),
 }
 
 
@@ -346,6 +348,40 @@ async def test_card_sensor_reads_energy_and_name(
     assert sensor.translation_placeholders == {"index": "0"}
 
 
+FLEX_CHIPS = {
+    f"c{i}{field}": value
+    for i in range(10)
+    for field, value in (("e", 0), ("i", False), ("n", "n/a"))
+}
+
+
+async def test_a_flex_chip_reports_its_energy(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A Wattpilot Flex has no `cards` list; each chip has its own keys,
+    c0e..c9e for the energy (go-e's key list, firmware 60.x: uint64, the
+    successor of cards[].energy). All ten chip sensors were dropped."""
+    fake_charger._properties.pop("cards", None)
+    fake_charger._properties.update({**FLEX_CHIPS, "c1e": 10})
+    sensor = await make_sensor(hass, fake_charger, "chip_1")
+    assert sensor.native_value == 10
+    assert sensor.translation_placeholders == {"index": "1"}
+
+
+def test_each_charger_gets_the_chip_sensors_of_its_own_shape(
+    device_properties: dict[str, Any],
+) -> None:
+    def chip_uids(properties: dict[str, Any]) -> set[str]:
+        kept = filter_supported(
+            SENSOR_DESCRIPTIONS, firmware="43.5", variant=11, properties=properties
+        )
+        return {d.uid_suffix for d in kept if d.translation_key == "id_chip"}
+
+    flex = {k: v for k, v in device_properties.items() if k != "cards"} | FLEX_CHIPS
+    assert chip_uids(device_properties) == {f"cards_{i}" for i in range(10)}
+    assert chip_uids(flex) == {f"chip_{i}" for i in range(10)}
+
+
 def test_the_log_names_a_shape_without_repeating_the_value() -> None:
     """What the warning is allowed to say about a payload it cannot use."""
     assert sensor_platform._describe_shape([1, 2, 3]) == "list of 3"
@@ -443,14 +479,41 @@ async def test_malformed_value_keeps_previous_state(
     assert not any("garbage" in message for message in ours)
 
 
-async def test_charger_temp_array_extracts_index_without_attributes(
+async def test_the_temperature_is_the_hottest_reading(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
-    """Test value_index branch without index_attributes (tma sensor shape)."""
-    fake_charger._properties["tma"] = [40.5, 38.0]
+    fake_charger._properties["tma"] = [38.0, 40.5]
     sensor = await make_sensor(hass, fake_charger, "tma")
     assert sensor.native_value == 40.5
-    assert sensor.extra_state_attributes is None or sensor.extra_state_attributes == {}
+    assert sensor.extra_state_attributes == {"readings": [38.0, 40.5]}
+
+
+async def test_a_flex_temperature_with_empty_slots_shows_the_hottest(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A Wattpilot Flex (FW 43.4/43.5) reports six slots, the first two
+    null, and reading slot 0 left the sensor unknown for good. What each
+    slot measures is documented nowhere, so the hottest reading is shown --
+    the one that matters for derating -- with all of them as an attribute."""
+    readings = [None, None, 34.75, 36.375, 36.875, 35]
+    fake_charger._properties["tma"] = readings
+    sensor = await make_sensor(hass, fake_charger, "tma")
+    assert sensor.native_value == 36.875
+    assert sensor.extra_state_attributes == {"readings": readings}
+
+
+async def test_no_temperature_reading_is_unknown(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """Not the last reading kept: a stale temperature reads as a real one."""
+    fake_charger._properties["tma"] = [None, 40.0]
+    sensor = await make_sensor(hass, fake_charger, "tma")
+    fake_charger.push("tma", [None, None])
+    assert sensor.native_value is None
+
+
+def test_the_temperature_readings_stay_out_of_the_recorder() -> None:
+    assert "readings" in WattpilotSensor._unrecorded_attributes
 
 
 async def test_car_connected_reports_plug_state_not_charge_state(
@@ -575,6 +638,46 @@ async def test_electricity_price_is_the_current_market_price(
     assert [entry["price"] for entry in prices] == [15.144, 13.92]
     assert prices[1]["start"].timestamp() == 1786399200
     assert prices[1]["end"].timestamp() == 1786402800
+
+
+async def test_a_flex_price_list_object_is_expanded(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """On a Wattpilot Flex `awpl` is one object: the prices, the start of
+    the first and the interval. Its start and first price equal `awcp` in a
+    Flex's diagnostics (FW 43.5), so it is the same list in another shape --
+    and the attribute stayed empty."""
+    fake_charger._properties.update(
+        {
+            "awcp": PRICE_HOUR,
+            "awpl": {
+                "marketprice": [15.144, 13.92],
+                "start": 1786395600,
+                "interval": 3600,
+            },
+        }
+    )
+    sensor = await make_sensor(hass, fake_charger, "awcp")
+    prices = sensor.extra_state_attributes["prices"]
+    assert [entry["price"] for entry in prices] == [15.144, 13.92]
+    assert prices[1]["start"].timestamp() == 1786399200
+    assert prices[1]["end"].timestamp() == 1786402800
+
+
+@pytest.mark.parametrize(
+    "schedule",
+    [
+        {"marketprice": [15.144], "start": 1786395600},
+        {"marketprice": [15.144], "interval": 3600},
+        {"marketprice": None, "start": 1786395600, "interval": 3600},
+    ],
+)
+async def test_an_incomplete_price_schedule_gives_no_prices(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, schedule: dict[str, Any]
+) -> None:
+    fake_charger._properties.update({"awcp": PRICE_HOUR, "awpl": schedule})
+    sensor = await make_sensor(hass, fake_charger, "awcp")
+    assert sensor.extra_state_attributes == {"prices": []}
 
 
 async def test_a_new_price_list_reaches_the_attribute(

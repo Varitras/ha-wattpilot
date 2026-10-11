@@ -190,7 +190,9 @@ class WattpilotSensorEntityDescription(
     # Distinct from `monotonic`: decreases are compared against the reset
     # threshold instead of being rejected outright, see sensor.py.
     reset_tolerant_monotonic: bool = False
+    highest_reading: bool = False  # a list of readings: show the highest
     cards_index: int | None = None
+    chip_index: int | None = None  # names the ID chip, whatever the data shape
     companion_role: CompanionRole | None = None
 
 
@@ -354,18 +356,23 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
     ),
     *(
         WattpilotSensorEntityDescription(
-            key=f"id_chip_{i}",
-            charger_key="cards",
-            uid=f"cards_{i}",
+            key=key,
+            charger_key=charger_key,
+            uid=key,
             translation_key="id_chip",
             device_class=SensorDeviceClass.ENERGY,
             state_class=SensorStateClass.TOTAL,
             native_unit_of_measurement="Wh",
             suggested_unit_of_measurement="kWh",
             entity_registry_enabled_default=False,
-            cards_index=i,
+            cards_index=cards_index,
+            chip_index=i,
         )
         for i in range(10)
+        for key, charger_key, cards_index in (  # Flex: c0e..c9e, no `cards`
+            (f"cards_{i}", "cards", i),
+            (f"chip_{i}", f"c{i}e", None),
+        )
     ),
     WattpilotSensorEntityDescription(
         key="car_state",
@@ -507,7 +514,7 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement="°C",
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_index=0,
+        highest_reading=True,  # Flex: six slots, two null, meaning undocumented
     ),
     WattpilotSensorEntityDescription(
         key="id_chip_current",
