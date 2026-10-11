@@ -52,7 +52,7 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
     """One enumerated charger property as a select."""
 
     entity_description: WattpilotSelectEntityDescription
-    _last_unknown: Any = None
+    _unknown_reported = False
 
     def __init__(
         self,
@@ -84,21 +84,24 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
         self._report_unknown(value, known=known)
 
     def _report_unknown(self, value: Any, *, known: bool) -> None:  # noqa: ANN401 -- charger payload
-        # A preset select sees a current between its presets as a matter of
-        # course; a fixed table does not, and unknown alone told nobody (#25).
-        description = self.entity_description
-        if known or value is None or description.companion_key is not None:
-            self._last_unknown = None
+        # Unknown alone told nobody (#25). Once until a known value: a NaN
+        # never equals itself, and one unknown value after another tells
+        # nothing new (F31-03). A preset select sees a current between its
+        # presets as a matter of course, so only a fixed table reports.
+        if known:
+            self._unknown_reported = False
             return
-        if value != self._last_unknown:
-            # The shape, never the value: a car profile can be free text.
-            _LOGGER.warning(
-                "%s: the charger reports a value outside the known options for %s (%s)",
-                description.key,
-                description.charger_key,
-                describe_with_length(value),
-            )
-        self._last_unknown = value
+        fixed_table = self.entity_description.companion_key is None
+        if value is None or not fixed_table or self._unknown_reported:
+            return
+        # The shape, never the value: a car profile can be free text.
+        _LOGGER.warning(
+            "%s: the charger reports a value outside the known options for %s (%s)",
+            self.entity_description.key,
+            self.entity_description.charger_key,
+            describe_with_length(value),
+        )
+        self._unknown_reported = True
 
     async def async_select_option(self, option: str) -> None:
         """Write the wire value matching the chosen label."""

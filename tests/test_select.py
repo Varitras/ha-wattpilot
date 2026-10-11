@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -218,3 +219,30 @@ async def test_a_known_value_or_a_current_between_presets_is_not_logged(
     await make_select(hass, fake_charger, "ct")
 
     assert "outside the known options" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "pushes",
+    [
+        [float("nan")] * 3,  # NaN never equals itself
+        ["Car A", "Car B", "Car A"],  # unknown to unknown is no news
+        ["Car A", None, "Car A"],  # nothing reported is not a known value
+    ],
+    ids=["nan", "alternating", "none_between"],
+)
+async def test_an_unknown_value_is_reported_once_until_a_known_one(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+    pushes: list[object],
+) -> None:
+    """Logged on every push before (post-check F31-03)."""
+    fake_charger._properties["ct"] = "default"
+    await make_select(hass, fake_charger, "ct")
+    for value in pushes:
+        fake_charger.push("ct", value)
+
+    unknown = [
+        r for r in caplog.records if "outside the known options" in r.getMessage()
+    ]
+    assert [r.levelno for r in unknown] == [logging.WARNING]
