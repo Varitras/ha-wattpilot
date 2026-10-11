@@ -483,6 +483,24 @@ async def test_a_second_charger_is_numbered(
     assert result["data"][CONF_NAME] == "Wattpilot 2"
 
 
+async def test_a_title_from_before_the_stored_name_is_taken_too(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """An entry from before names were stored can be titled Wattpilot; a
+    second entry of that title would be told apart by nothing in the list."""
+    MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="111111",
+        title="Wattpilot",
+        version=2,
+        data={CONF_CONNECTION_TYPE: CONNECTION_LOCAL},
+    ).add_to_hass(hass)
+
+    result = await _add_by_hand(hass, fake_charger)
+
+    assert result["title"] == "Wattpilot 2"
+
+
 async def test_a_renamed_entry_keeps_its_name_taken_and_an_ignored_one_does_not(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
