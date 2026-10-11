@@ -138,7 +138,7 @@ def _number_or_none(value: Any) -> float | None:  # noqa: ANN401 -- charger payl
     """Pass a number or None on; anything else is a malformed push."""
     if value is None or isinstance(value, (int, float)):
         return value
-    raise TypeError(type(value).__name__)
+    raise TypeError  # the caller logs the shape, never the value
 
 
 def _expects_number(description: WattpilotSensorEntityDescription) -> bool:

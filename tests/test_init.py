@@ -918,6 +918,24 @@ async def test_an_entry_titled_by_its_address_does_not_log_it(
         await hass.async_block_till_done()
 
     assert "192.0.2.50" not in caplog.text
+    assert "<address>" in caplog.text, "the message itself must stay"
+
+
+async def test_an_entry_titled_by_a_name_keeps_it_in_the_log(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Only an address is masked: a name means something else elsewhere."""
+    caplog.set_level(logging.DEBUG)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456", title="Garage"
+    )
+    fake_charger.connect_error = OSError("unreachable")
+
+    assert not await setup_entry(hass, entry, fake_charger)
+
+    assert "Garage" in caplog.text
 
 
 async def test_a_setup_retry_does_not_log_the_chargers_address(

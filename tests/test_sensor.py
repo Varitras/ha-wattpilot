@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
-from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 
 from custom_components.wattpilot import sensor as sensor_platform
 from custom_components.wattpilot.descriptions import (
@@ -900,3 +900,16 @@ async def test_each_phase_reading_has_a_sensor_of_its_own(
     assert sensor.native_value == index
     assert sensor.native_unit_of_measurement == unit
     assert by_uid(uid).entity_registry_enabled_default is False, "recorder load"
+
+
+@pytest.mark.parametrize(
+    "description", SENSOR_DESCRIPTIONS, ids=[d.uid_suffix for d in SENSOR_DESCRIPTIONS]
+)
+def test_the_numeric_rule_is_home_assistants(description: Any) -> None:
+    """The conversion checks for a number exactly where Home Assistant
+    will insist on one when it writes the state (reaudit K-A)."""
+    entity = SensorEntity()
+    entity.entity_description = description
+
+    expected = entity._numeric_state_expected and not description.enum
+    assert sensor_platform._expects_number(description) is expected
