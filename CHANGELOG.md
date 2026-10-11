@@ -68,8 +68,8 @@ entity IDs.
 - **Average charging power** reads 0 W once no current has flowed for a
   minute. The charger keeps reporting the last session's average after
   charging, so an automation on it kept firing for hours. A pause shorter
-  than a minute keeps the average, meant to bridge a phase switch. A new
-  session reads 0 W until the charger reports that session's average.
+  than a minute keeps the average. A new session reads 0 W until the
+  charger reports that session's average.
 - The 0.2.0 notes gave 0.5 minutes as an example for all three timings
   now set in minutes. **Minimum charging time** starts at 1 minute, so 0.5
   is refused there; fractions above 1 minute work, as for the two
