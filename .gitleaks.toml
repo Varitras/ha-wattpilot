@@ -17,7 +17,7 @@ The generic-api-key rule reads the token after that colon as a key. Verified
 by reading the line: it is documentation in a vendored YAML file, not a
 credential.
 """
-regexes = ['''go-eCharger-API-v[12]''']
+regexes = ['''^go-eCharger-API-v[12]$''']
 
 [[allowlists]]
 description = """
