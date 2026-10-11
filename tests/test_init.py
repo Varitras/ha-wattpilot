@@ -1391,6 +1391,24 @@ async def test_a_reading_without_total_power_keeps_the_last_sessions_average_awa
     assert hass.states.get(entity_id).state == "0"
 
 
+async def test_a_null_average_keeps_the_stale_one_known(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A null average in a new session forgot which average was the last
+    session's, and it came back after (post-check PC7-01)."""
+    _, entity_id = await _average_power_while_charging(hass, fake_charger)
+    await _live_power(hass, fake_charger, 0, after=5)
+    await _live_power(hass, fake_charger, 0, after=60)
+    await _live_power(hass, fake_charger, 4100, after=5)
+
+    for value in (None, 4121.5):
+        fake_charger.push("tpa", value)
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
+        await hass.async_block_till_done()
+
+    assert hass.states.get(entity_id).state == "0"
+
+
 async def test_a_null_average_while_charging_is_unknown_not_zero(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
