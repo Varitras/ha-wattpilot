@@ -407,6 +407,7 @@ class WattpilotAveragePowerSensor(WattpilotSensor):
     """Average charging power, 0 W once the current has stopped for a minute."""
 
     _cancel_idle: CALLBACK_TYPE | None = None
+    _stale: object = None  # the average the last session left behind
 
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- charger payload
         # tpa keeps the last session's average after charging, and threshold
@@ -416,15 +417,21 @@ class WattpilotAveragePowerSensor(WattpilotSensor):
         )
         if live is None or live > 0:
             self._stop_idle_timer()
-            # Unknown when the live reading is: no telling a stale average.
-            super()._apply_value(value if live else None)
+            self._show_live(value, live)
         else:
             self._hold_while_idle()
+
+    def _show_live(self, value: Any, live: float | None) -> None:  # noqa: ANN401 -- charger payload
+        if live and value == self._stale:
+            return  # 0 W until this session's own average (RF-D-04)
+        self._stale = None
+        # Unknown when the live reading is: no telling a stale average.
+        super()._apply_value(value if live else None)
 
     def _hold_while_idle(self) -> None:
         if not self._attr_native_value:
             # Nothing to hold, as when the entry starts with nothing flowing.
-            self._attr_native_value = 0
+            self._show_idle()
         elif self._cancel_idle is None:
             self._cancel_idle = async_call_later(
                 self.hass, _IDLE_AFTER_SECONDS, self._went_idle
@@ -432,8 +439,12 @@ class WattpilotAveragePowerSensor(WattpilotSensor):
 
     @callback
     def _went_idle(self, _now: datetime) -> None:
-        self._attr_native_value = 0
+        self._show_idle()
         self.async_write_ha_state()
+
+    def _show_idle(self) -> None:
+        self._attr_native_value = 0
+        self._stale = self._hub.get_property(self.entity_description.charger_key)
 
     def _stop_idle_timer(self) -> None:
         if self._cancel_idle is not None:

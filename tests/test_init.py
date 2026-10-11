@@ -1301,10 +1301,32 @@ async def test_the_average_power_falls_to_zero_a_minute_after_charging_stops(
     assert hass.states.get(entity_id).state == "0"
 
     await _live_power(hass, fake_charger, 4100, after=5)
-    assert hass.states.get(entity_id).state == "4121.5", "the next session"
+    assert hass.states.get(entity_id).state == "0", "not the last session's average"
+    fake_charger.push("tpa", 3800.5)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "3800.5", "the next session's own"
     await _live_power(hass, fake_charger, 0, after=5)
     await _live_power(hass, fake_charger, 0, after=60)
     assert hass.states.get(entity_id).state == "0", "and its end"
+
+
+async def test_a_session_after_an_idle_start_waits_for_its_own_average(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """At the first watt the last session's average came back until the
+    charger sent this session's (reaudit RF-D-04); also after an idle start."""
+    fake_charger._properties.update({"tpa": 4121.5, "nrg": nrg_reading(0)})
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    entity_id = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, "123456-tpa")
+    assert hass.states.get(entity_id).state == "0"
+
+    await _live_power(hass, fake_charger, 4100, after=5)
+
+    assert hass.states.get(entity_id).state == "0"
 
 
 async def test_an_unloaded_entry_leaves_no_average_power_timer_behind(
