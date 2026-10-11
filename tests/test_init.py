@@ -918,7 +918,7 @@ async def test_an_entry_titled_by_its_address_does_not_log_it(
         await hass.async_block_till_done()
 
     assert "192.0.2.50" not in caplog.text
-    assert "<address>" in caplog.text, "the message itself must stay"
+    assert "'<address>'" in caplog.text, "the message itself must stay"
 
 
 async def test_an_entry_titled_by_a_name_keeps_it_in_the_log(
@@ -1327,6 +1327,22 @@ async def test_the_average_power_falls_to_zero_a_minute_after_charging_stops(
     await _live_power(hass, fake_charger, 0, after=5)
     await _live_power(hass, fake_charger, 0, after=60)
     assert hass.states.get(entity_id).state == "0", "and its end"
+
+
+async def test_an_average_that_is_no_number_mid_session_is_reported(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Only the last session's average is skipped silently, nothing else."""
+    _, entity_id = await _average_power_while_charging(hass, fake_charger)
+
+    fake_charger.push("tpa", "")
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(entity_id).state == "4121.5"
+    assert "unexpected str for tpa" in caplog.text
 
 
 async def test_a_session_after_an_idle_start_waits_for_its_own_average(
