@@ -1324,3 +1324,30 @@ async def test_a_refusal_ends_the_wait_of_an_open_into_a_signed_in_reconnect(
                 await connection.open()
     finally:
         await connection.close()
+
+
+async def test_a_close_while_an_open_stops_the_old_reader_is_not_swallowed(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The open first stops the reader in its backoff. A close landing there
+    was taken for that reader's own cancellation: the attempt went on to
+    open a socket after the close, and the close waited for it (reaudit
+    RF-L-02)."""
+    connector = RefusingConnector()
+    monkeypatch.setattr(CONNECT, connector)
+    connection = client._connection
+    connection._reconnect_delay_min = 3600
+    await _a_loop_in_backoff(connection)
+    old_reader = connection.message_loop_task
+
+    opening = asyncio.create_task(connection.open())
+    await asyncio.sleep(0)  # open() starts its attempt
+    await asyncio.sleep(0)  # the attempt cancels the old reader and waits for it
+    assert old_reader is not None
+    assert not old_reader.done()
+
+    await connection.close()
+    with contextlib.suppress(OSError, WattpilotConnectionError, asyncio.CancelledError):
+        await opening
+
+    assert connector.attempts == 0, "a connect was made after the close"

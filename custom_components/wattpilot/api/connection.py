@@ -296,11 +296,10 @@ class Connection:
         try:
             if task is not None:
                 task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-                except Exception as err:  # noqa: BLE001 -- whatever ended the loop
+                # wait(), not await: catching the reader's cancellation also
+                # swallowed a close aimed at the caller (RF-L-02).
+                await asyncio.wait({task})
+                if not task.cancelled() and (err := task.exception()) is not None:
                     # A failed loop re-raised here, before the socket closed
                     # (A11-06). No traceback: it can quote the address (PC-02).
                     _LOGGER.debug("Message loop ended: %s", describe_error(err))
