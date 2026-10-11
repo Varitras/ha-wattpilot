@@ -156,23 +156,26 @@ def _report_collisions(
     _show_collisions(hass, entry, collisions)
     if not collisions:
         return
-    remaining = set(collisions)
+    registry = er.async_get(hass)
+    # Registry ids, not entity IDs: a listed entity renamed was still named
+    # by its old ID, and deleting it then left the notice up (RF-E-02).
+    listed = {found.id for name in collisions if (found := registry.async_get(name))}
 
     @callback
-    def _is_listed_removal(data: er.EventEntityRegistryUpdatedData) -> bool:
-        return data["action"] == "remove" and data["entity_id"] in remaining
+    def _is_removal_or_rename(data: er.EventEntityRegistryUpdatedData) -> bool:
+        return data["action"] == "remove" or "old_entity_id" in data
 
     @callback
-    def _forget_removed(event: Event[er.EventEntityRegistryUpdatedData]) -> None:
+    def _recount(_event: Event[er.EventEntityRegistryUpdatedData]) -> None:
         # Deleting what the notice lists left it up until a reload (R1-19).
-        remaining.discard(event.data["entity_id"])
-        _show_collisions(hass, entry, remaining)
+        entries = (registry.async_get(registry_id) for registry_id in listed)
+        _show_collisions(hass, entry, {found.entity_id for found in entries if found})
 
     entry.async_on_unload(
         hass.bus.async_listen(
             er.EVENT_ENTITY_REGISTRY_UPDATED,
-            _forget_removed,
-            event_filter=_is_listed_removal,
+            _recount,
+            event_filter=_is_removal_or_rename,
         )
     )
 
