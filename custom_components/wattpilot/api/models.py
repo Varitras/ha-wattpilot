@@ -78,11 +78,8 @@ class DeviceInfo:
 
     serial: str = ""
     name: str = ""
-    hostname: str = ""
-    friendly_name: str = ""
     manufacturer: str = ""
     device_type: str = ""
-    protocol: int = 0
     secured: int = 0
     version: str = ""
     firmware: str = ""

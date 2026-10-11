@@ -656,8 +656,9 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # this budget came back down with it (measured: 1192). Nudged to 1230 on
     # 2026-09-06 for the audit round's connect cleanup and firmware deadline
     # (measured: 1221). Down on 2026-10-11 with the 45 accessors nothing read
-    # (audit A18-37), keeping room for the refusal in the firmware wait.
-    "client.py": 862,
+    # (audit A18-37), keeping room for the refusal in the firmware wait. Down
+    # again the same day with the seven getters only tests read (measured: 803).
+    "client.py": 803,
     # Past the default on 2026-09-25 by the open/close coordination (audits
     # A15-01, A16-01): shared attempts, a close that cancels instead of
     # waiting, and one visible transition at a time (measured: 406).
@@ -684,8 +685,8 @@ CLUSTER_BUDGET = {
     # forty lines of comment had already been condensed to make room: the
     # open/close coordination (A13-01, A14-01, A15-01) and the refused-
     # password flag (A14-02), at a measured 1607 lines. Down with client.py
-    # on 2026-10-11 (A18-37).
-    "api client": (("client.py", "connection.py"), 1302),
+    # on 2026-10-11 (A18-37), and again with the last unread getters (1243).
+    "api client": (("client.py", "connection.py"), 1243),
 }
 
 
@@ -986,13 +987,12 @@ def test_complexity_ratchet() -> None:
         # each. The point of freezing them is that they cannot grow further
         # without someone saying so in a diff.
         "auth.py::_bcryptjs_base64_encode": 6,
-        "client.py::Wattpilot._on_hello": 6,
         "client.py::Wattpilot._coerce_to_json_type": 17,
         "connection.py::Connection._read_frames": 6,
         "connection.py::Connection._message_loop": 6,
         "client.py::Wattpilot._handle_message": 11,
         "client.py::Wattpilot._on_response": 6,
-        "client.py::Wattpilot._update_property": 11,
+        "client.py::Wattpilot._update_property": 7,
         "definition.py::validate_api_definition": 12,
         "definition.py::load_api_definition": 8,
     }

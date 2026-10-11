@@ -63,11 +63,6 @@ def _plain_json(value: Any) -> Any:  # noqa: ANN401 -- recurses over untyped JSO
     return value
 
 
-def _nested_ssid(value: Any) -> str | None:  # noqa: ANN401 -- untyped JSON
-    """Return the SSID inside a `ccw` object, if one was sent at all."""
-    return value.get("ssid") if isinstance(value, dict) else None
-
-
 def _correlation_key(request_id: object) -> str:
     """
     wattpilot: one spelling for a request id, whatever the wire used.
@@ -160,10 +155,8 @@ class Wattpilot:
         self._all_props: dict[str, Any] = {}
 
         # Named property caches
-        self._amp: int | None = None
         self._version: str | None = None
         self._firmware: str | None = None
-        self._wifi_ssid: str | None = None
         self._cak: str | None = None
 
         # Lazy-loaded API definition for type coercion
@@ -234,29 +227,9 @@ class Wattpilot:
         return self._device.name
 
     @property
-    def hostname(self) -> str:
-        """Return the charger's network hostname."""
-        return self._device.hostname
-
-    @property
     def manufacturer(self) -> str:
         """Return the manufacturer as the charger reports it."""
         return self._device.manufacturer
-
-    @property
-    def device_type(self) -> str:
-        """Return the device type, e.g. "wattpilot_V2"."""
-        return self._device.device_type
-
-    @property
-    def protocol(self) -> int:
-        """Return the protocol version the charger speaks."""
-        return self._device.protocol
-
-    @property
-    def secured(self) -> int:
-        """Return whether writes must be signed (0 = no)."""
-        return self._device.secured
 
     @property
     def version(self) -> str | None:
@@ -267,16 +240,6 @@ class Wattpilot:
     def firmware(self) -> str | None:
         """Return the charger's firmware version, if known."""
         return self._firmware
-
-    @property
-    def amp(self) -> int | None:
-        """Return the requested charging current in A."""
-        return self._amp
-
-    @property
-    def wifi_ssid(self) -> str | None:
-        """Return the SSID the charger is connected to."""
-        return self._wifi_ssid
 
     @property
     def all_properties(self) -> dict[str, Any]:
@@ -313,13 +276,6 @@ class Wattpilot:
         if isinstance(val, str) and val:
             return [val]
         return []
-
-    # Cloud API
-
-    @property
-    def cloud_api_key(self) -> str | None:
-        """Cloud API key (available when cloud is enabled)."""
-        return self._cak
 
     # ---- Commands ----
 
@@ -675,14 +631,10 @@ class Wattpilot:
         self._device.serial = msg.serial
         if hasattr(msg, "hostname"):
             self._device.name = msg.hostname
-            self._device.hostname = msg.hostname
-        if hasattr(msg, "friendly_name"):
-            self._device.friendly_name = msg.friendly_name
         if hasattr(msg, "version"):
             self._device.version = msg.version
         self._device.manufacturer = getattr(msg, "manufacturer", "")
         self._device.device_type = getattr(msg, "devicetype", "")
-        self._device.protocol = getattr(msg, "protocol", 0)
         if hasattr(msg, "secured"):
             self._device.secured = msg.secured
 
@@ -788,20 +740,10 @@ class Wattpilot:
         match name:
             case "cak":
                 self._cak = value
-            case "amp":
-                self._amp = value
             case "version":
                 self._version = value
             case "fwv":
                 self._firmware = value
-            case "wss":
-                self._wifi_ssid = value
-            case "ccw":
-                # Current firmware reports the connected AP here rather than
-                # in ``wss``; the value is an object carrying the SSID.
-                ssid = _nested_ssid(value)
-                if ssid:
-                    self._wifi_ssid = ssid
 
         # Fire property callbacks
         for cb in self._property_callbacks:

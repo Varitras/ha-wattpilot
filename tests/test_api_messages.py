@@ -47,11 +47,11 @@ async def test_hello_carries_the_device_identity(client: Wattpilot) -> None:
         },
     )
     assert client.serial == "123456"
-    assert client.hostname == "Wattpilot_123456"
+    assert client.name == "Wattpilot_123456"
     assert client.manufacturer == "fronius"
-    assert client.device_type == "wattpilot_V2"
-    assert client.protocol == 2
-    assert client.secured == 1
+    # Not public, but they decide the hash for a Flex and signed writes.
+    assert client._device.device_type == "wattpilot_V2"
+    assert client._device.secured == 1
 
 
 async def test_hello_without_the_optional_fields(client: Wattpilot) -> None:
@@ -60,13 +60,13 @@ async def test_hello_without_the_optional_fields(client: Wattpilot) -> None:
     await send(client, {"type": "hello", "serial": "123456"})
     assert client.serial == "123456"
     assert client.manufacturer == ""
-    assert client.protocol == 0
+    assert client.name == ""
 
 
 async def test_a_full_status_completes_the_initialisation(client: Wattpilot) -> None:
     await send(client, {"type": "fullStatus", "partial": False, "status": {"amp": 16}})
     assert client.properties_initialized
-    assert client.amp == 16
+    assert client.all_properties.get("amp") == 16
 
 
 async def test_a_partial_full_status_does_not_complete_it(client: Wattpilot) -> None:
@@ -75,7 +75,7 @@ async def test_a_partial_full_status_does_not_complete_it(client: Wattpilot) -> 
     device."""
     await send(client, {"type": "fullStatus", "partial": True, "status": {"amp": 16}})
     assert not client.properties_initialized
-    assert client.amp == 16
+    assert client.all_properties.get("amp") == 16
 
 
 async def test_a_delta_between_partial_frames_does_not_complete_it(
@@ -112,7 +112,7 @@ async def test_a_delta_status_also_completes_it(client: Wattpilot) -> None:
     """Some firmware sends deltas straight away without a full status."""
     await send(client, {"type": "deltaStatus", "status": {"amp": 6}})
     assert client.properties_initialized
-    assert client.amp == 6
+    assert client.all_properties.get("amp") == 6
 
 
 async def test_an_auth_error_is_remembered_for_connect(client: Wattpilot) -> None:
@@ -176,7 +176,7 @@ async def test_a_malformed_property_costs_neither_its_siblings_nor_the_status(
             "status": {"nrg": [230.0], "amp": 16},
         },
     )
-    assert client.amp == 16
+    assert client.all_properties.get("amp") == 16
     assert client.properties_initialized
 
 

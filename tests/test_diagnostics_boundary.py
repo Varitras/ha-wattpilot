@@ -97,4 +97,7 @@ async def test_the_client_hands_out_plain_json(loaded_client: Wattpilot) -> None
     a property is a dict, a list or a scalar by the time anyone reads it."""
     assert isinstance(loaded_client.all_properties["dns"], dict)
     assert isinstance(loaded_client.all_properties["wifis"][0], dict)
-    assert loaded_client.wifi_ssid == "Homenet"
+    assert loaded_client.all_properties["ccw"] == {
+        "ssid": "Homenet",
+        "bssid": "AA:BB:CC:DD:EE:FF",
+    }

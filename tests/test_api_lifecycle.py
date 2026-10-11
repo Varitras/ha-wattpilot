@@ -48,7 +48,7 @@ def test_every_getter_answers_on_a_fresh_client(client: Wattpilot) -> None:
     builds its entities from these while the charger is still connecting,
     and one AttributeError there takes the whole platform down."""
     names = read_only_properties()
-    assert len(names) > 15, "the introspection found almost nothing -- it broke"
+    assert len(names) > 10, "the introspection found almost nothing -- it broke"
 
     for name in names:
         getattr(client, name)
@@ -165,8 +165,8 @@ async def test_a_malformed_frame_does_not_kill_the_message_loop(
     )
     task = asyncio.create_task(client._connection._message_loop())
     try:
-        await _settle(lambda: client.amp == 6)
-        assert client.amp == 6
+        await _settle(lambda: client.all_properties.get("amp") == 6)
+        assert client.all_properties.get("amp") == 6
         assert not task.done()
     finally:
         task.cancel()
@@ -263,7 +263,9 @@ async def test_a_reconnect_to_a_different_charger_is_refused(
         await _settle(task.done)
         assert socket.closed
         assert client.serial == "111111"
-        assert client.amp is None, "state from the wrong charger reached the cache"
+        assert client.all_properties.get("amp") is None, (
+            "state from the wrong charger reached the cache"
+        )
         assert not client.connected
         assert isinstance(client._connection.fatal_error, DeviceIdentityError)
     finally:
@@ -715,7 +717,9 @@ async def test_no_frame_is_applied_after_the_charger_was_refused(
     try:
         await _settle(task.done)
         assert client.serial == "111111"
-        assert client.amp is None, "a buffered frame was applied after refusal"
+        assert client.all_properties.get("amp") is None, (
+            "a buffered frame was applied after refusal"
+        )
     finally:
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -801,8 +805,8 @@ async def test_a_binary_frame_that_is_not_utf8_does_not_end_the_reader(
     )
     task = asyncio.create_task(client._connection._message_loop())
     try:
-        await _settle(lambda: client.amp == 6)
-        assert client.amp == 6
+        await _settle(lambda: client.all_properties.get("amp") == 6)
+        assert client.all_properties.get("amp") == 6
         assert not task.done()
     finally:
         task.cancel()
@@ -823,8 +827,10 @@ async def test_an_empty_array_does_not_end_the_reader(client: Wattpilot) -> None
     )
     task = asyncio.create_task(client._connection._message_loop())
     try:
-        await _settle(lambda: client.amp == 6)
-        assert client.amp == 6, "the frame behind the malformed one was lost"
+        await _settle(lambda: client.all_properties.get("amp") == 6)
+        assert client.all_properties.get("amp") == 6, (
+            "the frame behind the malformed one was lost"
+        )
         assert not task.done()
     finally:
         task.cancel()
