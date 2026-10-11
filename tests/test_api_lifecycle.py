@@ -1351,3 +1351,37 @@ async def test_a_close_while_an_open_stops_the_old_reader_is_not_swallowed(
         await opening
 
     assert connector.attempts == 0, "a connect was made after the close"
+
+
+async def test_an_unload_while_the_firmware_update_waits_for_the_reboot_wins(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The close itself ended the wait for the reboot, and the close count
+    was taken only after it: the update reconnected and reported success
+    behind an unloaded entry (reaudit RF-L-01; R1-11 covered the reconnect
+    phase only)."""
+    sockets: list[FakeSocket] = []
+
+    async def signs_in(_url: str) -> FakeSocket:
+        loop = asyncio.get_running_loop()
+        loop.call_soon(client._connection.mark_authenticated)
+        loop.call_soon(client._connection.mark_initialized)
+        sockets.append(FakeSocket([]))
+        return sockets[-1]
+
+    monkeypatch.setattr(CONNECT, signs_in)
+    client._all_props["onv"] = ["42.6"]
+    monkeypatch.setattr(client, "set_property", lambda *_a, **_k: asyncio.sleep(0))
+    await client._connection.open()
+
+    install = asyncio.create_task(client.install_firmware_update(timeout=5))
+    await asyncio.sleep(0.01)  # acknowledged; waiting for the reboot
+    await client.disconnect()
+    with contextlib.suppress(WattpilotConnectionError):
+        await install
+
+    try:
+        assert not client.connected, "a session outlived the unload"
+        assert [s for s in sockets if not s.closed] == []
+    finally:
+        await client._connection.close()

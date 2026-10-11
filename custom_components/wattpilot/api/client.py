@@ -397,6 +397,9 @@ class Wattpilot:
                 raise PropertyError(msg)
             version = versions[0]
 
+        # Counted from here: a close in the wait for the reboot ended that
+        # wait as if the charger had gone, and the update reconnected (RF-L-01).
+        closes = self._connection.close_count
         await self.set_property("oct", version)
 
         # A monotonic deadline: a sum of sleeps never counted the reconnect
@@ -412,9 +415,9 @@ class Wattpilot:
             raise WattpilotConnectionError(msg)
 
         # No disconnect() of its own: it counted as an unload (PC-01).
-        await self._reconnect_before(deadline)
+        await self._reconnect_before(deadline, closes)
 
-    async def _reconnect_before(self, deadline: float) -> None:
+    async def _reconnect_before(self, deadline: float, closes: int) -> None:
         """
         Keep trying to reach the rebooted charger until the deadline passes.
 
@@ -425,7 +428,6 @@ class Wattpilot:
         """
         loop = asyncio.get_running_loop()
         # Another close (an unload) ends the wait; reconnecting outlived it (R1-11).
-        closes = self._connection.close_count
         while self._connection.close_count == closes:
             remaining = deadline - loop.time()
             if remaining <= 0:
