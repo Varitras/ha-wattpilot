@@ -1083,3 +1083,141 @@ async def test_an_open_into_a_stalled_handshake_keeps_recovering(
         assert connection.message_loop_task is not None, "nobody is left to retry"
     finally:
         await connection.close()
+
+
+# ---- One rule over every way in and every settled state (ledger L-021) ----
+#
+# The single interleaving tests above each came from a finding, and two of the
+# fixes made the next finding (R1-11, PC-01). This matrix states the rule once:
+# a deliberate close leaves nothing running; any other way in leaves recovery
+# as it found it -- a reconnect loop that existed still exists, none is made
+# up -- and never two readers or a socket without a reader. An open after a
+# refusal is a fresh start, not recovery, so it is not part of the rule. The
+# in-flight states (an open or a close still running) stay with the single
+# tests above; their races need a hand-placed interleaving each.
+
+LIFECYCLE_STATES = ["idle", "backoff", "reading", "stalled", "closed", "refused"]
+LIFECYCLE_ENTRIES = [
+    "failed_open",
+    "cancelled_open",
+    "timed_out_open",
+    "refused_open",
+    "close",
+    "resume",
+]
+_LOOP = "Connection._message_loop"
+
+
+class MatrixConnector:
+    """Every socket this connection ever got, and how the next connect ends."""
+
+    def __init__(self, connection: Any) -> None:
+        self.sockets: list[FakeSocket] = []
+        self.mode = "refuse"
+        self.entered = asyncio.Event()
+        self._connection = connection
+
+    def track(self, socket: FakeSocket) -> FakeSocket:
+        self.sockets.append(socket)
+        return socket
+
+    async def __call__(self, _url: str) -> FakeSocket:
+        self.entered.set()
+        await asyncio.sleep(0)
+        if self.mode == "hang":
+            await asyncio.sleep(3600)
+        if self.mode == "refuse":
+            raise OSError(errno.ECONNREFUSED, "Connect call failed")
+        if self.mode == "refuse_auth":
+            refusal = WattpilotConnectionError("refused")
+            asyncio.get_running_loop().call_soon(self._connection.fail, refusal)
+        return self.track(FakeSocket([]))
+
+
+async def _enter_state(connection: Any, connector: MatrixConnector, state: str) -> None:
+    if state == "idle":
+        return
+    connection.socket = connector.track(FakeSocket([]))
+    connection.message_loop_task = asyncio.create_task(connection._message_loop())
+    await asyncio.sleep(0)
+    if state in ("reading", "stalled"):
+        connection.mark_authenticated()
+        if state == "reading":
+            connection.mark_initialized()
+        return
+    if state == "refused":
+        connection.fail(WattpilotConnectionError("refused"))
+    await connection.socket.close()
+    await _settle(lambda: not connection.connected)
+    if state == "refused":
+        await _settle(connection.message_loop_task.done)
+    if state == "closed":
+        await connection.close()
+
+
+async def _run_entry(connection: Any, connector: MatrixConnector, entry: str) -> None:
+    if entry == "close":
+        await connection.close()
+    elif entry == "resume":
+        connection.resume_reconnecting()
+    elif entry == "cancelled_open":
+        connector.mode = "hang"
+        caller = asyncio.create_task(connection.open())
+        await _settle(lambda: connector.entered.is_set() or caller.done())
+        caller.cancel()
+        with contextlib.suppress(asyncio.CancelledError, WattpilotConnectionError):
+            await caller
+    else:
+        modes = {"failed_open": "refuse", "refused_open": "refuse_auth"}
+        connector.mode = modes.get(entry, "silent")
+        with contextlib.suppress(OSError, WattpilotConnectionError):
+            await connection.open()
+
+
+def _expected_loops(state: str, entry: str) -> int:
+    signed_in = state in ("reading", "stalled")  # an open connects nothing there
+    if entry == "close" or (entry == "refused_open" and not signed_in):
+        return 0
+    if entry == "resume" and state in ("closed", "refused"):
+        return 0
+    if entry == "resume":
+        return 1
+    return 1 if signed_in or state == "backoff" else 0
+
+
+def _running_loops() -> list[asyncio.Task[Any]]:
+    return [
+        task
+        for task in asyncio.all_tasks()
+        if not task.done() and task.get_coro().__qualname__ == _LOOP
+    ]
+
+
+@pytest.mark.parametrize("entry", LIFECYCLE_ENTRIES)
+@pytest.mark.parametrize("state", LIFECYCLE_STATES)
+async def test_every_way_in_leaves_recovery_as_it_found_it(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch, state: str, entry: str
+) -> None:
+    if state == "refused" and entry.endswith("_open"):
+        pytest.skip("an open after a refusal starts afresh")
+    connection = client._connection
+    connector = MatrixConnector(connection)
+    monkeypatch.setattr(CONNECT, connector)
+    connection._reconnect_delay_min = 3600  # a loop parks in its backoff
+    connection.connect_timeout = connection.init_timeout = 0.01
+    await _enter_state(connection, connector, state)
+
+    await _run_entry(connection, connector, entry)
+    for _ in range(5):
+        await asyncio.sleep(0)
+
+    try:
+        loops = _running_loops()
+        assert len(loops) == _expected_loops(state, entry), "reconnect owners"
+        if loops:
+            assert connection.message_loop_task is loops[0]
+        open_sockets = [socket for socket in connector.sockets if not socket.closed]
+        assert len(open_sockets) <= len(loops), "a socket without a reader"
+    finally:
+        await connection.close()
+    assert _running_loops() == [], "a loop outlived the close"
