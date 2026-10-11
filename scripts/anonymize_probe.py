@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -27,13 +28,30 @@ from custom_components.wattpilot.redaction import (
     scrub,
 )
 
-__all__ = ["DROP_KEYS", "main", "sanitize_property", "sanitize_snapshot", "scrub"]
+__all__ = [
+    "DROP_KEYS",
+    "fixture_from",
+    "main",
+    "sanitize_property",
+    "sanitize_snapshot",
+    "scrub",
+]
+
+
+def fixture_from(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Return the snapshot as the committed fixture holds it."""
+    cleaned = sanitize_snapshot(snapshot)
+    if cleaned.get("ct"):
+        # Diagnostics tell a known profile from an unknown one; the suite
+        # needs one the car profile select offers (post-check F31-01).
+        cleaned["ct"] = "default"
+    return cleaned
 
 
 def main() -> int:
     """Read the probe dump, scrub identifying values, and write the fixture."""
     probe = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-    cleaned = sanitize_snapshot(probe["snapshot_after_observation"])
+    cleaned = fixture_from(probe["snapshot_after_observation"])
     out = Path(__file__).parent.parent / "tests" / "fixtures" / "device_properties.json"
     out.write_bytes(
         (json.dumps(cleaned, indent=2, sort_keys=True) + "\n").encode("utf-8")

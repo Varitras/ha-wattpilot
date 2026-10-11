@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 import yaml
 
-from custom_components.wattpilot.redaction import DROP_KEYS, KNOWN_PROFILE, REPLACE
+from custom_components.wattpilot.redaction import DROP_KEYS, REPLACE
 from scripts import complexity_snapshot
 
 from .conftest import IDENTIFIERS
@@ -603,9 +603,7 @@ def test_device_fixture_is_anonymized() -> None:
     )
     for forbidden in DROP_KEYS:
         assert forbidden not in data, f"identifying key '{forbidden}' must be dropped"
-    assert data["ct"] in {"default", KNOWN_PROFILE}, (
-        "car profile must not reveal the owner's vehicle"
-    )
+    assert data["ct"] == "default", "car profile must not reveal the owner's vehicle"
     assert data["ffna"] == REPLACE["ffna"], "friendly network name must be synthetic"
 
     assert "cci" in data, "cci companion block must be present"
