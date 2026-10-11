@@ -7,14 +7,15 @@
 
 A local-push Home Assistant integration for **Fronius Wattpilot** wallbox
 chargers. It talks to the charger over its WebSocket API on your own network —
-no cloud account, no polling. The charger pushes a property, exactly the
-entities that care about it update.
+no cloud account, no polling. When the charger pushes a property, exactly
+the entities that use it update.
 
 It is a **drop-in replacement** for the two existing community integrations,
 [`ruaan-deysel/ha-wattpilot`][deysel] and [`mk-maddin/wattpilot-HA`][maddin]:
-same `wattpilot` domain, same entity unique IDs, automatic config-entry
-migration. Your history, dashboards, automations and entity customizations
-survive the switch.
+same `wattpilot` domain, the entity unique IDs of `ruaan-deysel/ha-wattpilot`
+(those of `mk-maddin/wattpilot-HA` are rewritten once, see below), automatic
+config-entry migration. Your history, dashboards, automations and entity
+customizations survive the switch.
 
 [deysel]: https://github.com/ruaan-deysel/ha-wattpilot
 [maddin]: https://github.com/mk-maddin/wattpilot-HA
@@ -24,7 +25,9 @@ survive the switch.
 Fronius Wattpilot chargers reachable on the local network, in both the 11 kW
 and 22 kW variants. Developed and verified against a **Wattpilot Home 11 J 2.0
 on firmware 42.5**; the Go models speak the same API but have not been tested
-here. Older firmware is supported: entities that a given firmware or power
+here. Support for the **Wattpilot Flex** rests on diagnostics a Flex owner
+shared (firmware 43.4 and 43.5); it has not been tested here either. Older
+firmware is supported: entities that a given firmware or power
 variant does not provide are simply not created, so no entity ever sits at a
 permanently unknown state.
 
@@ -34,9 +37,9 @@ reconfigure it with the charger's local address.
 
 ## Migrating from ha-wattpilot or wattpilot-HA
 
-1. Remove the old integration in **HACS → Integrations**. **Do not delete the
-   config entry** in Settings → Devices & Services — that entry is what carries
-   your history over.
+1. Remove the old integration in HACS: open it there and choose ⋮ →
+   **Remove**. **Do not delete the config entry** in Settings → Devices &
+   Services — that entry is what carries your history over.
 2. Install this integration (below).
 3. Restart Home Assistant.
 
@@ -55,26 +58,27 @@ domain.
 
 Every one of the 75 unique IDs `ruaan-deysel/ha-wattpilot` shipped is
 reproduced, plus the additions described below, across eight platforms.
-The reference device ends up with 92 entities — the rest are gated away by its
+The reference device ends up with 107 entities — the rest are gated away by its
 firmware and power variant.
 
 | Platform | What it covers |
 | --- | --- |
-| `sensor` | Charging power, voltage, current, power and power factor per phase, session and total energy, car state and connection, phases in use, charging reason, charger temperature, cable-unlock and lock feedback, Wi-Fi and inverter diagnostics, reboot counters, the ten ID-chip energy counters, electricity price, charging duration |
+| `sensor` | Charging power, voltage, current, power and power factor per phase, session and total energy, car state and connection, phases in use, charging reason, charger temperature, cable-unlock and lock feedback, Wi-Fi and inverter diagnostics, reboot counters, the ten ID-chip energy counters, electricity price, charging duration and more |
 | `binary_sensor` | Car plugged in, car charging |
 | `switch` | PV surplus charging, charge pause, load balancing, eco mode, battery boost, LED energy saving, NTP, hotspot auto-disable and more |
-| `number` | Max charging current, PV-surplus start threshold, minimum charging time, next-trip energy, PV-battery thresholds, phase-switch timings, aWATTar price limit, energy limit per charge, car consumption, charge-pause, charging-interval, single-phase and simulated-unplugging durations |
-| `select` | Charging mode, access control, phase switching, cable unlock, aWATTar country, lock level, boost type, daylight saving, car profile, forced charging state, charging current preset |
+| `number` | Max charging current, PV-surplus start threshold, minimum charging time, next-trip energy, PV-battery thresholds, phase-switch timings, aWATTar price limit, energy limit per charge, car consumption, charge-pause, charging-interval, single-phase and simulated-unplugging durations and more |
+| `select` | Charging mode, access control, phase switching, cable lock behavior, aWATTar country, button current change lock, boost type, daylight saving, car profile, forced charging state, charging current preset |
 | `button` | Start / stop / force charging, restart, authenticate |
 | `time` | Next-trip departure |
 | `update` | Firmware version, with install |
 
-Diagnostic and noisy entities are registry-disabled by default; enable the ones
-you want in the entity settings. Settings you would actually reach for are not
-among them: the PV-surplus and phase-switch knobs and the everyday switches
-ship enabled, even where the fork left them off.
+Noisy entities and most diagnostic ones are registry-disabled by default;
+enable the ones you want in the entity settings. Settings you would actually
+reach for are not among them: the PV-surplus knobs, the phase-switch delay and
+interval and the everyday switches ship enabled, even where the fork left them
+off. The three-phase power level stays disabled, as in the fork.
 
-### New: session energy split
+### Additions to the fork's entity set
 
 Four extra sensors break the current charging session down by energy source —
 **solar**, **battery**, **grid** and **other** (`whs`, `whb`, `whg`, `who`).
@@ -86,18 +90,18 @@ The fifth addition is the **car profile** select (`ct`), which
 
 The sixth is **Phases in use** (`pnp`), the phase count the charger has
 switched to. Measured on firmware 42.5, it follows the phase switch rather
-than the live current: it moves to 3 roughly 24 seconds after charging starts
-and stays there until the car is unplugged.
+than the live current: it moves to 3 some seconds after charging starts (9 to
+24 seconds measured) and stays at 3 after charging ends.
 
-The last four describe what the charger is doing *right now*, which the
-fork's set only lets you infer:
+These describe what the charger is doing *right now*, which the fork's set
+only lets you infer:
 
 | Entity | Property | What it adds |
 | --- | --- | --- |
 | **Charging allowed** | `alw` | Whether the car may draw power at this moment — the answer "why is it not charging" usually starts here |
 | **Allowed charging current** | `acu` | The current actually offered to the car, as opposed to **Maximum charging current**, which is the configured ceiling. Unknown while nothing is offered |
 | **Average charging power** | `tpa` | The charger's own 30-second average, steadier than **Charging power** for threshold automations. Reads 0 W once no current has flowed for a minute, because the charger itself keeps the last session's average; a shorter pause keeps the value, meant to bridge a phase switch, whose length has not been measured. A new session reads 0 W until the charger reports its own average |
-| **Grid frequency** | `fhz` | Diagnostic, **disabled by default**: it changes with nearly every push, so it is recorder load unless you are watching grid quality |
+| **Grid frequency** | `fhz` | Diagnostic, **disabled by default**: it changes in more than half of all pushes, so it is recorder load unless you are watching grid quality |
 | **L1/L2/L3/N voltage**, **current**, **power**, **power factor** | `nrg` | One sensor per phase and reading, with history (no current on N). **Disabled by default**: they change with nearly every push. The same values stay attributes of **Charging power**, without history |
 
 And a few that make existing settings usable from Home Assistant:
@@ -121,8 +125,8 @@ device's consumption source. It is a
 `total_increasing` energy sensor and survives charger reboots, also across a
 reload or restart of Home Assistant.
 
-Session energy sensors are *not* suitable as an Energy Dashboard source: they
-reset to zero at the start of every session by design.
+The session energy sensors add nothing there: they start again at zero with
+every session, and Total energy already counts the same energy.
 
 ## Installation
 
@@ -189,7 +193,7 @@ automations keep working.
 
 ### Example
 
-Restrict charging to solar surplus while the sun is up, and set tomorrow's
+Use PV surplus charging while the sun is up, and set tomorrow's
 departure every evening, with the entity IDs of a new installation:
 
 ```yaml
@@ -228,12 +232,14 @@ automation:
 The integration holds one WebSocket connection to the charger and subscribes
 to property changes. Nothing is polled. When the connection drops and is still
 down at the next check (every 30 seconds), every entity goes unavailable, the
-drop is logged once, and the client reconnects on its own; entities come back
-as soon as the charger has sent its current readings. A reconnect between two
+drop is logged once, and the client reconnects on its own, at growing
+intervals of up to five minutes; entities come back as soon as the charger has
+sent its current readings. A reconnect between two
 checks goes unnoticed.
 
-**Update interval** (Settings → Devices & Services → Wattpilot → Configure) is
-therefore not a polling interval: it coalesces the charger's pushes. The
+**Update interval** (Settings → Devices & Services → Fronius Wattpilot →
+Configure) is therefore not a polling interval: it coalesces the charger's
+pushes. The
 charger can push the same property many times a second, and every push writes
 entity state and a recorder row. The interval caps that to at most one update
 per entity per interval; **0** forwards every change immediately. Availability
@@ -248,15 +254,16 @@ charger's readings are in, together with those readings.
 | **Invalid password** | The password is the **Wattpilot.Solar app** password, not your Wi-Fi or Fronius account password. |
 | **The charger at this address has a different serial number** | The address now belongs to another charger. Use **Reconfigure** on the right entry. |
 | **This entry belongs to charger X, but the charger at this address reports serial Y** | Setup refuses rather than silently moving this entry's history onto another device. If the address was reused, point the entry at the right one with **Reconfigure**. If you replaced the charger, delete the entry and add the new one — the serial is the entry's identity, so the old history cannot follow. |
-| **Charger X is already configured by another entry** or, in Reconfigure, **This charger already has another entry** | An entry carried over from the earlier integration found its charger already set up a second time, from a discovery card or by hand. Delete that other entry and reload the carried-over one: only the carried-over entry keeps the earlier integration's entity IDs and history. |
-| **Repair notice: Another charger answers at this charger's address** | The same situation, found while running: the integration stops connecting instead of showing the other charger's readings. Point the entry at the right address with **Reconfigure**; the notice goes away with the reload that follows. |
+| **Charger X is already configured by another entry** or, in Reconfigure, **This charger already has another entry** | An entry carried over from the earlier integration found its charger already set up a second time, from a discovery card or by hand. Delete that other entry, then reload the carried-over one, or submit Reconfigure or the re-authentication again if that is where the message came up: only the carried-over entry keeps the earlier integration's entity IDs and history. |
+| **Repair notice: Another charger answers at this charger's address** | The situation of *This entry belongs to charger X*, found while running: the integration stops connecting instead of showing the other charger's readings. Point the entry at the right address with **Reconfigure**; the notice goes away with the reload that follows. |
 | **Repair notice: The charger refused the connection** | The charger asks for a sign-in method this version of the integration does not know, usually after a firmware update. Look for an update of the integration; the notice goes away once the charger is connected again or the integration is reloaded. |
-| **All entities unavailable** | The charger is offline or the connection dropped. It reconnects by itself — no restart needed. |
+| **All entities unavailable** | The charger is offline or the connection dropped. It reconnects by itself, within five minutes of the charger being reachable again — no restart needed. |
 | **Cloud connections are not supported yet** | An entry migrated from an older integration was configured for cloud. Reconfigure it with the local address. |
 | **Some entities are missing** | They are either firmware- or variant-gated (not offered by your charger), or disabled by default. Check the disabled entities on the device page. |
 
 For a bug report, attach the entry's **Download diagnostics** output. It is
-redacted before it reaches you: serial number, host names, passwords, cloud
+redacted before it reaches you: serial number, host names, the device name
+the entry stores, passwords, cloud
 API tokens, MAC addresses, Wi-Fi SSIDs, ID-chip names, the log of
 neighbouring networks and free-text fields such as a load group name, a
 Wi-Fi error message, the last cloud error or a Wattpilot Flex's OCPP
@@ -276,7 +283,9 @@ Look over a log before posting it.
 
 Settings → Devices & Services → **Fronius Wattpilot** → ⋮ → **Delete**. That
 removes the entry, its device and all its entities. If you installed via HACS,
-remove it there too and restart. Nothing is left behind on the charger.
+remove it there too and restart. The integration stores nothing on the
+charger, but settings changed through it stay; if you turned on the go-e cloud
+API with `wattpilot.set_goe_cloud`, turn it off first.
 
 ## Development
 
@@ -284,9 +293,10 @@ remove it there too and restart. Nothing is left behind on the charger.
 bash scripts/check.sh
 ```
 
-runs every gate: `ruff format --check`, `ruff check`, `mypy --strict` and the
-full test suite, end-to-end tests included. `bash scripts/check.sh --release`
-adds the mutation-testing gate on top.
+runs every gate: `ruff format --check`, `ruff check`, `mypy --strict`,
+`shellcheck` and the full test suite, end-to-end tests included. A gate whose
+tool is missing fails the run; `pip install --group dev` installs them all.
+`bash scripts/check.sh --release` adds the mutation-testing gate on top.
 
 The test suite needs Linux (`pytest-homeassistant-custom-component` does not
 run on Windows); on Windows use WSL2. Python 3.14 is required.
@@ -295,11 +305,12 @@ To try a change against a live charger while the old integration keeps running
 in production:
 
 ```bash
-python scripts/make_dev_copy.py
+python scripts/make_dev_copy.py <config>/custom_components
 ```
 
-which produces a copy of the integration under a separate domain, so both can
-be installed at the same time.
+which copies the integration there under a separate domain, `wattpilot_dev`,
+so both can be installed at the same time. Without a target it writes into this
+repository's own `custom_components/`.
 
 ## Credits
 

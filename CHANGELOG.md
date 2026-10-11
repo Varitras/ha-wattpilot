@@ -32,10 +32,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - The repair notices about a refused connection go away once the charger
   is connected again, not only with a reload.
-- A charger that refuses the password after first accepting it is shown
-  unavailable at once and asks for the password again. Its entities stayed
-  available for up to ten seconds, and during setup the refusal was
-  reported as a timeout and retried.
+- A charger that refuses the password after first accepting it drops the
+  connection at once; its entities go unavailable and the password is asked
+  for again at the next availability check, within 30 seconds. During setup
+  the refusal was reported as a timeout and retried.
 - Diagnostics from a Wattpilot Flex replace three free-text fields nothing
   documents: the OCPP fallback card, the OCPP tariff text and an OTA
   field. Every top-level text field a Flex is known to report now has a
