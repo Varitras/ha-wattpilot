@@ -158,7 +158,7 @@ A charger that gets a new address is followed on its own: when the entry has
 lost its charger and the charger announces itself at a new address, the entry
 takes it and reloads. An entry that is still connected ignores announcements
 elsewhere, an entry set up by name keeps the name, and an entry whose setup
-failed takes the address but waits for a manual reload. A DHCP reservation
+failed takes a new address and reloads as well. A DHCP reservation
 still does no harm. If it moved without announcing itself, use
 **Reconfigure** on the entry rather than deleting and re-adding it — that
 keeps the history. If the charger later rejects the stored password, Home Assistant

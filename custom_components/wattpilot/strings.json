@@ -92,7 +92,7 @@
       "message": "Unknown option: {option}"
     },
     "wrong_charger": {
-      "message": "This entry belongs to charger {expected}, but the charger at this address reports serial {found}. If you replaced the charger, delete this entry and add the new one."
+      "message": "This entry belongs to charger {expected}, but the charger at this address reports serial {found}. If the charger has a new address, choose Reconfigure; if you replaced the charger, delete this entry and add the new one."
     }
   },
   "issues": {

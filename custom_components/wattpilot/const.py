@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_NAME, Platform
 
 if TYPE_CHECKING:
@@ -141,3 +142,20 @@ def new_device_name(
         number += 1
         name = f"{DEVICE_NAME} {number}"
     return name
+
+
+def reload_failed_entry(
+    hass: HomeAssistant, entry: ConfigEntry | None, updates: dict[str, str] | None
+) -> None:
+    """
+    Give a failed entry its charger's announced address, and reload it.
+
+    Home Assistant reloads only a loaded or retrying entry after a discovery
+    update: one that met another charger at its old address and failed stayed
+    failed with the right address stored (reaudit RF-E-01). Only a change
+    reloads, or every announcement would.
+    """
+    if entry is None or not updates or entry.state is not ConfigEntryState.SETUP_ERROR:
+        return
+    if hass.config_entries.async_update_entry(entry, data={**entry.data, **updates}):
+        hass.config_entries.async_schedule_reload(entry.entry_id)

@@ -46,7 +46,7 @@ from custom_components.wattpilot.const import (
 from custom_components.wattpilot.descriptions import SENSOR_DESCRIPTIONS
 
 from .conftest import FakeWattpilot
-from .test_config_flow import DISCOVERY
+from .test_config_flow import DISCOVERY, start_discovery_flow
 from .test_sensor import nrg_reading
 
 if TYPE_CHECKING:
@@ -1358,3 +1358,50 @@ def _supported(charger: FakeWattpilot) -> list[Any]:
         variant=charger._properties.get("var"),
         properties=charger._properties,
     )
+
+
+async def test_a_failed_entry_whose_charger_announces_a_new_address_recovers(
+    hass: HomeAssistant, device_properties: dict[str, Any]
+) -> None:
+    """Two chargers swapped addresses: this entry met the other charger and
+    failed. Discovery stored the right address, but Home Assistant reloads
+    only a loaded or retrying entry, so it stayed failed (reaudit RF-E-01)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    swapped = FakeWattpilot(device_properties)
+    swapped.serial = "999999"
+    assert not await setup_entry(hass, entry, swapped)
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+
+    with patch_charger(FakeWattpilot(device_properties)):
+        await start_discovery_flow(hass)
+        await hass.async_block_till_done()
+
+    assert entry.data["host"] == DISCOVERY.ip_address.compressed
+    assert entry.state is ConfigEntryState.LOADED
+
+
+async def test_a_failed_entry_is_not_reloaded_by_every_announcement(
+    hass: HomeAssistant, device_properties: dict[str, Any]
+) -> None:
+    """Only a new address reloads: the charger announces itself again and
+    again, and each reload of an entry that fails would fail once more."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**V2_LOCAL_DATA, "host": DISCOVERY.ip_address.compressed},
+        version=2,
+        unique_id="123456",
+    )
+    swapped = FakeWattpilot(device_properties)
+    swapped.serial = "999999"
+    assert not await setup_entry(hass, entry, swapped)
+
+    with (
+        patch_charger(swapped),
+        patch.object(hass.config_entries, "async_schedule_reload") as reload,
+    ):
+        await start_discovery_flow(hass)
+        await hass.async_block_till_done()
+
+    reload.assert_not_called()

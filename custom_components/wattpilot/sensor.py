@@ -7,11 +7,11 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
-    NON_NUMERIC_DEVICE_CLASSES,
     RestoreSensor,
     SensorDeviceClass,
     SensorEntity,
 )
+from homeassistant.components.sensor.const import NON_NUMERIC_DEVICE_CLASSES
 from homeassistant.core import callback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt as dt_util
