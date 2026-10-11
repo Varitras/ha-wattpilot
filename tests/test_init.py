@@ -894,6 +894,32 @@ async def test_home_assistants_setup_messages_do_not_carry_the_serial(
     assert "123456" not in caplog.text
 
 
+async def test_an_entry_titled_by_its_address_does_not_log_it(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A fork entry can be titled by its IP address, and Home Assistant logs
+    the title on every failed setup; the mask knew only serials (reaudit
+    RF-P-02)."""
+    caplog.set_level(logging.DEBUG)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**V2_LOCAL_DATA, "host": "192.0.2.50"},
+        version=2,
+        unique_id="123456",
+        title="192.0.2.50",
+    )
+    fake_charger.connect_error = OSError("unreachable")
+
+    assert not await setup_entry(hass, entry, fake_charger)
+    with patch_charger(fake_charger):
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+        await hass.async_block_till_done()
+
+    assert "192.0.2.50" not in caplog.text
+
+
 async def test_a_setup_retry_does_not_log_the_chargers_address(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
