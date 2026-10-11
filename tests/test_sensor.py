@@ -711,8 +711,9 @@ async def test_an_incomplete_price_schedule_gives_no_prices(
     [
         {"start": "n/a", "end": 1786399200, "marketprice": 9.0},
         {"start": 18446744073709551615, "end": 1786399200, "marketprice": 9.0},
+        {"start": 1e13, "end": 1786399200, "marketprice": 9.0},  # past year 9999
     ],
-    ids=["text", "out_of_range"],
+    ids=["text", "out_of_range", "past_the_calendar"],
 )
 async def test_one_bad_price_costs_only_itself(
     hass: HomeAssistant, fake_charger: FakeWattpilot, bad: dict[str, Any]
