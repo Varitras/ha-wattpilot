@@ -9,13 +9,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from homeassistant.const import Platform
+from homeassistant.const import CONF_NAME, Platform
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
 DOMAIN = "wattpilot"
+# What a new charger is called; its entity IDs follow from it.
+DEVICE_NAME = "Wattpilot"
 
 CONF_CONNECTION_TYPE = "connection_type"
 CONNECTION_LOCAL = "local"
@@ -69,6 +71,18 @@ def awaits_serial(entry: ConfigEntry) -> bool:
     )
 
 
+def entry_awaiting_serial_at(hass: HomeAssistant, host: str) -> ConfigEntry | None:
+    """Return the entry at this address that has yet to learn its serial."""
+    return next(
+        (
+            entry
+            for entry in hass.config_entries.async_entries(DOMAIN, include_ignore=False)
+            if awaits_serial(entry) and entry.data.get("host") == host
+        ),
+        None,
+    )
+
+
 def signal_property(entry_id: str, key: str) -> str:
     """Dispatcher signal for one charger property of one config entry."""
     return f"{DOMAIN}_{entry_id}_{key}"
@@ -95,3 +109,22 @@ def serial_taken_by_other_entry(
         other.entry_id != entry.entry_id and other.unique_id == serial
         for other in hass.config_entries.async_entries(DOMAIN, include_ignore=False)
     )
+
+
+def new_device_name(hass: HomeAssistant) -> str:
+    """
+    Name a new charger Wattpilot, numbered from the second one on.
+
+    Not its host name, Wattpilot_<serial>: entity IDs follow the device
+    name, and the serial in every one of them reached logs and posts. A
+    renamed entry's device keeps the name it was created with.
+    """
+    entries = hass.config_entries.async_entries(DOMAIN, include_ignore=False)
+    taken = {entry.title for entry in entries} | {
+        entry.data.get(CONF_NAME) for entry in entries
+    }
+    name, number = DEVICE_NAME, 1
+    while name in taken:
+        number += 1
+        name = f"{DEVICE_NAME} {number}"
+    return name

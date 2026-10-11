@@ -12,6 +12,7 @@ from unittest.mock import patch
 import pytest
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.const import CONF_NAME
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -50,6 +51,9 @@ async def start_user_flow(hass: HomeAssistant) -> Any:
 async def test_user_flow_creates_entry(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
+    """Named Wattpilot, not after the charger's host name: entity IDs follow
+    the device name, and the host name put the serial into every one."""
+    fake_charger.name = "Wattpilot_123456"
     result = await start_user_flow(hass)
     assert result["type"] is FlowResultType.FORM
     with patch_charger(fake_charger):
@@ -59,6 +63,7 @@ async def test_user_flow_creates_entry(
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Wattpilot"
     assert result["data"] == {
+        CONF_NAME: "Wattpilot",
         CONF_CONNECTION_TYPE: CONNECTION_LOCAL,
         "host": "192.168.1.50",
         "password": "secret",
@@ -304,7 +309,11 @@ async def test_reconfigure_updates_host(
         domain=DOMAIN,
         unique_id="123456",
         version=2,
-        data={CONF_CONNECTION_TYPE: CONNECTION_LOCAL, **USER_INPUT},
+        data={
+            CONF_NAME: "Wattpilot 2",
+            CONF_CONNECTION_TYPE: CONNECTION_LOCAL,
+            **USER_INPUT,
+        },
     )
     entry.add_to_hass(hass)
     result = await entry.start_reconfigure_flow(hass)
@@ -315,6 +324,8 @@ async def test_reconfigure_updates_host(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert entry.data["host"] == "192.168.1.60"
+    # Dropped, the device fell back to the host name, serial and all.
+    assert entry.data[CONF_NAME] == "Wattpilot 2"
 
 
 async def test_options_flow_sets_the_update_interval(
@@ -430,12 +441,60 @@ async def test_a_discovered_charger_only_asks_for_the_password(
             result["flow_id"], {"password": "secret"}
         )
     assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Wattpilot"
     assert result["data"] == {
+        CONF_NAME: "Wattpilot",
         CONF_CONNECTION_TYPE: CONNECTION_LOCAL,
         "host": "192.168.1.60",
         "password": "secret",
     }
     assert result["result"].unique_id == "123456"
+
+
+async def _add_by_hand(hass: HomeAssistant, fake_charger: FakeWattpilot) -> Any:
+    result = await start_user_flow(hass)
+    with patch_charger(fake_charger):
+        return await hass.config_entries.flow.async_configure(
+            result["flow_id"], USER_INPUT
+        )
+
+
+def _named_entry(unique_id: str, title: str, name: str, **kwargs: Any) -> Any:
+    return MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=unique_id,
+        title=title,
+        version=2,
+        data={CONF_NAME: name, CONF_CONNECTION_TYPE: CONNECTION_LOCAL},
+        **kwargs,
+    )
+
+
+async def test_a_second_charger_is_numbered(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """Two devices both called Wattpilot would hand out entity IDs ending in
+    _2 one by one; the device name says which charger it is instead."""
+    _named_entry("111111", "Wattpilot", "Wattpilot").add_to_hass(hass)
+
+    result = await _add_by_hand(hass, fake_charger)
+
+    assert result["title"] == "Wattpilot 2"
+    assert result["data"][CONF_NAME] == "Wattpilot 2"
+
+
+async def test_a_renamed_entry_keeps_its_name_taken_and_an_ignored_one_does_not(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    _named_entry("111111", "Wattpilot", "Wattpilot").add_to_hass(hass)
+    _named_entry("222222", "Garage", "Wattpilot 2").add_to_hass(hass)
+    _named_entry(
+        "333333", "Wattpilot 3", "", source=config_entries.SOURCE_IGNORE
+    ).add_to_hass(hass)
+
+    result = await _add_by_hand(hass, fake_charger)
+
+    assert result["title"] == "Wattpilot 3"
 
 
 async def test_a_known_charger_announcing_a_new_address_updates_the_entry(

@@ -11,9 +11,10 @@ from unittest.mock import patch
 import pytest
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.const import CONF_NAME, EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import State
 from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
@@ -179,6 +180,38 @@ async def test_a_charger_asking_for_an_unknown_sign_in_is_reported(
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_the_device_takes_the_name_the_entry_was_created_with(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    fake_charger.name = "Wattpilot_123456"
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**V2_LOCAL_DATA, CONF_NAME: "Wattpilot 2"},
+        version=2,
+        unique_id="123456",
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+
+    (device,) = dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
+    assert device.name == "Wattpilot 2"
+    assert hass.states.get("sensor.wattpilot_2_total_energy") is not None
+
+
+async def test_an_entry_from_before_keeps_its_device_name(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """Entries created before new ones were named Wattpilot carry no name:
+    their device keeps the host name, and with it their entity IDs."""
+    fake_charger.name = "Wattpilot_123456"
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+
+    (device,) = dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
+    assert device.name == "Wattpilot_123456"
 
 
 async def test_setup_creates_entities_and_unloads(

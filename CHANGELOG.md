@@ -8,6 +8,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- A new installation names the charger's device and entry **Wattpilot**, a
+  second charger **Wattpilot 2** and so on, instead of after the charger's
+  host name `Wattpilot_<serial>`. Entity IDs follow the device name, so
+  they no longer carry the serial number: `sensor.wattpilot_total_energy`
+  instead of `sensor.wattpilot_<serial>_total_energy`. Existing
+  installations keep their names and entity IDs.
 - Requires Home Assistant 2026.9.0 or newer (was 2026.8.0). Home Assistant
   replaced its schema library in 2026.9, and the integration now uses the
   new one directly instead of relying on the alias for the old name.
@@ -77,15 +83,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   name can be entered for each chip.
 - The integration no longer writes the charger's serial number or address
   into the log. Its own messages, and the messages Home Assistant logs
-  about setting up the entry, show only the serial's last two digits: the
-  entry is named after the charger's host name, `Wattpilot_<serial>`, and
-  Home Assistant logs that name on every failed attempt. The repair
+  about setting up the entry, show only the serial's last two digits: an
+  entry set up with an earlier version is named after the charger's host
+  name, `Wattpilot_<serial>`, and Home Assistant logs that name on every
+  failed attempt. The repair
   notice, which is not logged, still names the serial in full. A network
   error is named by its kind, such as `ConnectionRefusedError
   (ECONNREFUSED)`, instead of by its text, which quoted the charger's
-  address. Entity IDs carry the serial as well, so the integration's own
-  messages name an entity by its key; other parts of Home Assistant may
-  log entity IDs.
+  address. Its entity IDs carry the serial as well, so the integration's
+  own messages name an entity by its key; other parts of Home Assistant
+  may log entity IDs.
 - **Charging power** no longer fills the recorder database. Its sixteen
   per-phase attributes differ in nearly every update while a car charges,
   and each update stored a new attribute row. They stay visible and usable in
