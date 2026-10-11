@@ -18,3 +18,13 @@ the same file is still reported.
 """
 paths = ['''resources/wattpilot\.yaml$''']
 regexes = ['''go-eCharger-API-v[12]''']
+
+[[allowlists]]
+description = """
+A diagnostics test feeds a property named "newKey" holding a made-up
+Wattpilot host name; the generic-api-key rule reads the name as a key and
+the host name as its value. Verified by reading the line: the serial in it
+is synthetic. Scoped to that test file and that exact value.
+"""
+paths = ['''tests/test_diagnostics\.py$''']
+regexes = ['''Wattpilot-91234567''']
