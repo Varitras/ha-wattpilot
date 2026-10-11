@@ -40,6 +40,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A **Car profile** the charger reports outside the app's list showed as
+  unknown without a word. The log now says so once, naming the kind of
+  value but never the value, and diagnostics show whether the profile was
+  a known one or not, still without naming the car.
 - The repair notices about a refused connection go away once the charger
   is connected again, not only with a reload.
 - A charger that refuses the password after first accepting it drops the

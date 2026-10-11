@@ -25,6 +25,13 @@ def describe_shape(value: object) -> str:
     return type(value).__name__
 
 
+def describe_with_length(value: object) -> str:
+    """describe_shape, with a text's length: for a value that may be free text."""
+    if isinstance(value, str):
+        return f"str of {len(value)} chars"
+    return describe_shape(value)
+
+
 def namespace_get(value: Any, field: str) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
     """Read *field* from a dict or a parsed object alike."""
     if isinstance(value, dict):

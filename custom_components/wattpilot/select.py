@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Hashable
 from typing import TYPE_CHECKING, Any
 
@@ -15,12 +16,15 @@ from .descriptions import (
     filter_supported,
 )
 from .entity import WattpilotEntity
+from .readings import describe_with_length
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
     from .hub import WattpilotConfigEntry, WattpilotHub
+
+_LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 1
 
@@ -48,6 +52,7 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
     """One enumerated charger property as a select."""
 
     entity_description: WattpilotSelectEntityDescription
+    _last_unknown: Any = None
 
     def __init__(
         self,
@@ -74,9 +79,26 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
         options = self._wire_options()
         self._attr_options = list(options.values())
-        self._attr_current_option = (
-            options.get(value) if isinstance(value, Hashable) else None
-        )
+        known = isinstance(value, Hashable) and value in options
+        self._attr_current_option = options[value] if known else None
+        self._report_unknown(value, known=known)
+
+    def _report_unknown(self, value: Any, *, known: bool) -> None:  # noqa: ANN401 -- charger payload
+        # A preset select sees a current between its presets as a matter of
+        # course; a fixed table does not, and unknown alone told nobody (#25).
+        description = self.entity_description
+        if known or value is None or description.companion_key is not None:
+            self._last_unknown = None
+            return
+        if value != self._last_unknown:
+            # The shape, never the value: a car profile can be free text.
+            _LOGGER.warning(
+                "%s: the charger reports a value outside the known options for %s (%s)",
+                description.key,
+                description.charger_key,
+                describe_with_length(value),
+            )
+        self._last_unknown = value
 
     async def async_select_option(self, option: str) -> None:
         """Write the wire value matching the chosen label."""

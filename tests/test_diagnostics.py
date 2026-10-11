@@ -389,3 +389,23 @@ def test_an_empty_time_server_companion_or_chip_name_stays_empty(
         "model": "X",
     }
     assert sanitized["cards"][0]["name"] == empty
+
+
+@pytest.mark.parametrize(
+    ("car_profile", "shown"),
+    [
+        ("default", "default"),
+        ("SkodaEnyaq", "<known profile>"),
+        ("", ""),
+        (None, None),
+        ("Some Car Model", "<unknown: str of 14 chars>"),
+        ({"model": "x"}, "<unknown: dict of 1>"),
+        (["x"], "<unknown: list of 1>"),
+    ],
+)
+def test_the_car_profile_says_whether_it_was_known_not_which(
+    car_profile: Any, shown: Any
+) -> None:
+    """A known profile names the owner's car, so it stays replaced; a value
+    outside the list is what a report needs to see, by its shape (#25)."""
+    assert sanitize_snapshot({"ct": car_profile})["ct"] == shown

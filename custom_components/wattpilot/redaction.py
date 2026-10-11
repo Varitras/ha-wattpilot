@@ -18,6 +18,9 @@ import ipaddress
 import re
 from typing import TYPE_CHECKING, Any
 
+from .descriptions import SELECT_DESCRIPTIONS
+from .readings import describe_with_length
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -60,7 +63,6 @@ REPLACE: dict[str, Any] = {
     # The Ethernet hostname of a Wattpilot Flex, spelled with a hyphen.
     "hste": "Wattpilot-123456",
     "wae": True,
-    "ct": "default",  # carType free text identifies the owner's specific vehicle model
     # Free text nobody bounds: a load group named after a place, a WiFi error
     # quoting a network name. Empty on the reference device, which proves
     # nothing about the next (audit A17-02).
@@ -75,6 +77,12 @@ REPLACE: dict[str, Any] = {
     "ocpptt": "<redacted>",
     "otaif": "<redacted>",
 }
+# A car profile names the owner's car, so a known one is replaced; one
+# outside the app's list is what a report about it needs, by its shape (#25).
+_CAR_PROFILES = next(
+    d.select_options for d in SELECT_DESCRIPTIONS if d.charger_key == "ct"
+)
+KNOWN_PROFILE = "<known profile>"
 # Flex chip names (c0n..c9n), the flat counterpart of cards[].name.
 CHIP_NAME_KEY = re.compile(r"c(\d)n")
 # Both separators, colon and hyphen, each consistent across the address.
@@ -231,7 +239,17 @@ def _sanitized_cards(value: Any) -> Any:  # noqa: ANN401 -- untyped JSON
 _KEEP = object()
 
 
+def _car_profile(value: Any) -> Any:  # noqa: ANN401 -- untyped JSON
+    if value is None or value in ("", "default"):
+        return value
+    if isinstance(value, str) and value in _CAR_PROFILES:
+        return KNOWN_PROFILE
+    return f"<unknown: {describe_with_length(value)}>"
+
+
 def _replacement_for(key: str, value: Any) -> Any:  # noqa: ANN401 -- untyped JSON
+    if key == "ct":
+        return _car_profile(value)
     chip = CHIP_NAME_KEY.fullmatch(key)
     if chip:
         return _stand_in(value, f"Card {chip[1]}")
