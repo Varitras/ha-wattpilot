@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 
 ENTRY_ID = "entry1"
 ENERGY_SPLIT_UIDS = {"whs", "whb", "whg", "who"}
+SOURCE_POWER_UIDS = ("ws", "wb", "wg", "wo")
 # uid, nrg slot and unit; N carries no current.
 PHASE_READINGS = [
     *(
@@ -67,6 +68,11 @@ EXTRA_SENSOR_UIDS = ENERGY_SPLIT_UIDS | {
     *(f"chip_{i}" for i in range(10)),
     # The readings per phase, beside Charging power's attributes.
     *(uid for uid, _, _ in PHASE_READINGS),
+    # The current limits and the temperature limit among them.
+    "cll",
+    "amt",
+    # Charging power per source, which a Wattpilot Flex reports.
+    *SOURCE_POWER_UIDS,
 }
 
 
@@ -930,3 +936,60 @@ def test_the_numeric_rule_is_home_assistants(description: Any) -> None:
 
     expected = entity._numeric_state_expected and not description.enum
     assert sensor_platform._expects_number(description) is expected
+
+
+async def test_the_temperature_current_limit_is_its_own_sensor(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    fake_charger._properties["amt"] = 32
+    sensor = await make_sensor(hass, fake_charger, "amt")
+
+    assert sensor.native_value == 32
+    assert sensor.native_unit_of_measurement == "A"
+    assert by_uid("amt").entity_registry_enabled_default is False
+
+
+async def test_the_current_limit_shows_why_no_more_current_flows(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The state is the hardware ceiling; the single limits say which one
+    holds it, and pvSurplus is there only while PV surplus charging runs."""
+    limits = dict(fake_charger._properties["cll"])
+    sensor = await make_sensor(hass, fake_charger, "cll")
+
+    assert sensor.native_value == limits["currentLimitMax"]
+    assert sensor.native_unit_of_measurement == "A"
+    assert sensor.extra_state_attributes == {
+        "adapterCurrentLimit": limits["adapterCurrentLimit"],
+        "cableCurrentLimit": limits["cableCurrentLimit"],
+        "temperatureCurrentLimit": limits["temperatureCurrentLimit"],
+        "unsymetryCurrentLimit": limits["unsymetryCurrentLimit"],
+        "requestedCurrent": limits["requestedCurrent"],
+        "pvSurplus": None,
+    }
+
+    fake_charger.push("cll", {**limits, "pvSurplus": 7})
+    assert sensor.extra_state_attributes["pvSurplus"] == 7
+    assert by_uid("cll").entity_registry_enabled_default is False
+
+
+@pytest.mark.parametrize("uid", SOURCE_POWER_UIDS)
+async def test_charging_power_per_source(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, uid: str
+) -> None:
+    fake_charger._properties[uid] = 1500
+    sensor = await make_sensor(hass, fake_charger, uid)
+
+    assert sensor.native_value == 1500
+    assert sensor.native_unit_of_measurement == "W"
+    assert by_uid(uid).entity_registry_enabled_default is False
+
+
+def test_charging_power_per_source_needs_a_charger_that_reports_it(
+    device_properties: dict[str, Any],
+) -> None:
+    """Firmware 42.5 does not report it; only a Wattpilot Flex was seen to."""
+    kept = filter_supported(
+        SENSOR_DESCRIPTIONS, firmware="42.5", variant=11, properties=device_properties
+    )
+    assert {d.uid_suffix for d in kept} & set(SOURCE_POWER_UIDS) == set()
