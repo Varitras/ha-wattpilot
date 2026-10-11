@@ -1535,8 +1535,10 @@ async def test_no_value_a_charger_sends_keeps_an_entity_away(
                 if key is not None and key in fake_charger._properties:
                     fake_charger._properties[key] = bad
     fake_charger._properties["cards"] = [{"name": HOLDER, "energy": bad}] * 10
-    # A Flex's chips, which the fixture does not have (post-check PC5-T-01).
+    # A Flex's chips and power per source, which the fixture does not have
+    # (post-checks PC5-T-01, F31-05).
     fake_charger._properties.update({f"c{i}e": bad for i in range(10)})
+    fake_charger._properties.update(dict.fromkeys(("ws", "wb", "wg", "wo"), bad))
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )

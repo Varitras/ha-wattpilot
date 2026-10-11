@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import pytest
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.const import EntityCategory
 
 from custom_components.wattpilot import sensor as sensor_platform
 from custom_components.wattpilot.descriptions import (
@@ -31,6 +32,10 @@ if TYPE_CHECKING:
 ENTRY_ID = "entry1"
 ENERGY_SPLIT_UIDS = {"whs", "whb", "whg", "who"}
 SOURCE_POWER_UIDS = ("ws", "wb", "wg", "wo")
+# Which source each one is named after, so a swap cannot pass (F31-05).
+SOURCE_POWER_NAMES = dict(
+    zip(SOURCE_POWER_UIDS, ("solar", "battery", "grid", "other_sources"), strict=True)
+)
 # uid, nrg slot and unit; N carries no current.
 PHASE_READINGS = [
     *(
@@ -947,6 +952,7 @@ async def test_the_temperature_current_limit_is_its_own_sensor(
     assert sensor.native_value == 32
     assert sensor.native_unit_of_measurement == "A"
     assert by_uid("amt").entity_registry_enabled_default is False
+    assert by_uid("amt").entity_category is EntityCategory.DIAGNOSTIC
 
 
 async def test_the_current_limit_shows_why_no_more_current_flows(
@@ -971,6 +977,27 @@ async def test_the_current_limit_shows_why_no_more_current_flows(
     fake_charger.push("cll", {**limits, "pvSurplus": 7})
     assert sensor.extra_state_attributes["pvSurplus"] == 7
     assert by_uid("cll").entity_registry_enabled_default is False
+    assert by_uid("cll").entity_category is EntityCategory.DIAGNOSTIC
+
+
+async def test_the_current_limit_is_the_hardware_ceiling_not_the_request(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """Measured: currentLimitMax stayed 16 A while PV surplus charging
+    requested 6; the fixture has all limits at 16 and cannot tell them apart
+    (post-check F31-05)."""
+    fake_charger._properties["cll"] = {
+        "adapterCurrentLimit": 20,
+        "cableCurrentLimit": 32,
+        "currentLimitMax": 16,
+        "requestedCurrent": 6,
+        "temperatureCurrentLimit": 32,
+        "unsymetryCurrentLimit": 32,
+        "pvSurplus": 6,
+    }
+    sensor = await make_sensor(hass, fake_charger, "cll")
+
+    assert sensor.native_value == 16
 
 
 @pytest.mark.parametrize("uid", SOURCE_POWER_UIDS)
@@ -983,6 +1010,9 @@ async def test_charging_power_per_source(
     assert sensor.native_value == 1500
     assert sensor.native_unit_of_measurement == "W"
     assert by_uid(uid).entity_registry_enabled_default is False
+    assert (
+        by_uid(uid).translation_key == f"charging_power_from_{SOURCE_POWER_NAMES[uid]}"
+    )
 
 
 def test_charging_power_per_source_needs_a_charger_that_reports_it(

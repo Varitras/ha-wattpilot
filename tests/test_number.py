@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from homeassistant.const import EntityCategory
 
 from custom_components.wattpilot.descriptions import NUMBER_DESCRIPTIONS
 from custom_components.wattpilot.hub import WattpilotHub
@@ -217,9 +218,11 @@ async def test_the_stop_hysteresis_is_set_in_watts(
 
     assert number.native_value == 200
     assert number.native_unit_of_measurement == "W"
-    await number.async_set_native_value(250.0)
-    assert fake_charger.set_calls[-1] == ("sh", 250.0)
+    # A fraction proves the wire type: 250 == 250.0 would pass as an int.
+    await number.async_set_native_value(250.5)
+    assert fake_charger.set_calls[-1] == ("sh", 250.5)
     assert by_uid("sh").entity_registry_enabled_default is True
+    assert by_uid("sh").entity_category is EntityCategory.CONFIG
 
 
 @pytest.mark.parametrize(
@@ -238,6 +241,7 @@ async def test_the_minimum_current_stays_within_the_variant(
     assert (description.variant, description.native_min_value) == (variant, 6.0)
     assert description.native_max_value == ceiling
     assert description.entity_registry_enabled_default is False
+    assert description.entity_category is EntityCategory.CONFIG
 
     fake_charger._properties["mca"] = 6
     number = await make_number(hass, fake_charger, uid)
