@@ -46,6 +46,7 @@ from custom_components.wattpilot.const import (
 
 from .conftest import FakeWattpilot
 from .test_config_flow import DISCOVERY
+from .test_sensor import nrg_reading
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -1071,3 +1072,70 @@ async def test_a_restored_total_from_another_charger_does_not_freeze_it(
         if record.name.startswith("custom_components.wattpilot")
         and record.levelno >= logging.WARNING
     ], "every reading must be read without complaint"
+
+
+async def _average_power_while_charging(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> tuple[MockConfigEntry, str]:
+    fake_charger._properties.update({"tpa": 4121.5, "nrg": nrg_reading(4100)})
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    entity_id = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, "123456-tpa")
+    assert entity_id is not None
+    return entry, entity_id
+
+
+async def _live_power(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, watts: float, *, after: int
+) -> None:
+    """Report *watts* as the total power, then let *after* seconds pass."""
+    fake_charger.push("nrg", nrg_reading(watts))
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=after))
+    await hass.async_block_till_done()
+
+
+async def test_a_short_pause_keeps_the_average_power(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A phase switch stops the current for a moment, inside one session."""
+    _, entity_id = await _average_power_while_charging(hass, fake_charger)
+
+    await _live_power(hass, fake_charger, 0, after=50)
+    assert hass.states.get(entity_id).state == "4121.5"
+
+    await _live_power(hass, fake_charger, 4000, after=120)
+    assert hass.states.get(entity_id).state == "4121.5", "the pause ended"
+
+    await _live_power(hass, fake_charger, 0, after=5)
+    await _live_power(hass, fake_charger, 0, after=60)
+    assert hass.states.get(entity_id).state == "0", "a later stop still counts"
+
+
+async def test_the_average_power_falls_to_zero_a_minute_after_charging_stops(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    _, entity_id = await _average_power_while_charging(hass, fake_charger)
+
+    await _live_power(hass, fake_charger, 0, after=5)
+    await _live_power(hass, fake_charger, 0, after=60)
+    assert hass.states.get(entity_id).state == "0"
+
+    await _live_power(hass, fake_charger, 4100, after=5)
+    assert hass.states.get(entity_id).state == "4121.5", "the next session"
+    await _live_power(hass, fake_charger, 0, after=5)
+    await _live_power(hass, fake_charger, 0, after=60)
+    assert hass.states.get(entity_id).state == "0", "and its end"
+
+
+async def test_an_unloaded_entry_leaves_no_average_power_timer_behind(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The pending switch to 0 W goes with the entity; the test harness fails
+    any test that ends with a timer still scheduled."""
+    entry, _ = await _average_power_while_charging(hass, fake_charger)
+    await _live_power(hass, fake_charger, 0, after=5)
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()

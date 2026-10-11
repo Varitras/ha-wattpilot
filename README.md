@@ -96,7 +96,7 @@ fork's set only lets you infer:
 | --- | --- | --- |
 | **Charging allowed** | `alw` | Whether the car may draw power at this moment — the answer "why is it not charging" usually starts here |
 | **Allowed charging current** | `acu` | The current actually offered to the car, as opposed to **Maximum charging current**, which is the configured ceiling. Unknown while nothing is offered |
-| **Average charging power** | `tpa` | The charger's own 30-second average, steadier than **Charging power** for threshold automations |
+| **Average charging power** | `tpa` | The charger's own 30-second average, steadier than **Charging power** for threshold automations. Reads 0 W once no current has flowed for a minute; the charger itself keeps the last session's average, and a short pause such as a phase switch is bridged |
 | **Grid frequency** | `fhz` | Diagnostic, **disabled by default**: it changes with nearly every push, so it is recorder load unless you are watching grid quality |
 
 And a few that make existing settings usable from Home Assistant:

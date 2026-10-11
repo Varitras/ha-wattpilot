@@ -73,8 +73,7 @@ class WattpilotDescriptionMixin:
     # Buttons/update trigger keys are write-only: no presence check.
     requires_property: bool = True
     # A second property the entity reads; its pushes refresh the entity too.
-    # What it means is the platform's to say: select, the list of allowed
-    # values; sensor, whatever its companion_role names.
+    # select: the allowed values; sensor: whatever its companion_role names.
     companion_key: str | None = None
 
     @property
@@ -201,6 +200,7 @@ class CompanionRole(StrEnum):
 
     PRICES = "prices"  # a price list, shown as an attribute
     BOOT_CLOCK = "boot_clock"  # rbt, which a running cdi counts from
+    LIVE_POWER = "live_power"  # nrg, whose total power tells an idle charger
 
 
 NRG_ATTRIBUTES = {
@@ -599,9 +599,9 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
         native_unit_of_measurement="W",
         translation_key="average_charging_power",
         suggested_display_precision=0,
-        # The charger's own 30-second average of total power. Steadier than
-        # the instantaneous value in "nrg", which is what threshold
-        # automations want.
+        # The charger's 30 s average; it keeps the last session's after one.
+        companion_key="nrg",
+        companion_role=CompanionRole.LIVE_POWER,
     ),
     WattpilotSensorEntityDescription(
         key="grid_frequency",

@@ -778,3 +778,46 @@ async def test_only_a_price_companion_becomes_the_prices_attribute(
     sensor.entity_id = "sensor.test_cdi_plain"
     await sensor.async_added_to_hass()
     assert "prices" not in (sensor.extra_state_attributes or {})
+
+
+def nrg_reading(total_power: float) -> list[float]:
+    """An nrg reading, as on firmware 42.5, with *total_power* at slot 11."""
+    nrg = [235.6, 233.7, 234.0, 1.5] + [0.0] * 12
+    nrg[11] = total_power
+    return nrg
+
+
+async def _average_power_while_charging(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> WattpilotSensor:
+    fake_charger._properties.update({"tpa": 4121.5, "nrg": nrg_reading(4100)})
+    return await make_sensor(hass, fake_charger, "tpa")
+
+
+async def test_average_power_is_zero_while_nothing_flows(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """tpa keeps the last session's average after charging -- recorded on
+    firmware 42.5 with the car plugged in and every power slot at 0, and
+    reported on a Flex -- so threshold automations kept firing for hours
+    (audit A18-13). Nothing flowing when the entry starts is already idle."""
+    fake_charger._properties.update({"tpa": 4121.5, "nrg": nrg_reading(0)})
+    sensor = await make_sensor(hass, fake_charger, "tpa")
+
+    assert sensor.native_value == 0
+
+
+@pytest.mark.parametrize(
+    "nrg",
+    [nrg_reading(None), nrg_reading(0)[:11], None],
+    ids=["null", "short", "missing"],  # type: ignore[arg-type]
+)
+async def test_unknown_live_power_makes_the_average_unknown(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, nrg: Any
+) -> None:
+    """Without the live reading there is no telling a stale average apart."""
+    sensor = await _average_power_while_charging(hass, fake_charger)
+
+    fake_charger.push("nrg", nrg)
+
+    assert sensor.native_value is None

@@ -11,6 +11,8 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
 )
+from homeassistant.core import callback
+from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt as dt_util
 
 from .descriptions import (
@@ -24,7 +26,9 @@ from .descriptions import (
 from .entity import WattpilotEntity
 
 if TYPE_CHECKING:
-    from homeassistant.core import HomeAssistant
+    from datetime import datetime
+
+    from homeassistant.core import CALLBACK_TYPE, HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
     from .hub import WattpilotConfigEntry
@@ -37,6 +41,8 @@ PARALLEL_UPDATES = 0
 # reset apart from measurement noise (reset_detected() in
 # homeassistant.components.sensor.recorder: `fstate < 0.9 * previous_fstate`).
 _RESET_THRESHOLD_RATIO = 0.9
+# A pause inside a session, a phase switch for one, is not its end.
+_IDLE_AFTER_SECONDS = 60
 
 
 async def async_setup_entry(
@@ -65,6 +71,8 @@ def _sensor_class(
         return WattpilotChargingDurationSensor
     if description.monotonic:
         return WattpilotTotalSensor
+    if description.companion_role is CompanionRole.LIVE_POWER:
+        return WattpilotAveragePowerSensor
     return WattpilotSensor
 
 
@@ -337,3 +345,55 @@ class WattpilotChargingDurationSensor(WattpilotSensor):
             self.entity_description.companion_key  # type: ignore[arg-type]
         )
         self._attr_native_value = _charging_minutes(value, boot_clock)
+
+
+def _total_power(nrg: Any) -> float | None:  # noqa: ANN401 -- charger payload
+    """Return the total power in an nrg reading, or None without a number there."""
+    index = NRG_ATTRIBUTES["TotalPower"]
+    if not isinstance(nrg, list) or len(nrg) <= index:
+        return None
+    reading = nrg[index]
+    return reading if isinstance(reading, (int, float)) else None
+
+
+class WattpilotAveragePowerSensor(WattpilotSensor):
+    """Average charging power, 0 W once the current has stopped for a minute."""
+
+    _cancel_idle: CALLBACK_TYPE | None = None
+
+    def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- charger payload
+        # tpa keeps the last session's average after charging, and threshold
+        # automations kept firing on it for hours (audit A18-13).
+        live = _total_power(
+            self._hub.get_property(self.entity_description.companion_key)  # type: ignore[arg-type]
+        )
+        if live is None or live > 0:
+            self._stop_idle_timer()
+            # Unknown when the live reading is: no telling a stale average.
+            super()._apply_value(value if live else None)
+        else:
+            self._hold_while_idle()
+
+    def _hold_while_idle(self) -> None:
+        if not self._attr_native_value:
+            # Nothing to hold, as when the entry starts with nothing flowing.
+            self._attr_native_value = 0
+        elif self._cancel_idle is None:
+            self._cancel_idle = async_call_later(
+                self.hass, _IDLE_AFTER_SECONDS, self._went_idle
+            )
+
+    @callback
+    def _went_idle(self, _now: datetime) -> None:
+        self._attr_native_value = 0
+        self.async_write_ha_state()
+
+    def _stop_idle_timer(self) -> None:
+        if self._cancel_idle is not None:
+            self._cancel_idle()
+            self._cancel_idle = None
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Cancel a pending switch to 0 W."""
+        self._stop_idle_timer()
+        await super().async_will_remove_from_hass()
