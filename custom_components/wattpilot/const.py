@@ -13,6 +13,7 @@ from homeassistant.const import Platform
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
 
 DOMAIN = "wattpilot"
 
@@ -76,3 +77,21 @@ def signal_property(entry_id: str, key: str) -> str:
 def signal_availability(entry_id: str) -> str:
     """Dispatcher signal for connection state changes of one config entry."""
     return f"{DOMAIN}_{entry_id}_availability"
+
+
+def serial_taken_by_other_entry(
+    hass: HomeAssistant, entry: ConfigEntry, serial: str
+) -> bool:
+    """
+    Return whether another entry already belongs to this charger.
+
+    A second entry for the same charger would fight over the device. An
+    ignored card is not one: it holds the serial only to keep the card from
+    coming back, and counting it locked the fork entry out of its own
+    charger for good (audit A18-07). Setup and the reconfigure and reauth
+    flows decide on this together, like on awaits_serial.
+    """
+    return any(
+        other.entry_id != entry.entry_id and other.unique_id == serial
+        for other in hass.config_entries.async_entries(DOMAIN, include_ignore=False)
+    )

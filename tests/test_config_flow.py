@@ -661,3 +661,95 @@ async def test_a_charger_announced_without_a_name_is_still_named(
     )
     (flow,) = hass.config_entries.flow.async_progress()
     assert flow["context"]["title_placeholders"] == {"name": "Wattpilot"}
+
+
+def awaiting_fork_entry() -> MockConfigEntry:
+    """A migrated fork entry, keyed on its old address until it connects."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="192.168.1.50",
+        version=2,
+        data={
+            CONF_CONNECTION_TYPE: CONNECTION_LOCAL,
+            **USER_INPUT,
+            CONF_AWAITING_SERIAL: True,
+        },
+    )
+
+
+async def test_ignoring_a_card_for_a_configured_charger_keeps_its_entry(
+    hass: HomeAssistant,
+) -> None:
+    """A fork entry learns its serial only once it connects, so a card for
+    the same charger can still be open. Ignoring that card made Home
+    Assistant replace the real entry with an ignored one -- entities,
+    entity ids and migration mappings gone with it."""
+    entry = awaiting_fork_entry()
+    entry.add_to_hass(hass)
+    card = await start_discovery_flow(hass)
+    assert card["type"] is FlowResultType.FORM
+    hass.config_entries.async_update_entry(entry, unique_id="123456")
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_IGNORE},
+        data={"unique_id": "123456", "title": "Wattpilot"},
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    kept = hass.config_entries.async_get_entry(entry.entry_id)
+    assert kept is not None
+    assert kept.source != config_entries.SOURCE_IGNORE
+
+
+def second_entry_for(serial: str) -> MockConfigEntry:
+    return MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=serial,
+        version=2,
+        data={
+            CONF_CONNECTION_TYPE: CONNECTION_LOCAL,
+            "host": "192.168.1.60",
+            "password": "x",
+        },
+    )
+
+
+async def test_reconfigure_onto_a_charger_with_its_own_entry_is_refused(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A fork entry rescued by reconfigure after its charger was already
+    added from a card: the flow reported success and overwrote host and
+    password, and the setup after it failed as a duplicate."""
+    second_entry_for("123456").add_to_hass(hass)
+    entry = awaiting_fork_entry()
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    with patch_charger(fake_charger):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"host": "192.168.1.60", "password": "secret"}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "charger_has_entry"}
+    assert entry.data["host"] == USER_INPUT["host"], "nothing may be written"
+
+
+async def test_reauth_onto_a_charger_with_its_own_entry_is_refused(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    second_entry_for("123456").add_to_hass(hass)
+    entry = awaiting_fork_entry()
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    with patch_charger(fake_charger):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"password": "newpass"}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "charger_has_entry"}
+    assert entry.data["password"] == USER_INPUT["password"]

@@ -22,6 +22,7 @@
     "error": {
       "cannot_connect": "Cannot connect to the charger",
       "invalid_auth": "Invalid password",
+      "charger_has_entry": "This charger already has an entry of its own; delete one of the two",
       "wrong_device": "The charger at this address has a different serial number"
     },
     "abort": {

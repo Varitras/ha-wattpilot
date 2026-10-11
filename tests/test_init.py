@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
+from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
@@ -39,6 +40,7 @@ from custom_components.wattpilot.const import (
 )
 
 from .conftest import FakeWattpilot
+from .test_config_flow import DISCOVERY
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -799,3 +801,69 @@ async def test_the_serial_mask_is_removed_when_home_assistant_stops(
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
     await hass.async_block_till_done()
     assert masks() == []
+
+
+def _awaiting_fork_entry() -> MockConfigEntry:
+    return MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="192.168.1.50",
+        version=2,
+        data={**V2_LOCAL_DATA, CONF_AWAITING_SERIAL: True},
+    )
+
+
+async def test_an_ignored_card_does_not_block_the_serial_adoption(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """Ignoring the card for the charger while its fork entry could not
+    connect yet left an ignored entry holding the serial. Every setup after
+    that refused the charger as configured elsewhere, with no other entry in
+    sight, and the legacy history never migrated."""
+    MockConfigEntry(
+        domain=DOMAIN, source=config_entries.SOURCE_IGNORE, unique_id="123456"
+    ).add_to_hass(hass)
+    entry = _awaiting_fork_entry()
+
+    assert await setup_entry(hass, entry, fake_charger)
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.unique_id == "123456"
+    assert [e.entry_id for e in hass.config_entries.async_entries(DOMAIN)] == [
+        entry.entry_id
+    ]
+
+
+async def test_adopting_the_serial_closes_the_charger_s_open_card(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """The card would stay offered for a charger that is configured now."""
+    await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_ZEROCONF},
+        data=DISCOVERY,
+    )
+    entry = _awaiting_fork_entry()
+
+    assert await setup_entry(hass, entry, fake_charger)
+
+    assert hass.config_entries.flow.async_progress_by_handler(DOMAIN) == []
+
+
+async def test_only_the_adopted_charger_s_ignored_card_is_removed(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """Another charger's ignored card is still the owner's wish, and another
+    integration's ignored entries are none of this one's business."""
+    other_charger = MockConfigEntry(
+        domain=DOMAIN, source=config_entries.SOURCE_IGNORE, unique_id="654321"
+    )
+    other_charger.add_to_hass(hass)
+    other_integration = MockConfigEntry(
+        domain="other", source=config_entries.SOURCE_IGNORE, unique_id="123456"
+    )
+    other_integration.add_to_hass(hass)
+
+    assert await setup_entry(hass, _awaiting_fork_entry(), fake_charger)
+
+    assert hass.config_entries.async_get_entry(other_charger.entry_id) is not None
+    assert hass.config_entries.async_get_entry(other_integration.entry_id) is not None

@@ -33,6 +33,7 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     awaits_serial,
+    serial_taken_by_other_entry,
 )
 from .hub import WattpilotHub
 
@@ -148,6 +149,21 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
         """Whether the connected charger contradicts the entry's own identity."""
         return not awaits_serial(entry) and serial != entry.unique_id
 
+    def _identity_error(self, entry: ConfigEntry, serial: str) -> str | None:
+        """
+        Name what is wrong with moving this entry onto that charger, if anything.
+
+        An entry still awaiting its serial accepts any charger -- but not
+        one that has an entry of its own: the setup after the flow would
+        refuse it as a duplicate, with host and password already overwritten
+        (audit A18-22).
+        """
+        if self._is_another_charger(entry, serial):
+            return "wrong_device"
+        if serial_taken_by_other_entry(self.hass, entry, serial):
+            return "charger_has_entry"
+        return None
+
     @staticmethod
     def _local_entry_data(
         entry: ConfigEntry, user_input: dict[str, Any]
@@ -244,6 +260,19 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={"host": self._discovered_host},
         )
 
+    async def async_step_ignore(self, user_input: dict[str, Any]) -> ConfigFlowResult:
+        """
+        Ignore a card -- unless its charger has an entry by now.
+
+        A fork entry learns its serial only once it connects, so a card for
+        the same charger can still be open. Home Assistant resolves an
+        ignored card with that unique_id by replacing the entry with it,
+        entities and entity ids gone (audit A18-01).
+        """
+        await self.async_set_unique_id(user_input["unique_id"], raise_on_progress=False)
+        self._abort_if_unique_id_configured()
+        return await super().async_step_ignore(user_input)
+
     async def async_step_reauth(
         self, _entry_data: Mapping[str, Any]
     ) -> ConfigFlowResult:
@@ -265,8 +294,8 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
             # written into the entry and reported as success -- the setup
             # afterwards then refused the device, and the entry was left
             # broken with its credentials already replaced (audit A12-07).
-            if not errors and self._is_another_charger(entry, serial):
-                errors = {"base": "wrong_device"}
+            if not errors and (identity := self._identity_error(entry, serial)):
+                errors = {"base": identity}
             if not errors:
                 return self.async_update_reload_and_abort(
                     entry, data_updates={"password": user_input["password"]}
@@ -298,8 +327,8 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
             errors, serial, _name = await self._async_validate(
                 user_input["host"], user_input["password"]
             )
-            if not errors and self._is_another_charger(entry, serial):
-                errors = {"base": "wrong_device"}
+            if not errors and (identity := self._identity_error(entry, serial)):
+                errors = {"base": identity}
             if not errors:
                 return self.async_update_reload_and_abort(
                     entry, data=self._local_entry_data(entry, user_input)
