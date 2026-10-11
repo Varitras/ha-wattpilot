@@ -472,6 +472,30 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
         value_index=11,
         index_attributes=NRG_ATTRIBUTES,
     ),
+    # Per phase with history: Charging power's attributes, which the fork had
+    # and templates read, stay out of the recorder.
+    *(
+        WattpilotSensorEntityDescription(
+            key=f"{phase}_{quantity}",
+            charger_key="nrg",
+            uid=f"{phase}_{quantity}",
+            translation_key=f"{phase}_{quantity}",
+            device_class=device_class,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement=unit,
+            suggested_display_precision=precision,
+            value_index=NRG_ATTRIBUTES[f"{phase.upper()}_{slot}"],
+            entity_registry_enabled_default=False,
+        )
+        for quantity, slot, device_class, unit, precision in (
+            ("voltage", "Voltage", SensorDeviceClass.VOLTAGE, "V", 1),
+            ("current", "Ampere", SensorDeviceClass.CURRENT, "A", 1),
+            ("power", "Power", SensorDeviceClass.POWER, "W", 0),
+            ("power_factor", "PowerRelative", SensorDeviceClass.POWER_FACTOR, "%", 0),
+        )
+        for phase in ("l1", "l2", "l3", "n")
+        if f"{phase.upper()}_{slot}" in NRG_ATTRIBUTES  # no current on N
+    ),
     WattpilotSensorEntityDescription(
         key="webserver_queue",
         charger_key="qsw",

@@ -29,10 +29,30 @@ if TYPE_CHECKING:
 
 ENTRY_ID = "entry1"
 ENERGY_SPLIT_UIDS = {"whs", "whb", "whg", "who"}
+# uid, nrg slot and unit; N carries no current.
+PHASE_READINGS = [
+    *(
+        (f"{phase}_voltage", slot, "V")
+        for slot, phase in enumerate(("l1", "l2", "l3", "n"))
+    ),
+    *(
+        (f"{phase}_current", slot, "A")
+        for slot, phase in enumerate(("l1", "l2", "l3"), 4)
+    ),
+    *(
+        (f"{phase}_power", slot, "W")
+        for slot, phase in enumerate(("l1", "l2", "l3", "n"), 7)
+    ),
+    *(
+        (f"{phase}_power_factor", slot, "%")
+        for slot, phase in enumerate(("l1", "l2", "l3", "n"), 12)
+    ),
+]
+
 # Additions this project chose on top of the frozen fork uids: the energy
 # split, the phase count (pnp), charging permission and current (alw, acu),
-# average power (tpa), grid frequency (fhz), the electricity price (awcp)
-# and the charging duration (cdi).
+# average power (tpa), grid frequency (fhz), the electricity price (awcp),
+# the charging duration (cdi) and the readings per phase.
 # See tests/parity.py before widening this to make a test pass.
 EXTRA_SENSOR_UIDS = ENERGY_SPLIT_UIDS | {
     "pnp",
@@ -44,6 +64,8 @@ EXTRA_SENSOR_UIDS = ENERGY_SPLIT_UIDS | {
     "cdi",
     # The ID chips of a charger without a `cards` list (Wattpilot Flex).
     *(f"chip_{i}" for i in range(10)),
+    # The readings per phase, beside Charging power's attributes.
+    *(uid for uid, _, _ in PHASE_READINGS),
 }
 
 
@@ -821,3 +843,17 @@ async def test_unknown_live_power_makes_the_average_unknown(
     fake_charger.push("nrg", nrg)
 
     assert sensor.native_value is None
+
+
+@pytest.mark.parametrize(("uid", "index", "unit"), PHASE_READINGS)
+async def test_each_phase_reading_has_a_sensor_of_its_own(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, uid: str, index: int, unit: str
+) -> None:
+    """The per-phase readings were only attributes of Charging power, and
+    those stay out of the recorder: no history of them existed at all."""
+    fake_charger._properties["nrg"] = [float(slot) for slot in range(16)]
+    sensor = await make_sensor(hass, fake_charger, uid)
+
+    assert sensor.native_value == index
+    assert sensor.native_unit_of_measurement == unit
+    assert by_uid(uid).entity_registry_enabled_default is False, "recorder load"

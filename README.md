@@ -60,7 +60,7 @@ firmware and power variant.
 
 | Platform | What it covers |
 | --- | --- |
-| `sensor` | Charging power, session and total energy, car state and connection, phases in use, charging reason, charger temperature, cable-unlock and lock feedback, Wi-Fi and inverter diagnostics, reboot counters, the ten ID-chip energy counters, electricity price, charging duration |
+| `sensor` | Charging power, voltage, current, power and power factor per phase, session and total energy, car state and connection, phases in use, charging reason, charger temperature, cable-unlock and lock feedback, Wi-Fi and inverter diagnostics, reboot counters, the ten ID-chip energy counters, electricity price, charging duration |
 | `binary_sensor` | Car plugged in, car charging |
 | `switch` | PV surplus charging, charge pause, load balancing, eco mode, battery boost, LED energy saving, NTP, hotspot auto-disable and more |
 | `number` | Max charging current, PV-surplus start threshold, minimum charging time, next-trip energy, PV-battery thresholds, phase-switch timings, aWATTar price limit, energy limit per charge, car consumption, charge-pause, charging-interval, single-phase and simulated-unplugging durations |
@@ -98,6 +98,7 @@ fork's set only lets you infer:
 | **Allowed charging current** | `acu` | The current actually offered to the car, as opposed to **Maximum charging current**, which is the configured ceiling. Unknown while nothing is offered |
 | **Average charging power** | `tpa` | The charger's own 30-second average, steadier than **Charging power** for threshold automations. Reads 0 W once no current has flowed for a minute; the charger itself keeps the last session's average, and a short pause such as a phase switch is bridged |
 | **Grid frequency** | `fhz` | Diagnostic, **disabled by default**: it changes with nearly every push, so it is recorder load unless you are watching grid quality |
+| **L1/L2/L3/N voltage**, **current**, **power**, **power factor** | `nrg` | One sensor per phase and reading, with history (no current on N). **Disabled by default**: they change with nearly every push. The same values stay attributes of **Charging power**, without history |
 
 And a few that make existing settings usable from Home Assistant:
 

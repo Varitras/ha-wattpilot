@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Voltage, current, power and power factor per phase as sensors of their
+  own (L1 to L3 and N), **disabled by default**. They were only attributes of **Charging
+  power**, and those are kept out of the recorder, so no history of them
+  existed. The attributes stay for templates that read them.
+
 ### Changed
 
 - A new installation names the charger's device and entry **Wattpilot**, a
