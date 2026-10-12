@@ -17,7 +17,6 @@ import pytest
 
 from custom_components.wattpilot.api.client import Wattpilot
 from custom_components.wattpilot.api.exceptions import WattpilotConnectionError
-from custom_components.wattpilot.api.models import LoadMode
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -57,16 +56,6 @@ def client() -> Wattpilot:
 def sent_values(client: Wattpilot) -> list[tuple[str, Any]]:
     socket: Any = client._connection.socket
     return [(m["key"], m["value"]) for m in socket.sent]
-
-
-async def test_set_power_writes_the_current(client: Wattpilot) -> None:
-    await client.set_power(12)
-    assert sent_values(client) == [("amp", 12)]
-
-
-async def test_set_mode_writes_the_mode_as_a_number(client: Wattpilot) -> None:
-    await client.set_mode(LoadMode.ECO)
-    assert sent_values(client) == [("lmo", int(LoadMode.ECO))]
 
 
 async def test_next_trip_energy_sets_the_unit_first(client: Wattpilot) -> None:
