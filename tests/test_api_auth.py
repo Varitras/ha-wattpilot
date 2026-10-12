@@ -150,3 +150,47 @@ async def test_authentication_hashes_off_the_event_loop(
     assert threading.get_ident() not in hashed_in, "hashing ran on the event loop"
     assert sent
     assert sent[0]["type"] == "auth"
+
+
+async def test_a_reconnect_reuses_the_password_hash(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PBKDF2 took 110-116 ms per handshake (A11-08) for a result that only
+    password, serial and hash type decide, so every reconnect delayed its auth
+    reply by that much for nothing. A changed hash type must still re-hash."""
+    client = Wattpilot("192.0.2.10", PASSWORD)
+    client._device.serial = SERIAL
+
+    hashed_for: list[object] = []
+    real_hash = client_module.hash_password
+
+    def spy(password: str, serial: str, hash_type: AuthHashType) -> bytes:
+        hashed_for.append(hash_type)
+        return real_hash(password, serial, hash_type)
+
+    monkeypatch.setattr(client_module, "hash_password", spy)
+
+    sent: list[dict[str, Any]] = []
+
+    async def fake_send(message: dict[str, Any], **_kwargs: object) -> None:
+        sent.append(message)
+
+    monkeypatch.setattr(client, "_send", fake_send)
+
+    for hash_type in ("pbkdf2", "pbkdf2", "bcrypt"):
+        await client._handle_message(
+            json.dumps(
+                {
+                    "type": "authRequired",
+                    "hash": hash_type,
+                    "token1": "aaaa",
+                    "token2": "bbbb",
+                }
+            )
+        )
+
+    assert hashed_for == [AuthHashType.PBKDF2, AuthHashType.BCRYPT]
+    assert client._hashed_password == hash_password(
+        PASSWORD, SERIAL, AuthHashType.BCRYPT
+    )
+    assert [message["type"] for message in sent] == ["auth"] * 3

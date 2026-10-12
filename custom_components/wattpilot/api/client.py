@@ -137,6 +137,7 @@ class Wattpilot:
         self._cloud = cloud
         self._device = DeviceInfo(serial=serial or "")
         self._hashed_password: bytes = b""
+        self._hashed_from: tuple[str, str, AuthHashType] | None = None
         self._auth_hash_type = AuthHashType.PBKDF2
 
         if cloud:
@@ -755,9 +756,13 @@ class Wattpilot:
         """
         if not self._password or not self._device.serial:
             return
-        self._hashed_password = await asyncio.to_thread(
-            hash_password, self._password, self._device.serial, self._auth_hash_type
-        )
+        inputs = (self._password, self._device.serial, self._auth_hash_type)
+        # wattpilot: the result never changes for the same inputs, and
+        # recomputing it delayed every reconnect's auth reply by that much.
+        if inputs == self._hashed_from:
+            return
+        self._hashed_password = await asyncio.to_thread(hash_password, *inputs)
+        self._hashed_from = inputs
 
     async def _send_command(
         self, message: dict[str, Any], *, secure: bool = False
