@@ -31,6 +31,7 @@ from .readings import (
     namespace_get,
     number_or_none,
     price_list,
+    switched_phase_count,
     total_power,
 )
 
@@ -160,6 +161,8 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
         value: Any,  # noqa: ANN401 -- charger payload
     ) -> float | None:
         """Return the number to show; a held step back shows the last one."""
+        if value is None and description.null_is_zero:
+            return 0
         value = number_or_none(value)
         return None if value is None else self._held(description, value)
 
@@ -189,6 +192,8 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
             return self._unwrap_namespace(value, description.namespace_value)
         if description.highest_reading:
             return self._unwrap_highest(value)
+        if description.switched_phases:
+            return switched_phase_count(value)
         return value
 
     def _unwrap_indexed(self, value: Any, index: int) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload

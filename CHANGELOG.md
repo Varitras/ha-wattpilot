@@ -8,6 +8,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Phases in use** now counts the phases switched through to the car
+  (`pha`) instead of reading the charger's phase count (`pnp`). That count
+  stayed at 1 through whole three-phase sessions, on a Wattpilot Home and on
+  a Flex, and followed a switch about 30 seconds late. The sensor now reads
+  **0 when no phase is switched**, where it showed 1 or 3 before; check
+  automations that test it for 1. The entity ID stays the same.
+- **Charging power from solar**, **battery**, **grid** and **other sources**
+  read 0 W for a source that contributes nothing. A Flex sent no number for
+  solar and battery in that case, so they showed unknown and the four could
+  not be added up. Their unit is now confirmed as watts: while charging they
+  add up to **Charging power**.
 - A reconnect reuses the password hash of the previous connection instead
   of computing it again, so the charger gets its answer sooner: about a
   tenth of a second per reconnect on a Wattpilot Home, whose password hash

@@ -88,10 +88,11 @@ the fork's entity set, not replacements.
 The fifth addition is the **car profile** select (`ct`), which
 `mk-maddin/wattpilot-HA` had and `ruaan-deysel/ha-wattpilot` did not.
 
-The sixth is **Phases in use** (`pnp`), the phase count the charger has
-switched to. Measured on firmware 42.5, it follows the phase switch rather
-than the live current: it moves to 3 some seconds after charging starts (9 to
-24 seconds measured) and stays at 3 after charging ends.
+The sixth is **Phases in use** (`pha`), the number of phases switched
+through to the car: 1 or 3 while charging, 0 when no phase is switched. It
+changes together with the charger's contactor, so at a start it can read 3
+a few seconds before current flows. The setting behind it, automatic or a
+fixed phase count, is the **Phase switching** select.
 
 These describe what the charger is doing *right now*, which the fork's set
 only lets you infer:
@@ -103,7 +104,7 @@ only lets you infer:
 | **Average charging power** | `tpa` | The charger's own 30-second average, steadier than **Charging power** for threshold automations. Reads 0 W once no current has flowed for a minute, because the charger itself keeps the last session's average; a shorter pause keeps the value, meant to bridge a phase switch, whose length has not been measured. A new session reads 0 W until the charger reports its own average |
 | **Grid frequency** | `fhz` | Diagnostic, **disabled by default**: it changes in more than half of all pushes, so it is recorder load unless you are watching grid quality |
 | **L1/L2/L3/N voltage**, **current**, **power**, **power factor** | `nrg` | One sensor per phase and reading, with history (no current on N). **Disabled by default**: they change with nearly every push. The same values stay attributes of **Charging power**, without history |
-| **Charging power from solar**, **battery**, **grid**, **other sources** | `ws`, `wb`, `wg`, `wo` | The live counterpart of the session energy split. Reported by a Wattpilot Flex on firmware 43.x and created only on a charger that reports them. The unit is taken to be watts by analogy with the energy split; it has not been measured. **Disabled by default** |
+| **Charging power from solar**, **battery**, **grid**, **other sources** | `ws`, `wb`, `wg`, `wo` | The live counterpart of the session energy split. Reported by a Wattpilot Flex on firmware 43.x and created only on a charger that reports them. Watts: while charging, the four add up to **Charging power**. A source that contributes nothing reads 0 W, also where the charger sends no number for it. **Disabled by default** |
 | **Charging current limit** | `cll` | The lowest of the charger's hardware limits. The single limits are attributes: adapter, cable, temperature, phase unbalance, the requested current, and `pvSurplus`, the current PV surplus charging offers while it runs. Diagnostic, **disabled by default** |
 | **Temperature current limit** | `amt` | The temperature limit on its own. Diagnostic, **disabled by default** |
 
