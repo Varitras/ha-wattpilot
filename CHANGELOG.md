@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- A reconnect reuses the password hash of the previous connection instead
+  of computing it again, so the charger gets its answer sooner: about a
+  tenth of a second per reconnect on a Wattpilot Home, whose password hash
+  is the slow one.
+
 ## [0.3.0b1] - 2026-10-12
 
 The first candidate for 0.3.0: Wattpilot Flex support built from one

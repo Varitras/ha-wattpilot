@@ -6,14 +6,6 @@ from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 
 
-class LoadMode(IntEnum):
-    """Charging load mode."""
-
-    DEFAULT = 3
-    ECO = 4
-    NEXTTRIP = 5
-
-
 class CarStatus(IntEnum):
     """Car connection / charging status."""
 
