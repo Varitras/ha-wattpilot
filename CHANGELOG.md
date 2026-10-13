@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0b2] - 2026-10-13
+
+The second candidate for 0.3.0, with what the first one's testers
+reported: **Phases in use** now follows the phases actually switched to
+the car, and the power per source reads 0 W instead of unknown. Requires
+Home Assistant 2026.9.0 or newer. Entity IDs stay the same.
+
 ### Changed
 
 - **Phases in use** now counts the phases switched through to the car
@@ -527,7 +534,8 @@ former builds on.
 - `trx` starts at its real value: `null` is that property's "no
   transaction", not the absence of a value.
 
-[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.3.0b1...HEAD
+[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.3.0b2...HEAD
+[0.3.0b2]: https://github.com/Varitras/ha-wattpilot/compare/v0.3.0b1...v0.3.0b2
 [0.3.0b1]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0...v0.3.0b1
 [0.2.0]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2...v0.2.0
 [0.2.0b3]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0b2...v0.2.0b3
