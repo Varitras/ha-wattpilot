@@ -88,10 +88,11 @@ the fork's entity set, not replacements.
 The fifth addition is the **car profile** select (`ct`), which
 `mk-maddin/wattpilot-HA` had and `ruaan-deysel/ha-wattpilot` did not.
 
-The sixth is **Phases in use** (`pnp`), the phase count the charger has
-switched to. Measured on firmware 42.5, it follows the phase switch rather
-than the live current: it moves to 3 some seconds after charging starts (9 to
-24 seconds measured) and stays at 3 after charging ends.
+The sixth is **Phases in use** (`pha`), the number of phases switched
+through to the car: 1 or 3 while charging, 0 when no phase is switched. It
+changes together with the charger's contactor, so at a start it can read 3
+a few seconds before current flows. The setting behind it, automatic or a
+fixed phase count, is the **Phase switching** select.
 
 These describe what the charger is doing *right now*, which the fork's set
 only lets you infer:

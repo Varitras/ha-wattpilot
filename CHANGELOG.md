@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Phases in use** now counts the phases switched through to the car
+  (`pha`) instead of reading the charger's phase count (`pnp`). That count
+  stayed at 1 through whole three-phase sessions, on a Wattpilot Home and on
+  a Flex, and followed a switch about 30 seconds late. The sensor now reads
+  **0 when no phase is switched**, where it showed 1 or 3 before; check
+  automations that test it for 1. The entity ID stays the same.
+
 ## [0.3.0b1] - 2026-10-12
 
 The first candidate for 0.3.0: Wattpilot Flex support built from one

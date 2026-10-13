@@ -596,17 +596,48 @@ async def test_car_state_keeps_the_detailed_labels(
     assert sensor.native_value == "Wait Car"
 
 
-async def test_phases_in_use_reports_the_switched_phase_count(
-    hass: HomeAssistant, fake_charger: FakeWattpilot
-) -> None:
-    """`pnp` is the phase count the charger switched to (1 or 3)."""
-    fake_charger._properties["pnp"] = 1
-    sensor = await make_sensor(hass, fake_charger, "pnp")
-    assert sensor.native_value == 1
+# pha as measured: L1-L3 switched through to the car, then the supply phases.
+IDLE = [False, False, False, True, True, True]
+ONE_PHASE = [True, False, False, True, True, True]
+THREE_PHASES = [True, True, True, True, True, True]
 
-    fake_charger.push("pnp", 3)
+
+@pytest.mark.parametrize(
+    ("pha", "phases"),
+    # Only the first three are read, so three are enough.
+    [(IDLE, 0), (ONE_PHASE, 1), (THREE_PHASES, 3), (THREE_PHASES[:3], 3)],
+    ids=["idle", "one_phase", "three_phases", "car_phases_only"],
+)
+async def test_phases_in_use_counts_the_phases_switched_to_the_car(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, pha: list[bool], phases: int
+) -> None:
+    """pnp stayed at 1 through whole three-phase sessions, on a Home and on
+    a Flex, and followed a switch about 30 s late; pha switches with the
+    contactor. The unique ID stays the one pnp had."""
+    fake_charger._properties["pnp"] = 1
+    fake_charger._properties["pha"] = IDLE
+    sensor = await make_sensor(hass, fake_charger, "pnp")
+    fake_charger.push("pha", pha)
     await hass.async_block_till_done()
-    assert sensor.native_value == 3
+
+    assert sensor.native_value == phases
+
+
+@pytest.mark.parametrize(
+    "pha",
+    [[True, True], [1, 1, 1, True, True, True], "TTT", None],
+    ids=["too_short", "not_booleans", "text", "none"],
+)
+async def test_phases_in_use_is_unknown_for_a_value_of_another_shape(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, pha: object
+) -> None:
+    """Counting anything truthy would turn a malformed value into a phase count."""
+    fake_charger._properties["pha"] = THREE_PHASES
+    sensor = await make_sensor(hass, fake_charger, "pnp")
+    fake_charger.push("pha", pha)
+    await hass.async_block_till_done()
+
+    assert sensor.native_value is None
 
 
 def test_new_sensors_declare_their_property_and_unit() -> None:

@@ -31,6 +31,7 @@ from .readings import (
     namespace_get,
     number_or_none,
     price_list,
+    switched_phase_count,
     total_power,
 )
 
@@ -189,6 +190,8 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
             return self._unwrap_namespace(value, description.namespace_value)
         if description.highest_reading:
             return self._unwrap_highest(value)
+        if description.switched_phases:
+            return switched_phase_count(value)
         return value
 
     def _unwrap_indexed(self, value: Any, index: int) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload

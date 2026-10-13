@@ -190,6 +190,7 @@ class WattpilotSensorEntityDescription(
     # threshold instead of being rejected outright, see sensor.py.
     reset_tolerant_monotonic: bool = False
     highest_reading: bool = False  # a list of readings: show the highest
+    switched_phases: bool = False  # pha: count the phases switched to the car
     cards_index: int | None = None
     chip_index: int | None = None  # names the ID chip, whatever the data shape
     companion_role: CompanionRole | None = None
@@ -697,14 +698,11 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
     ),
     WattpilotSensorEntityDescription(
         key="phases_in_use",
-        charger_key="pnp",
+        charger_key="pha",
+        uid="pnp",  # read pnp until it showed 1 through three-phase sessions
+        switched_phases=True,
         translation_key="phases_in_use",
         state_class=SensorStateClass.MEASUREMENT,
-        # Not a live count of energised phases: measured on firmware 42.5,
-        # it follows the charger's phase *switch* (1 -> 3 about 24 s after
-        # charging starts, and it stayed at 3 with zero current for the rest
-        # of the session). Read it as "how many phases is the charger set to
-        # use", which is what phase-switch automations need.
     ),
     WattpilotSensorEntityDescription(
         key="electricity_price",

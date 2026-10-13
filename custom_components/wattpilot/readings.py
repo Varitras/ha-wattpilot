@@ -125,6 +125,20 @@ def _minutes(milliseconds: float) -> int | None:
     )
 
 
+# pha: phases L1-L3 switched through to the car, then the supply phases.
+_CAR_PHASES = 3
+
+
+def switched_phase_count(pha: Any) -> int | None:  # noqa: ANN401 -- charger payload
+    """Count the phases switched through to the car; None for another shape."""
+    if not isinstance(pha, list) or len(pha) < _CAR_PHASES:
+        return None
+    car_phases = pha[:_CAR_PHASES]
+    if not all(isinstance(item, bool) for item in car_phases):
+        return None
+    return sum(car_phases)
+
+
 def total_power(nrg: Any) -> float | None:  # noqa: ANN401 -- charger payload
     """Return the total power in an nrg reading, or None without a number there."""
     index = NRG_ATTRIBUTES["TotalPower"]
