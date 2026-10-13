@@ -191,6 +191,7 @@ class WattpilotSensorEntityDescription(
     reset_tolerant_monotonic: bool = False
     highest_reading: bool = False  # a list of readings: show the highest
     switched_phases: bool = False  # pha: count the phases switched to the car
+    null_is_zero: bool = False  # null means nothing measured, not unknown
     cards_index: int | None = None
     chip_index: int | None = None  # names the ID chip, whatever the data shape
     companion_role: CompanionRole | None = None
@@ -596,9 +597,8 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
     _energy_split_sensor("whb", "session_energy_battery"),
     _energy_split_sensor("whg", "session_energy_grid"),
     _energy_split_sensor("who", "session_energy_other"),
-    # Reported by a Wattpilot Flex on firmware 43.x, not by 42.5; documented
-    # nowhere. Watts by analogy with the energy split, not measured: the one
-    # snapshot seen was idle.
+    # Reported by a Wattpilot Flex on firmware 43.x, not by 42.5. Watts: while
+    # charging, the four added up to Charging power (owner-measured, 0.1 %).
     *(
         WattpilotSensorEntityDescription(
             key=f"charging_power_from_{source}",
@@ -609,6 +609,7 @@ SENSOR_DESCRIPTIONS: tuple[WattpilotSensorEntityDescription, ...] = (
             native_unit_of_measurement="W",
             suggested_display_precision=0,
             entity_registry_enabled_default=False,
+            null_is_zero=True,  # a Flex sent null for a source giving nothing
         )
         for charger_key, source in (
             ("ws", "solar"),

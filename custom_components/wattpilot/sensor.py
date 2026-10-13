@@ -161,6 +161,8 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
         value: Any,  # noqa: ANN401 -- charger payload
     ) -> float | None:
         """Return the number to show; a held step back shows the last one."""
+        if value is None and description.null_is_zero:
+            return 0
         value = number_or_none(value)
         return None if value is None else self._held(description, value)
 

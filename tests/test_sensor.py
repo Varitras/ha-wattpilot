@@ -1046,6 +1046,25 @@ async def test_charging_power_per_source(
     )
 
 
+@pytest.mark.parametrize("uid", SOURCE_POWER_UIDS)
+async def test_a_source_that_contributes_nothing_reads_zero_watts(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, uid: str
+) -> None:
+    """A Flex sent null for solar and battery while charging from the grid
+    alone, and 0 for grid and other; unknown made the four impossible to add
+    up. Only null is nothing: a malformed value keeps the last reading."""
+    fake_charger._properties[uid] = None
+    sensor = await make_sensor(hass, fake_charger, uid)
+    assert sensor.native_value == 0
+
+    fake_charger.push(uid, 1500)
+    await hass.async_block_till_done()
+    for malformed in ("garbage", float("nan")):
+        fake_charger.push(uid, malformed)
+        await hass.async_block_till_done()
+    assert sensor.native_value == 1500
+
+
 def test_charging_power_per_source_needs_a_charger_that_reports_it(
     device_properties: dict[str, Any],
 ) -> None:
