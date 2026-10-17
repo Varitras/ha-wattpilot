@@ -193,7 +193,7 @@ Everything is configured through the UI; there is nothing to put in
 | --- | --- | --- |
 | `wattpilot.set_next_trip` | `device_id`, `trigger_time` | Sets the departure time for Next Trip charging mode |
 | `wattpilot.set_goe_cloud` | `device_id`, `cloud_api` | Turns the charger's go-e cloud HTTP API on or off |
-| `wattpilot.disconnect_charger` | `device_id` | Closes the connection; entities go unavailable |
+| `wattpilot.disconnect_charger` | `device_id` | Closes the connection; entities stay unavailable until `wattpilot.reconnect_charger`, a reload of the entry or a restart of Home Assistant |
 | `wattpilot.reconnect_charger` | `device_id` | Re-establishes the connection |
 
 All four keep the names and fields of the fork's services, so existing
@@ -206,7 +206,8 @@ departure every evening, with the entity IDs of a new installation. The list
 goes into `automations.yaml`:
 
 ```yaml
-- alias: Wattpilot solar surplus on at sunrise
+- id: wattpilot_surplus_on
+  alias: Wattpilot solar surplus on at sunrise
   triggers:
     - trigger: sun
       event: sunrise
@@ -215,7 +216,8 @@ goes into `automations.yaml`:
       target:
         entity_id: switch.wattpilot_pv_surplus_charging
 
-- alias: Wattpilot solar surplus off at sunset
+- id: wattpilot_surplus_off
+  alias: Wattpilot solar surplus off at sunset
   triggers:
     - trigger: sun
       event: sunset
@@ -224,7 +226,8 @@ goes into `automations.yaml`:
       target:
         entity_id: switch.wattpilot_pv_surplus_charging
 
-- alias: Wattpilot next trip at 07:30
+- id: wattpilot_next_trip
+  alias: Wattpilot next trip at 07:30
   triggers:
     - trigger: time
       at: "21:00:00"
@@ -268,7 +271,7 @@ charger's readings are in, together with those readings.
 | **Repair notice: The charger refused the connection** | The charger asks for a sign-in method this version of the integration does not know, usually after a firmware update. Look for an update of the integration; the notice goes away once the charger is connected again or the integration is reloaded. |
 | **Repair notice: Some entities could not be migrated** | An entity from the earlier integration could not take its new identifier because an entity with it already existed. Nothing was deleted: the old one keeps its history but shows as unavailable, the loaded one carries on. Delete the unavailable ones once their history no longer matters. |
 | **Device … is not a loaded Wattpilot charger** | An action got a `device_id` that is not a Wattpilot charger, or the entry is not loaded. Pick the charger's device, and reload the entry if needed. |
-| **All entities unavailable** | The charger is offline or the connection dropped. It reconnects by itself, within five minutes of the charger being reachable again — no restart needed. |
+| **All entities unavailable** | The charger is offline or the connection dropped. It reconnects by itself, within five minutes of the charger being reachable again — no restart needed. After `wattpilot.disconnect_charger` it stays disconnected until `wattpilot.reconnect_charger` or a reload. |
 | **Cloud connections are not supported yet** | An entry migrated from an older integration was configured for cloud. Reconfigure it with the local address. |
 | **Some entities are missing** | They are either firmware- or variant-gated (not offered by your charger), or disabled by default. Check the disabled entities on the device page. |
 
