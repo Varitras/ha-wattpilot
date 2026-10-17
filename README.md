@@ -47,7 +47,9 @@ On the next start the existing entry migrates itself. Coming from
 `mk-maddin/wattpilot-HA`, the entity registry is rewritten once as well: that
 integration keyed unique IDs on the charger's friendly name or IP address,
 this one keys them on the serial number, so the entries are renamed in place
-and keep their entity IDs, history and customizations.
+and keep their entity IDs, history and customizations. Where an entity with
+the new identifier already exists, the old one is left as it is and a repair
+notice lists it (see [Troubleshooting](#troubleshooting)).
 
 Both integrations use the same `wattpilot` domain, so **do not run the old and
 the new one at the same time.** For side-by-side testing use the development
@@ -101,7 +103,7 @@ only lets you infer:
 | --- | --- | --- |
 | **Charging allowed** | `alw` | Whether the car may draw power at this moment — the answer "why is it not charging" usually starts here |
 | **Allowed charging current** | `acu` | The current actually offered to the car, as opposed to **Maximum charging current**, which is the configured ceiling. Unknown while nothing is offered |
-| **Average charging power** | `tpa` | The charger's own 30-second average, steadier than **Charging power** for threshold automations. Reads 0 W once no current has flowed for a minute, because the charger itself keeps the last session's average; a shorter pause keeps the value, meant to bridge a phase switch, whose length has not been measured. A new session reads 0 W until the charger reports its own average |
+| **Average charging power** | `tpa` | The charger's own 30-second average, steadier than **Charging power** for threshold automations. Reads 0 W once no current has flowed for a minute, because the charger itself keeps the last session's average; a shorter pause keeps the value. A new session reads 0 W until the charger reports its own average |
 | **Grid frequency** | `fhz` | Diagnostic, **disabled by default**: it changes in more than half of all pushes, so it is recorder load unless you are watching grid quality |
 | **L1/L2/L3/N voltage**, **current**, **power**, **power factor** | `nrg` | One sensor per phase and reading, with history (no current on N). **Disabled by default**: they change with nearly every push. The same values stay attributes of **Charging power**, without history |
 | **Charging power from solar**, **battery**, **grid**, **other sources** | `ws`, `wb`, `wg`, `wo` | The live counterpart of the session energy split. Reported by a Wattpilot Flex on firmware 43.x and created only on a charger that reports them. Watts: while charging, the four add up to **Charging power**. A source that contributes nothing reads 0 W, also where the charger sends no number for it. **Disabled by default** |
@@ -200,37 +202,37 @@ automations keep working.
 ### Example
 
 Use PV surplus charging while the sun is up, and set tomorrow's
-departure every evening, with the entity IDs of a new installation:
+departure every evening, with the entity IDs of a new installation. The list
+goes into `automations.yaml`:
 
 ```yaml
-automation:
-  - alias: Wattpilot solar surplus on at sunrise
-    triggers:
-      - trigger: sun
-        event: sunrise
-    actions:
-      - action: switch.turn_on
-        target:
-          entity_id: switch.wattpilot_pv_surplus_charging
+- alias: Wattpilot solar surplus on at sunrise
+  triggers:
+    - trigger: sun
+      event: sunrise
+  actions:
+    - action: switch.turn_on
+      target:
+        entity_id: switch.wattpilot_pv_surplus_charging
 
-  - alias: Wattpilot solar surplus off at sunset
-    triggers:
-      - trigger: sun
-        event: sunset
-    actions:
-      - action: switch.turn_off
-        target:
-          entity_id: switch.wattpilot_pv_surplus_charging
+- alias: Wattpilot solar surplus off at sunset
+  triggers:
+    - trigger: sun
+      event: sunset
+  actions:
+    - action: switch.turn_off
+      target:
+        entity_id: switch.wattpilot_pv_surplus_charging
 
-  - alias: Wattpilot next trip at 07:30
-    triggers:
-      - trigger: time
-        at: "21:00:00"
-    actions:
-      - action: wattpilot.set_next_trip
-        data:
-          device_id: "{{ device_id('sensor.wattpilot_car_state') }}"
-          trigger_time: "07:30:00"
+- alias: Wattpilot next trip at 07:30
+  triggers:
+    - trigger: time
+      at: "21:00:00"
+  actions:
+    - action: wattpilot.set_next_trip
+      data:
+        device_id: "{{ device_id('sensor.wattpilot_car_state') }}"
+        trigger_time: "07:30:00"
 ```
 
 ## How data updates
@@ -257,12 +259,15 @@ charger's readings are in, together with those readings.
 | Symptom | Cause and fix |
 | --- | --- |
 | **Cannot connect to the charger** | Wrong address, charger offline, or a firewall/VLAN between Home Assistant and the charger. Verify with `ping`. |
+| **The address is not a valid host name or IP address; an IPv6 address goes in brackets** | The Host field holds something that is no address. Enter the IPv4 address or host name. |
 | **Invalid password** | The password is the **Wattpilot.Solar app** password, not your Wi-Fi or Fronius account password. |
 | **The charger at this address has a different serial number** | The address now belongs to another charger. Use **Reconfigure** on the right entry. |
 | **This entry belongs to charger X, but the charger at this address reports serial Y** | Setup refuses rather than silently moving this entry's history onto another device. If the address was reused, point the entry at the right one with **Reconfigure**. If you replaced the charger, delete the entry and add the new one — the serial is the entry's identity, so the old history cannot follow. |
 | **Charger X is already configured by another entry** or, in Reconfigure, **This charger already has another entry** | An entry carried over from the earlier integration found its charger already set up a second time, from a discovery card or by hand. Delete that other entry, then reload the carried-over one, or submit Reconfigure or the re-authentication again if that is where the message came up: only the carried-over entry keeps the earlier integration's entity IDs and history. |
 | **Repair notice: Another charger answers at this charger's address** | The situation of *This entry belongs to charger X*, found while running: the integration stops connecting instead of showing the other charger's readings. Point the entry at the right address with **Reconfigure**; the notice goes away with the reload that follows. |
 | **Repair notice: The charger refused the connection** | The charger asks for a sign-in method this version of the integration does not know, usually after a firmware update. Look for an update of the integration; the notice goes away once the charger is connected again or the integration is reloaded. |
+| **Repair notice: Some entities could not be migrated** | An entity from the earlier integration could not take its new identifier because an entity with it already existed. Nothing was deleted: the old one keeps its history but shows as unavailable, the loaded one carries on. Delete the unavailable ones once their history no longer matters. |
+| **Device … is not a loaded Wattpilot charger** | An action got a `device_id` that is not a Wattpilot charger, or the entry is not loaded. Pick the charger's device, and reload the entry if needed. |
 | **All entities unavailable** | The charger is offline or the connection dropped. It reconnects by itself, within five minutes of the charger being reachable again — no restart needed. |
 | **Cloud connections are not supported yet** | An entry migrated from an older integration was configured for cloud. Reconfigure it with the local address. |
 | **Some entities are missing** | They are either firmware- or variant-gated (not offered by your charger), or disabled by default. Check the disabled entities on the device page. |
