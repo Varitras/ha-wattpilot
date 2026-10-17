@@ -17,6 +17,10 @@ same `wattpilot` domain, the entity unique IDs of `ruaan-deysel/ha-wattpilot`
 config-entry migration. Your history, dashboards, automations and entity
 customizations survive the switch.
 
+The [wiki](https://github.com/Varitras/ha-wattpilot/wiki) lists every entity
+with its charger property, unit, range and default state, and covers setup,
+actions and troubleshooting in more detail.
+
 [deysel]: https://github.com/ruaan-deysel/ha-wattpilot
 [maddin]: https://github.com/mk-maddin/wattpilot-HA
 
@@ -73,6 +77,9 @@ firmware and power variant.
 | `button` | Start / stop / force charging, restart, authenticate |
 | `time` | Next-trip departure |
 | `update` | Firmware version, with install |
+
+The [Entities](https://github.com/Varitras/ha-wattpilot/wiki/Entities) page of
+the wiki has the full list.
 
 Noisy entities and most diagnostic ones are registry-disabled by default;
 enable the ones you want in the entity settings. Settings you would actually
