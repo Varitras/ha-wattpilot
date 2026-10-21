@@ -83,7 +83,11 @@ async def test_the_recorded_connect_is_taken_in_whole_and_quietly(
         for key in frame["status"]
     }
     assert reported <= client.all_properties.keys()
-    assert not caplog.records, "real frames produced warnings"
+    # Ours only: asyncio reports a slow callback at WARNING on a busy machine.
+    ours = [
+        r for r in caplog.records if r.name.startswith("custom_components.wattpilot")
+    ]
+    assert not ours, "real frames produced warnings"
 
 
 async def test_initialisation_waits_for_the_last_chunk_at_every_step() -> None:
