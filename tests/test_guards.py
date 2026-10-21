@@ -513,7 +513,7 @@ def test_manifest_is_consistent() -> None:
     # pydantic. bcrypt and packaging come with Home Assistant.
     assert manifest["requirements"] == ["websockets>=14.0"]
     assert manifest["config_flow"] is True
-    assert manifest["version"] == "0.3.0b2"
+    assert manifest["version"] == "0.3.0"
     assert manifest["codeowners"] == ["@Varitras"]
     assert manifest["integration_type"] == "device"
     assert manifest["loggers"] == ["custom_components.wattpilot"]

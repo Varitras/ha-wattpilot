@@ -6,11 +6,173 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-21
+
+Everything from the two 0.3.0 candidates, tried on a Wattpilot Home and a
+Wattpilot Flex: Flex support, the readings per phase as sensors, the
+charger's current limits and the PV-surplus stop hysteresis, a plain
+device name for new installations, and many fixes. Requires
+Home Assistant 2026.9.0 or newer. Coming from 0.2.0, read **Changed**
+first: **Phases in use** now reads 0 while no phase is switched.
+Existing installations keep their names and entity IDs.
+
+### Added
+
+- Voltage, current, power and power factor per phase as sensors of their
+  own (L1 to L3 and N), **disabled by default**. They were only attributes of **Charging
+  power**, and those are kept out of the recorder, so no history of them
+  existed. The attributes stay for templates that read them.
+- **PV surplus stop hysteresis** and **Minimum charging current** as
+  settings; the minimum current is **disabled by default**.
+- **Charging current limit**, the lowest of the charger's hardware limits,
+  with the single limits and the current PV surplus charging offers as
+  attributes, and **Temperature current limit**; both diagnostic and
+  **disabled by default**.
+- **Charging power from solar**, **battery**, **grid** and **other
+  sources** in watts, the live counterpart of the session energy split, on
+  chargers that report it (seen on a Wattpilot Flex with firmware 43.x).
+  While charging they add up to **Charging power**; a source that
+  contributes nothing reads 0 W. **Disabled by default**.
+
+### Changed
+
+- **Phases in use** counts the phases switched through to the car (`pha`)
+  instead of reading the charger's phase count (`pnp`). That count stayed
+  at 1 through whole three-phase sessions, on a Wattpilot Home and on a
+  Flex, and followed a switch about 30 seconds late. The sensor now reads
+  **0 when no phase is switched**, where it showed 1 or 3 before; check
+  automations that test it for 1. The entity ID stays the same.
+- A new installation names the charger's device and entry **Wattpilot**, a
+  second charger **Wattpilot 2** and so on, instead of after the charger's
+  host name `Wattpilot_<serial>`. Entity IDs follow the device name, so
+  they no longer carry the serial number: `sensor.wattpilot_total_energy`
+  instead of `sensor.wattpilot_<serial>_total_energy`. Existing
+  installations keep their names and entity IDs. An installation carried
+  over from a fork names its device after the fork's friendly name: its
+  entities keep their IDs, and the ones the fork did not have get IDs
+  without the serial number.
+- Requires Home Assistant 2026.9.0 or newer (was 2026.8.0). Home Assistant
+  replaced its schema library in 2026.9, and the integration now uses the
+  new one directly instead of relying on the alias for the old name.
+- A reconnect reuses the password hash of the previous connection instead
+  of computing it again, so the charger gets its answer sooner: about a
+  tenth of a second per reconnect on a Wattpilot Home, whose password hash
+  is the slow one.
+
 ### Fixed
 
+- A select whose value the charger reports outside its list, such as a
+  **Car profile** the app does not offer, showed as unknown without a
+  word. The log now says so once, naming the kind of value but never the
+  value, and the diagnostics show whether a car profile was a known one,
+  still without naming the car.
 - **Car profile** shows Standard when the charger reports an empty
-  profile, as the app does. It showed unknown and logged a value outside
-  its list.
+  profile, as the app does, instead of unknown.
+- The repair notices about a refused connection go away once the charger
+  is connected again, not only with a reload.
+- A charger that refuses the password after first accepting it drops the
+  connection at once; its entities go unavailable and the password is asked
+  for again at the next availability check, within 30 seconds. During setup
+  the refusal was reported as a timeout and retried.
+- Diagnostics from a Wattpilot Flex replace three free-text fields nothing
+  documents: the OCPP fallback card, the OCPP tariff text and an OTA
+  field. Every top-level text field a Flex is known to report now has a
+  redaction decision, so a new one shows up in the tests instead of in a
+  download.
+- **Average charging power** reads 0 W once no current has flowed for a
+  minute. The charger keeps reporting the last session's average after
+  charging, so an automation on it kept firing for hours. A pause shorter
+  than a minute keeps the average. A new session reads 0 W until the
+  charger reports that session's average.
+- The 0.2.0 notes gave 0.5 minutes as an example for all three timings
+  now set in minutes. **Minimum charging time** starts at 1 minute, so 0.5
+  is refused there; fractions above 1 minute work, as for the two
+  phase-switch timings.
+- **Total energy** no longer falls across a reload or restart of Home
+  Assistant. After a charger restart it can report a few Wh less, which the
+  sensor held back -- but only until the integration reloaded, as it does
+  after a firmware update, and the energy dashboard then got a negative
+  hour. Only a step back that small is held across a reload: a replacement
+  charger that takes over the entity ID starts from its own total.
+- Diagnostics keep an empty value empty. An empty car profile showed up
+  there as "default", a value the charger had not sent.
+- The notice about entities that could not be migrated goes away with
+  the entry it is about, and with the entities it lists once they are
+  deleted, instead of staying until a restart. It no longer suggests
+  deleting the loaded entity, which Home Assistant does not allow.
+- A malformed address in the setup or reconfigure form -- an IPv6 address
+  without brackets, a mistyped port -- is reported at the address field
+  instead of as an unknown error.
+- On a Wattpilot Flex, three readings now work. **Charger temperature**
+  shows the hottest of the Flex's temperature sensors, with all readings
+  as an attribute; it stayed unknown, because the first of them is always
+  empty. What each sensor measures is not documented, so the hottest is
+  shown, the one that matters for derating. The ten **ID chip** sensors
+  exist, read from the Flex's per-chip keys instead of a list it does not
+  have. The **Electricity price** has its `prices` attribute again; the
+  Flex sends its price list in another shape.
+- Ignoring a discovery card no longer deletes the charger's entry. An
+  entry carried over from the earlier integration learns its charger's
+  serial only once it connects, so a card for the same charger could still
+  be open; ignoring it made Home Assistant replace the entry, with its
+  entities and entity IDs, by an ignored one. While the entry waits for
+  its first connection, a card for its address is no longer offered and
+  the charger cannot be added there by hand a second time -- the entry
+  tries again instead; a card closes once the entry has its serial, and an
+  ignored card no longer blocks that entry from setting up. Reconfigure
+  and re-authentication refuse to move such an entry onto a charger that
+  already has an entry of its own, instead of reporting success and
+  failing afterwards.
+- A charger that comes back after an outage is reached again, also when a
+  reconnect action failed while it was away, or a firmware update took
+  longer than the integration waits for it. Either used to leave nothing
+  retrying, so the charger stayed unavailable until a reload.
+- After an outage the entities come back with the charger's current
+  readings. They used to show their readings from before the outage --
+  charging at 11 kW, say -- for up to the update interval, which the
+  recorder kept and `to: charging` automations reacted to.
+- A single value the integration cannot read no longer takes the rest of
+  the charger's update with it, and no longer stalls the first connection
+  until it times out. A message that is not valid text is skipped instead
+  of stopping the reader. A charger asking for a password scheme the
+  integration does not know is refused with that scheme named, instead of
+  a bare timeout; while running, a repair notice says so, and a firmware
+  update reports it instead of a timeout. A setting the charger accepted
+  with an empty status is no longer reported as unanswered.
+- Diagnostics from a Wattpilot Flex on Ethernet no longer contain the
+  serial number in the Ethernet host name, the Ethernet addresses, the name
+  servers and search domain, or the charger's address in the last cloud
+  error. IP addresses and the serial number are now replaced wherever they
+  appear in a text, not only in the fields known to hold them. The Flex's
+  ID-chip names are replaced too, as they already were on other models: a
+  name can be entered for each chip.
+- The integration no longer writes the charger's serial number or address
+  into the log. Its own messages, and the messages Home Assistant logs
+  about setting up the entry, show only the serial's last two digits: an
+  entry set up with an earlier version is named after the charger's host
+  name, `Wattpilot_<serial>`, and Home Assistant logs that name on every
+  failed attempt. The repair notice, which is not logged, still names the
+  serial in full. A network error is named by its kind, such as
+  `ConnectionRefusedError (ECONNREFUSED)`, instead of by its text, which
+  quoted the charger's address. An entry set up with an earlier version
+  carries the serial in its entity IDs as well, so the integration's own
+  messages name an entity by its key; other parts of Home Assistant may
+  log entity IDs.
+- An entry whose setup failed, for example because another charger
+  answered at its address, now follows its charger to a new address the
+  charger announces and reloads; it used to wait for a manual reload. The
+  setup error points to **Reconfigure** for a charger with a new address.
+- A value where a number belongs that is no number -- text, a list, NaN or
+  infinity -- keeps the sensor's last reading instead of making Home
+  Assistant refuse the entity, and no longer puts an ID chip's card list
+  into the log. A select or update entity no longer fails on such a value.
+- **Charging power** no longer fills the recorder database. Its sixteen
+  per-phase attributes differ in nearly every update while a car charges,
+  and each update stored a new attribute row. They stay visible and usable in
+  templates and automations; only their history is no longer kept.
+- An answer from the charger that carries no request ID is no longer
+  thrown away as unreadable. A refusal now shows its reason in the log,
+  and an acceptance applies the state that came with it.
 
 ## [0.3.0b2] - 2026-10-13
 
@@ -540,7 +702,8 @@ former builds on.
 - `trx` starts at its real value: `null` is that property's "no
   transaction", not the absence of a value.
 
-[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.3.0b2...HEAD
+[Unreleased]: https://github.com/Varitras/ha-wattpilot/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0...v0.3.0
 [0.3.0b2]: https://github.com/Varitras/ha-wattpilot/compare/v0.3.0b1...v0.3.0b2
 [0.3.0b1]: https://github.com/Varitras/ha-wattpilot/compare/v0.2.0...v0.3.0b1
 [0.2.0]: https://github.com/Varitras/ha-wattpilot/compare/v0.1.2...v0.2.0
