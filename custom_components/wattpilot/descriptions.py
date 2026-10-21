@@ -1247,6 +1247,7 @@ class WattpilotSelectEntityDescription(
     # fine -- keyword-only fields carry no positional ordering constraint.
     # Empty when companion_key lists the allowed values instead (amperes).
     select_options: dict[Any, str]
+    empty_string_means: Any = None
 
 
 SELECT_DESCRIPTIONS: tuple[WattpilotSelectEntityDescription, ...] = (
@@ -1318,21 +1319,21 @@ SELECT_DESCRIPTIONS: tuple[WattpilotSelectEntityDescription, ...] = (
         entity_category=EntityCategory.CONFIG,
         select_options={0: "Normal", 1: "AutoUnlock", 2: "AlwaysLock"},
     ),
-    # mk-maddin parity (car profile select, not in the deysel fork). Present
-    # on firmware 42.5: device_properties.json's "ct" is a real, anonymized
-    # probe value -- scripts/anonymize_probe.py replaces the owner's actual
-    # vehicle model with "default" for privacy, it does not drop the key.
-    # Option labels verified against mk-maddin/wattpilot-HA's select.yaml at
-    # pinned commit 8ea4782 (its "ct" entry); two labels differ from a plain
-    # transcription and were corrected to match that source exactly:
-    # "citroenCZero" -> "Citroen c zero" (not "Citroen C-Zero") and
-    # "cupraBornAlternative" -> "Cupra Born Alternativ", no trailing "e"
-    # (upstream's own spelling, kept verbatim for parity).
+    # mk-maddin parity (car profile select, not in the deysel fork). Present on firmware
+    # 42.5: device_properties.json's "ct" is a real, anonymized probe value --
+    # scripts/anonymize_probe.py replaces the owner's actual vehicle model with
+    # "default" for privacy, it does not drop the key. Option labels verified against
+    # mk-maddin/wattpilot-HA's select.yaml at pinned commit 8ea4782 (its "ct" entry);
+    # two labels differ from a plain transcription and were corrected to match that
+    # source exactly: "citroenCZero" -> "Citroen c zero" (not "Citroen C-Zero") and
+    # "cupraBornAlternative" -> "Cupra Born Alternativ", no trailing "e" (upstream's own
+    # spelling, kept verbatim for parity).
     WattpilotSelectEntityDescription(
         key="car_profile",
         charger_key="ct",
         translation_key="car_profile",
         entity_category=EntityCategory.CONFIG,
+        empty_string_means="default",  # two owners' apps showed "" as Standard
         select_options={
             "default": "Standard",
             "MitsubishiImiev": "Mitsubishi iMiev",

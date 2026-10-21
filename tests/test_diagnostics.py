@@ -361,9 +361,8 @@ def test_an_address_at_the_edge_of_a_text_is_replaced(text: str, address: str) -
 def test_an_empty_value_is_not_replaced_by_a_real_looking_one(
     empty: str | None,
 ) -> None:
-    """An empty car profile became "default" -- a valid profile -- so the
-    diagnostics contradicted the select showing unknown (audit A18-28). An
-    empty value names nobody; it stays as it is."""
+    """An empty car profile became "default", a value the charger had not
+    sent (audit A18-28). An empty value names nobody; it stays as it is."""
     assert sanitize_snapshot({"ct": empty, "sse": empty}) == {"ct": empty, "sse": empty}
 
 

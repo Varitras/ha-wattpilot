@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Car profile** shows Standard when the charger reports an empty
+  profile, as the app does. It showed unknown and logged a value outside
+  its list.
+
 ## [0.3.0b2] - 2026-10-13
 
 The second candidate for 0.3.0, with what the first one's testers

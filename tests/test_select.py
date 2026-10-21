@@ -207,6 +207,34 @@ async def test_a_car_profile_outside_the_list_is_logged_once_by_its_shape(
     )
 
 
+async def test_an_empty_car_profile_shows_standard(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Chargers report "" where the app shows Standard; the select showed
+    unknown and logged a value outside the list."""
+    fake_charger._properties["ct"] = ""
+    select = await make_select(hass, fake_charger, "ct")
+
+    assert select.current_option == "Standard"
+    assert "outside the known options" not in caplog.text
+    fake_charger.push("ct", None)
+    assert select.current_option is None
+
+
+async def test_an_empty_value_is_no_option_where_it_means_none(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fake_charger._properties["lmo"] = ""
+    select = await make_select(hass, fake_charger, "lmo")
+
+    assert select.current_option is None
+    assert "outside the known options" in caplog.text
+
+
 async def test_a_known_value_or_a_current_between_presets_is_not_logged(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,

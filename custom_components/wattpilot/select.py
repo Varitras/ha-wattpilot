@@ -79,6 +79,8 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
         options = self._wire_options()
         self._attr_options = list(options.values())
+        if value == "" and self.entity_description.empty_string_means is not None:
+            value = self.entity_description.empty_string_means
         known = isinstance(value, Hashable) and value in options
         self._attr_current_option = options[value] if known else None
         self._report_unknown(value, known=known)
