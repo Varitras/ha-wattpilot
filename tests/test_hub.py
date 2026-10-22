@@ -636,7 +636,13 @@ async def test_a_reconnect_between_two_checks_does_not_flap_the_entities(
     await hass.async_block_till_done()
 
     assert events == []
-    assert not [r for r in caplog.records if r.levelno >= logging.INFO]
+    # Ours only: asyncio reports a slow callback at WARNING on a busy machine.
+    assert not [
+        r
+        for r in caplog.records
+        if r.name.startswith("custom_components.wattpilot")
+        and r.levelno >= logging.INFO
+    ]
 
 
 async def test_a_recovery_is_logged_once_at_info(

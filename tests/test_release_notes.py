@@ -80,6 +80,36 @@ def test_the_real_changelog_has_notes_for_the_declared_version() -> None:
     assert len(notes) > 200, "the release notes are suspiciously short"
 
 
+# What a release page owes its reader is what changes for them; how the change
+# was checked is not news to someone installing it. "the fixes from two
+# audits" reached the 0.3.0 draft from a beta's notes and was only caught by
+# reading. Older sections are published and stay as they are.
+QUALITY_FIGURES = re.compile(
+    r"\b(?:audit(?:s|ed)?|mutants?|mutations?|coverage|test suite|(?-i:CI)|gates?)\b"
+    r"|\b\d+ (?:tests?|checks?)\b",
+    re.IGNORECASE,
+)
+
+
+def test_the_pattern_finds_quality_figures() -> None:
+    sample = "434 tests, 19 of 19 mutations caught; CI green after two audits."
+    found = {match.group(0) for match in QUALITY_FIGURES.finditer(sample)}
+    assert found == {"434 tests", "mutations", "CI", "audits"}
+    assert not QUALITY_FIGURES.search("Charging current limit, gated by firmware.")
+
+
+def test_the_next_release_notes_carry_no_quality_figures() -> None:
+    changelog = CHANGELOG.read_text(encoding="utf-8")
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    for version in ("Unreleased", manifest["version"]):
+        try:
+            notes = section_for(changelog, version)
+        except LookupError:
+            continue  # empty Unreleased; a missing version fails its own test
+        found = sorted({match.group(0) for match in QUALITY_FIGURES.finditer(notes)})
+        assert not found, f"[{version}] reports how it was checked: {found}"
+
+
 def test_every_version_heading_has_its_comparison_link() -> None:
     """Keep a Changelog ends with one link per version, and "Unreleased" has
     to compare against the newest one. 0.1.2b1 got its section and no link,
