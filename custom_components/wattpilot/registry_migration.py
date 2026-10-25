@@ -3,13 +3,14 @@ One-time entity-registry unique_id migration for legacy installs.
 
 mk-maddin/Wattpilot-HA built unique_ids as `<friendly_name|ip>-<uid>` and
 used two CamelCase suffixes. We use `<serial>-<uid>`. Rewriting the registry
-entry preserves entity_id, customizations and recorder history.
+entry preserves entity_id, customizations and recorder history. The same
+rewrite moves the ID-chip sensors when a firmware update drops `cards`.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
@@ -28,7 +29,7 @@ from .descriptions import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Collection
+    from collections.abc import Collection, Mapping
 
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import Event, HomeAssistant
@@ -50,7 +51,22 @@ _SUFFIX_ALIASES = {
 _VARIANT_22_SUFFIXES = {"amp": "amp_22kw"}
 
 
-def _known_suffixes(variant: object) -> dict[str, str]:
+_FROM_CARD_LIST = {
+    description.chip_index: description
+    for description in SENSOR_DESCRIPTIONS
+    if description.cards_index is not None
+}
+_CHIP_TWINS = tuple(
+    (_FROM_CARD_LIST[description.chip_index], description)
+    for description in SENSOR_DESCRIPTIONS
+    if description.chip_index in _FROM_CARD_LIST and description.cards_index is None
+)
+_CARD_LIST_KEYS = frozenset(
+    description.charger_key for description in _FROM_CARD_LIST.values()
+)
+
+
+def _known_suffixes(variant: object, properties: Mapping[str, Any]) -> dict[str, str]:
     """Return every accepted legacy suffix mapped to our uid suffix."""
     ours = {
         description.uid_suffix: description.uid_suffix
@@ -66,7 +82,26 @@ def _known_suffixes(variant: object) -> dict[str, str]:
         for description in table
     }
     variant_specific = _VARIANT_22_SUFFIXES if str(variant) == VARIANT_22 else {}
-    return ours | _SUFFIX_ALIASES | variant_specific
+    return ours | _SUFFIX_ALIASES | variant_specific | _flat_chip_suffixes(properties)
+
+
+def _flat_chip_suffixes(properties: Mapping[str, Any]) -> dict[str, str]:
+    """
+    Map a chip sensor read from `cards` to its twin read from the chip's own key.
+
+    A Wattpilot Home on firmware 43.5 stopped reporting the `cards` list; the
+    Flex reports one key per chip. Without this the chip sensors of a Home
+    went unavailable after the firmware update, and the same chips came back
+    as new entities without their history. A charger still reporting `cards`
+    keeps both sets as they are.
+    """
+    if not _CARD_LIST_KEYS.isdisjoint(properties):
+        return {}
+    return {
+        from_list.uid_suffix: own_key.uid_suffix
+        for from_list, own_key in _CHIP_TWINS
+        if own_key.charger_key in properties
+    }
 
 
 def _match_legacy_suffix(unique_id: str, suffix_map: dict[str, str]) -> str | None:
@@ -84,7 +119,11 @@ def _match_legacy_suffix(unique_id: str, suffix_map: dict[str, str]) -> str | No
 
 
 async def async_migrate_legacy_unique_ids(
-    hass: HomeAssistant, entry: ConfigEntry, serial: str, variant: object
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    serial: str,
+    variant: object,
+    properties: Mapping[str, Any],
 ) -> None:
     """
     Rewrite `<anything>-<known suffix>` to `<serial>-<our suffix>`.
@@ -95,7 +134,7 @@ async def async_migrate_legacy_unique_ids(
     domain, or a legitimate second entity is skipped as a false collision
     and orphaned behind a freshly created registry entry.
     """
-    suffix_map = _known_suffixes(variant)
+    suffix_map = _known_suffixes(variant, properties)
     collisions: list[str] = []
     registry = er.async_get(hass)
     existing = {

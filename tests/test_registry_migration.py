@@ -139,7 +139,7 @@ async def test_longest_suffix_wins_over_shorter_shadow(
     monkeypatch.setattr(
         registry_migration,
         "_known_suffixes",
-        lambda _variant: {"amp": "SHORT_WRONG", "box-amp": "LONG_RIGHT"},
+        lambda _variant, _properties: {"amp": "SHORT_WRONG", "box-amp": "LONG_RIGHT"},
     )
     entry = MockConfigEntry(domain=DOMAIN, data=V2_LOCAL_DATA, version=2)
     entry.add_to_hass(hass)
@@ -295,3 +295,75 @@ async def test_the_collision_notice_goes_with_its_entry(
         )
         is None
     )
+
+
+def flat_chip_keys(device_properties: dict[str, Any]) -> dict[str, Any]:
+    """A Home on firmware 43.4+: no `cards` list, one energy key per chip."""
+    properties = {
+        key: value for key, value in device_properties.items() if key != "cards"
+    }
+    properties.update({f"c{index}e": 1000 * index for index in range(10)})
+    return properties
+
+
+async def test_a_chip_sensor_keeps_its_history_when_the_firmware_drops_cards(
+    hass: HomeAssistant, device_properties: dict[str, Any]
+) -> None:
+    """A Home on firmware 43.5 no longer reports `cards`. Its chip sensors
+    went unavailable and the same chips came back as new, disabled entities
+    with `_2` IDs, their history left behind."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    entry.add_to_hass(hass)
+    chip = seed(hass, entry, "sensor", "123456-cards_0")
+    assert await setup_entry(
+        hass, entry, FakeWattpilot(flat_chip_keys(device_properties))
+    )
+
+    registry = er.async_get(hass)
+    assert registry.async_get(chip.entity_id).unique_id == "123456-chip_0"
+    assert (
+        registry.async_get_entity_id("sensor", DOMAIN, "123456-chip_0")
+        == chip.entity_id
+    )
+
+
+async def test_a_chip_sensor_stays_while_the_charger_reports_cards(
+    hass: HomeAssistant, device_properties: dict[str, Any]
+) -> None:
+    properties = flat_chip_keys(device_properties) | {
+        "cards": device_properties["cards"]
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    entry.add_to_hass(hass)
+    chip = seed(hass, entry, "sensor", "123456-cards_0")
+    assert await setup_entry(hass, entry, FakeWattpilot(properties))
+
+    assert er.async_get(hass).async_get(chip.entity_id).unique_id == "123456-cards_0"
+
+
+async def test_a_chip_sensor_already_rebuilt_is_reported_not_merged(
+    hass: HomeAssistant, device_properties: dict[str, Any]
+) -> None:
+    """Updated with 0.3.0: both exist, the old one holds the history."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    entry.add_to_hass(hass)
+    old = seed(hass, entry, "sensor", "123456-cards_0")
+    new = seed(hass, entry, "sensor", "123456-chip_0")
+    assert await setup_entry(
+        hass, entry, FakeWattpilot(flat_chip_keys(device_properties))
+    )
+
+    registry = er.async_get(hass)
+    assert registry.async_get(old.entity_id).unique_id == "123456-cards_0"
+    assert registry.async_get(new.entity_id).unique_id == "123456-chip_0"
+    issue = ir.async_get(hass).async_get_issue(
+        DOMAIN, f"migration_collision_{entry.entry_id}"
+    )
+    assert issue is not None
+    assert old.entity_id in issue.translation_placeholders["entities"]

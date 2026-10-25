@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A Wattpilot Home on firmware 43.5 no longer reports its ID-chip list.
+  Where a charger reports one energy key per chip instead, as the Flex
+  does, the existing **ID chip N energy** sensors move over to those keys
+  and keep their entity IDs and history. They used to go unavailable while
+  the same chips came back as new, disabled entities. That the Home reports
+  these keys is not confirmed yet. If both sets exist already, the repair
+  notice about entities that could not be migrated lists the old ones.
+
 ## [0.3.0] - 2026-10-21
 
 Everything from the two 0.3.0 candidates, tried on a Wattpilot Home and a
