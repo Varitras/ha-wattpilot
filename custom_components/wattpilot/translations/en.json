@@ -106,7 +106,7 @@
     },
     "migration_collision": {
       "title": "Some entities could not be migrated",
-      "description": "These entities from a previously installed Wattpilot integration keep their old identifier, because an entity with the new one already exists: {entities}.\n\nNothing was deleted. Each of them still holds its history, entity ID and customisations, but no longer belongs to a loaded integration, so it shows as unavailable. The entity that is loaded is the one that was already there.\n\nDelete the unavailable ones in their entity settings once their history no longer matters to you; the loaded ones carry on. The old ones cannot take the loaded ones' place: Home Assistant does not let you delete an entity an integration provides."
+      "description": "These entities from a previously installed Wattpilot integration, or from the ID-chip list a firmware update removed, keep their old identifier, because an entity with the new one already exists: {entities}.\n\nNothing was deleted. Each of them still holds its history, entity ID and customisations, but no longer belongs to a loaded integration, so it shows as unavailable. The entity that is loaded is the one that was already there.\n\nDelete the unavailable ones in their entity settings once their history no longer matters to you; the loaded ones carry on. The old ones cannot take the loaded ones' place: Home Assistant does not let you delete an entity an integration provides."
     }
   },
   "entity": {

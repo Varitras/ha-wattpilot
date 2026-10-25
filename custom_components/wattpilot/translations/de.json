@@ -106,7 +106,7 @@
     },
     "migration_collision": {
       "title": "Einige Entitäten konnten nicht migriert werden",
-      "description": "Diese Entitäten einer früher installierten Wattpilot-Integration behalten ihre alte Kennung, weil bereits eine Entität mit der neuen existiert: {entities}.\n\nEs wurde nichts gelöscht. Jede von ihnen trägt weiterhin ihre Historie, Entitäts-ID und Anpassungen, gehört aber zu keiner geladenen Integration mehr und erscheint deshalb als nicht verfügbar. Geladen ist jeweils die Entität, die bereits vorhanden war.\n\nDie nicht verfügbaren Entitäten in ihren Einstellungen löschen, sobald ihre Historie nicht mehr gebraucht wird; die geladenen laufen weiter. An die Stelle der geladenen können die alten nicht treten: Eine Entität, die eine Integration bereitstellt, lässt Home Assistant nicht löschen."
+      "description": "Diese Entitäten einer früher installierten Wattpilot-Integration oder aus der ID-Chip-Liste, die ein Firmware-Update entfernt hat, behalten ihre alte Kennung, weil bereits eine Entität mit der neuen existiert: {entities}.\n\nEs wurde nichts gelöscht. Jede von ihnen trägt weiterhin ihre Historie, Entitäts-ID und Anpassungen, gehört aber zu keiner geladenen Integration mehr und erscheint deshalb als nicht verfügbar. Geladen ist jeweils die Entität, die bereits vorhanden war.\n\nDie nicht verfügbaren Entitäten in ihren Einstellungen löschen, sobald ihre Historie nicht mehr gebraucht wird; die geladenen laufen weiter. An die Stelle der geladenen können die alten nicht treten: Eine Entität, die eine Integration bereitstellt, lässt Home Assistant nicht löschen."
     }
   },
   "entity": {

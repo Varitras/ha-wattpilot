@@ -211,7 +211,9 @@ async def _finish_setup(
     serial = hub.serial
     if entry.unique_id != serial:
         await _adopt_serial(hass, entry, serial)
-    await async_migrate_legacy_unique_ids(hass, entry, serial, hub.variant)
+    await async_migrate_legacy_unique_ids(
+        hass, entry, serial, hub.variant, hub.properties
+    )
 
     entry.runtime_data = hub
     # Before the platforms, not after. The charger keeps pushing throughout
