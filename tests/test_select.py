@@ -274,3 +274,19 @@ async def test_an_unknown_value_is_reported_once_until_a_known_one(
         r for r in caplog.records if "outside the known options" in r.getMessage()
     ]
     assert [r.levelno for r in unknown] == [logging.WARNING]
+
+
+async def test_a_preset_that_is_no_whole_current_is_not_offered(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """`clp` holds integers. A true or a 12.9 from faulty data was offered as
+    "True A" and "12.9 A", and choosing it wrote 1 or 12 A."""
+    fake_charger._properties.update(
+        {"clp": [6, True, 12.9, float("nan"), "10", 16], "amp": 6}
+    )
+    select = await make_select(hass, fake_charger, "amp_preset")
+
+    assert select.options == ["6 A", "16 A"]
+    with pytest.raises(ServiceValidationError):
+        await select.async_select_option("12.9 A")
+    assert fake_charger.set_calls == []

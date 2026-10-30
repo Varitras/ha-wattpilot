@@ -72,9 +72,9 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
         allowed = self._hub.get_property(description.companion_key)
         if not isinstance(allowed, list):
             return {}
-        # An unhashable entry raised here, in __init__, and took the whole
-        # platform with it (post-check PC7-02).
-        return {value: f"{value} A" for value in allowed if isinstance(value, Hashable)}
+        # Whole amperes only: a true or a 12.9 was offered and written as 1 or
+        # 12 A, and an unhashable entry took the whole platform down (PC7-02).
+        return {value: f"{value} A" for value in allowed if _is_whole_current(value)}
 
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
         options = self._wire_options()
@@ -118,3 +118,7 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
             translation_key="unknown_option",
             translation_placeholders={"option": option},
         )
+
+
+def _is_whole_current(value: Any) -> bool:  # noqa: ANN401 -- charger payload
+    return isinstance(value, int) and not isinstance(value, bool)

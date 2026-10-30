@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   history. They used to go unavailable while the same chips came back as
   new, disabled entities. If both sets exist already, the repair notice
   about entities that could not be migrated lists the old ones.
+- **Charging current preset** offers only whole amperes. A preset the
+  charger reported as `true` or `12.9` showed as "True A" or "12.9 A",
+  and choosing it set 1 A or 12 A.
 
 ## [0.3.0] - 2026-10-21
 
