@@ -105,6 +105,30 @@ async def test_an_acknowledgement_that_is_no_boolean_is_not_success(
     assert not client._pending_commands
 
 
+@pytest.mark.parametrize("success", [False, "false", 1])
+async def test_an_answer_not_accepted_applies_no_status(success: object) -> None:
+    """The status in an answer is the charger's word on an accepted write;
+    one that was not accepted says nothing about the charger's state."""
+    from types import SimpleNamespace  # noqa: PLC0415 -- test-local shape
+
+    socket = FakeSocket()
+    client = make_client(socket)
+    task = asyncio.ensure_future(client.set_property("amp", 10))
+    await asyncio.sleep(0)
+    client._on_response(
+        SimpleNamespace(
+            requestId=socket.sent[0]["requestId"],
+            success=success,
+            status=SimpleNamespace(amp=99),
+            message="refused",
+        )
+    )
+
+    with pytest.raises(CommandError):
+        await task
+    assert client.all_properties.get("amp") != 99
+
+
 async def test_an_acknowledged_write_returns() -> None:
     socket = FakeSocket()
     client = make_client(socket)
