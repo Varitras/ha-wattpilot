@@ -1,0 +1,79 @@
+"""
+Home Assistant's reports about this integration, collected to fail the tests.
+
+Home Assistant reports a deprecated call by logging a warning and carrying
+on, so a suite stays green on code that the release named in the warning
+breaks for every user at once. The static list in test_guards.py only knows
+the calls someone already entered; this sees whatever Home Assistant reports
+on the paths the tests run.
+"""
+
+from __future__ import annotations
+
+import importlib
+import json
+import logging
+import pkgutil
+import re
+from pathlib import Path
+
+PACKAGE = next(
+    path.parent
+    for path in (Path(__file__).parents[1] / "custom_components").glob(
+        "*/manifest.json"
+    )
+)
+# Read from the manifest, not imported: importing the integration is what
+# this has to watch.
+INTEGRATION = json.loads((PACKAGE / "manifest.json").read_text(encoding="utf-8"))[
+    "domain"
+]
+
+# frame.report_usage: "Detected that custom integration '<domain>' ...", for
+# deprecated calls and for misuse such as calling into the loop from a thread.
+_MISUSE = re.compile(rf"Detected that custom integration '{re.escape(INTEGRATION)}' ")
+# helpers.deprecation words its reports several ways ("... was used from
+# <domain>.", "... in '<path>'") and logs them under the deprecated object's
+# module, not its own; all of them say "deprecated" and name the integration
+# or its files.
+_NAMED = re.compile(
+    rf"\b{re.escape(INTEGRATION)}\b|custom_components[./\\]{re.escape(INTEGRATION)}\b"
+)
+_DEPRECATED = re.compile("deprecat", re.IGNORECASE)
+
+
+def is_report(record: logging.LogRecord) -> bool:
+    """Whether Home Assistant reports something this integration does."""
+    if record.levelno < logging.WARNING:
+        return False
+    message = record.getMessage()
+    if _MISUSE.search(message):
+        return True
+    return bool(_DEPRECATED.search(message) and _NAMED.search(message))
+
+
+class Reports(logging.Handler):
+    """The reports since the last take(); the ones before any test, kept."""
+
+    def __init__(self) -> None:
+        super().__init__(logging.WARNING)
+        self._pending: list[logging.LogRecord] = []
+        self.unattributed: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if is_report(record):
+            self._pending.append(record)
+
+    def take(self) -> list[logging.LogRecord]:
+        taken, self._pending = self._pending, []
+        return taken
+
+
+REPORTS = Reports()
+
+
+def import_every_module() -> None:
+    """Import the integration and every module in it, as Home Assistant may."""
+    package = importlib.import_module(f"custom_components.{INTEGRATION}")
+    for module in pkgutil.walk_packages(package.__path__, f"{package.__name__}."):
+        importlib.import_module(module.name)

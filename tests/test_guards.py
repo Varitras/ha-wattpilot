@@ -1422,7 +1422,8 @@ def test_the_log_check_lets_ordinary_output_pass(text: str) -> None:
 def test_the_log_check_outlasts_home_assistant() -> None:
     """hass comes in through auto_enable_custom_integrations, and autouse
     fixtures start in name order: only requesting the log fixtures first sets
-    them up before hass and tears them down after its stop (PC6-04)."""
+    them up before hass and tears them down after its stop (PC6-04). The
+    deprecation check likewise: Home Assistant reports while it stops, too."""
     tree = ast.parse(
         (Path(__file__).parent / "conftest.py").read_text(encoding="utf-8")
     )
@@ -1434,6 +1435,7 @@ def test_the_log_check_outlasts_home_assistant() -> None:
     )
     assert [arg.arg for arg in hook.args.args] == [
         "no_identifier_reaches_the_log",
+        "no_deprecation_reported",
         "drop_serial_masks",
         "enable_custom_integrations",
     ]

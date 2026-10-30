@@ -12,6 +12,8 @@ import pytest
 
 from custom_components.wattpilot import _SerialMask
 
+from .deprecations import REPORTS
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
@@ -21,6 +23,7 @@ pytest_plugins = "pytest_homeassistant_custom_component"
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(
     no_identifier_reaches_the_log: None,
+    no_deprecation_reported: None,
     drop_serial_masks: None,
     enable_custom_integrations: None,
 ) -> None:
@@ -85,6 +88,15 @@ def no_identifier_reaches_the_log(request: pytest.FixtureRequest) -> Iterator[No
         line for line in handler.lines if IDENTIFIERS.search(ENTITY_ID.sub("", line))
     ]
     assert not leaked, f"identifier(s) in the log: {leaked[:3]}"
+
+
+@pytest.fixture(autouse=True)
+def no_deprecation_reported() -> Iterator[None]:
+    """Fail a test during which Home Assistant reported the integration."""
+    REPORTS.unattributed += REPORTS.take()
+    yield
+    reported = [record.getMessage() for record in REPORTS.take()]
+    assert not reported, f"Home Assistant reported: {reported[:3]}"
 
 
 @pytest.fixture(autouse=True)
