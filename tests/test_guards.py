@@ -1350,6 +1350,18 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         ),
         "test_no_field_is_registered_as_leaking": "no field knowingly leaks",
     },
+    "test_deprecations.py": {
+        "test_the_deprecation_check_recognises_home_assistants_reports": (
+            "the check still reads what Home Assistant writes"
+        ),
+        "test_the_deprecation_check_lets_other_reports_pass": "counter-check for it",
+        "test_importing_the_integration_reports_no_deprecation": (
+            "no deprecated constant is imported"
+        ),
+        "test_a_deprecation_warning_in_the_integration_fails": (
+            "a Python deprecation warning from the integration is an error"
+        ),
+    },
 }
 
 
