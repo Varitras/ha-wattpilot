@@ -91,6 +91,9 @@
     "unknown_option": {
       "message": "Unknown option: {option}"
     },
+    "value_not_a_number": {
+      "message": "Not a number: {value}"
+    },
     "wrong_charger": {
       "message": "This entry belongs to charger {expected}, but the charger at this address reports serial {found}. If the charger has a new address, choose Reconfigure; if you replaced the charger, delete this entry and add the new one."
     }

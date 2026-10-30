@@ -265,7 +265,7 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
 
     @staticmethod
     def _parse_timestamp(value: Any) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
-        if value is None or not isinstance(value, str):
+        if not isinstance(value, str):
             return None
         # Charger format: "2026-08-10 23:27:03.866 +02:00" (also seen with a
         # "T" date/time separator). The space before the offset breaks
@@ -275,9 +275,27 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
         # writing state, so a second conversion here would only change what
         # .hour reports depending on the HA instance's timezone, not the
         # exposed state.
-        return dt_util.parse_datetime(value) or dt_util.parse_datetime(
-            value.replace(" +", "+").replace(" -", "-")
+        return _instant(
+            dt_util.parse_datetime(value)
+            or dt_util.parse_datetime(value.replace(" +", "+").replace(" -", "-"))
         )
+
+
+def _instant(parsed: datetime | None) -> datetime | None:
+    """
+    Return the charger's time, or None when Home Assistant cannot show it.
+
+    The charger's offset is kept: Home Assistant converts to UTC itself when
+    writing the state, and refuses a time without offset or with no UTC
+    equivalent. Either refusal kept the enabled sensor from being added.
+    """
+    if parsed is None or parsed.tzinfo is None:
+        return None
+    try:
+        dt_util.as_utc(parsed)  # the conversion Home Assistant will make
+    except OverflowError:
+        return None
+    return parsed
 
 
 class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):

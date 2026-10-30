@@ -330,6 +330,29 @@ async def test_local_time_parses_negative_utc_offset(
     assert value.utcoffset() == timedelta(hours=-5)
 
 
+async def test_local_time_without_an_offset_is_unknown(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A time without its offset names no instant. Home Assistant refused the
+    naive datetime, and the enabled sensor was never added."""
+    fake_charger._properties["loc"] = "2026-10-30 12:34:56"
+    sensor = await make_sensor(hass, fake_charger, "loc")
+    assert sensor.native_value is None
+
+
+@pytest.mark.parametrize(
+    "stamp", ["0001-01-01 00:30:00 +01:00", "9999-12-31 23:30:00 -01:00"]
+)
+async def test_local_time_outside_the_utc_range_is_unknown(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, stamp: str
+) -> None:
+    """Home Assistant shows a time in UTC. One that has no UTC counterpart
+    raised there, and the enabled sensor was not added."""
+    fake_charger._properties["loc"] = stamp
+    sensor = await make_sensor(hass, fake_charger, "loc")
+    assert sensor.native_value is None
+
+
 async def test_local_time_rejects_a_non_string_value(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:

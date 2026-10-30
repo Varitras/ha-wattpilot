@@ -14,6 +14,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   history. They used to go unavailable while the same chips came back as
   new, disabled entities. If both sets exist already, the repair notice
   about entities that could not be migrated lists the old ones.
+- **Charging current preset** offers only whole amperes. A preset the
+  charger reported as `true` or `12.9` showed as "True A" or "12.9 A",
+  and choosing it set 1 A or 12 A.
+- A number set to NaN, for example by an action with `value: "nan"`, is
+  refused with an error. The price limit sent it to the charger, and the
+  next-trip energy changed its unit before failing.
+- A setting is reported as written only when the charger answers with
+  `true`. An answer such as `"false"` or `1` counted as accepted, and the
+  next-trip energy went on to its second write.
+- **Local time** reads unknown when the charger sends a time without its
+  UTC offset, or one with no UTC equivalent, such as the first hour of
+  year 1. Home Assistant refused such a value, and the sensor, once
+  enabled, was not added at all.
 
 ## [0.3.0] - 2026-10-21
 

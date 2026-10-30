@@ -303,6 +303,9 @@ async def test_start_dispatch_is_idempotent(
     assert len(fake_charger._callbacks) == 1
 
 
+# Frozen clock: the interval runs on the event loop's real time, and a
+# machine stalled for 5 s let its flush land between push and check.
+@pytest.mark.usefixtures("freezer")
 async def test_update_interval_coalesces_pushes_into_one_latest_value(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
@@ -442,6 +445,9 @@ async def test_shutdown_announces_unavailable_as_a_boolean(
     assert events[0] is False, "the signal must carry a bool, not a falsy stand-in"
 
 
+# Frozen clock: the interval runs on the event loop's real time, and a
+# machine stalled for 5 s let its flush land between push and check.
+@pytest.mark.usefixtures("freezer")
 async def test_shutdown_drops_buffered_values(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:

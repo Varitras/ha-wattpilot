@@ -98,9 +98,8 @@ async def test_set_goe_cloud_enable_logs_no_part_of_the_key(
         )
     logged = [r.getMessage() for r in caplog.records if "cloud API" in r.getMessage()]
     assert logged == ["go-e cloud API enabled"], logged
-    # Checked against the whole line, not the whole log: the hub names the
-    # charger's serial when it connects, which is the device's identity in
-    # the owner's own log and not what this finding was about.
+    # Check partial identifiers on this message; the runtime log guard
+    # checks identifying values across the integration's log output.
     assert full_key not in caplog.text
     assert full_key[:4] not in logged[0], "no prefix of the key"
     assert full_key[-4:] not in logged[0], "no suffix of the key"
