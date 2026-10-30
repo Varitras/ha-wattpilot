@@ -1385,9 +1385,8 @@ SELECT_DESCRIPTIONS: tuple[WattpilotSelectEntityDescription, ...] = (
 # Verified against the fork's BUTTON_DESCRIPTIONS at pinned commit 1decee7:
 # all 5 entries match on uid/charger_key/device_class/enabled_default and on
 # every press_value (frc 0/1/2, rst 1, trx 0). All five set requires_property
-# because their charger keys are write-only trigger commands, never present
-# in a status snapshot -- without that flag the presence filter in
-# filter_supported() would silently delete every button.
+# to False: a stateless command need not appear in the status snapshot.
+# frc and trx also have readable states; rst is a write-only trigger.
 @dataclass(frozen=True, kw_only=True)
 class WattpilotButtonEntityDescription(
     WattpilotDescriptionMixin, ButtonEntityDescription

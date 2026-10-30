@@ -298,7 +298,7 @@ async def test_the_collision_notice_goes_with_its_entry(
 
 
 def flat_chip_keys(device_properties: dict[str, Any]) -> dict[str, Any]:
-    """A Home on firmware 43.4+: no `cards` list, one energy key per chip."""
+    """A charger without a `cards` list, with one energy key per chip."""
     properties = {
         key: value for key, value in device_properties.items() if key != "cards"
     }
