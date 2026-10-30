@@ -23,6 +23,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A setting is reported as written only when the charger answers with
   `true`. An answer such as `"false"` or `1` counted as accepted, and the
   next-trip energy went on to its second write.
+- **Local time** reads unknown when the charger sends a time without its
+  UTC offset. Home Assistant refused such a value, and the sensor, once
+  enabled, was not added at all.
 
 ## [0.3.0] - 2026-10-21
 

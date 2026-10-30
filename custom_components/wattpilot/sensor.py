@@ -265,7 +265,7 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
 
     @staticmethod
     def _parse_timestamp(value: Any) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
-        if value is None or not isinstance(value, str):
+        if not isinstance(value, str):
             return None
         # Charger format: "2026-08-10 23:27:03.866 +02:00" (also seen with a
         # "T" date/time separator). The space before the offset breaks
@@ -275,9 +275,14 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
         # writing state, so a second conversion here would only change what
         # .hour reports depending on the HA instance's timezone, not the
         # exposed state.
-        return dt_util.parse_datetime(value) or dt_util.parse_datetime(
+        parsed = dt_util.parse_datetime(value) or dt_util.parse_datetime(
             value.replace(" +", "+").replace(" -", "-")
         )
+        # Without its offset the time names no instant, and Home Assistant
+        # refuses a naive datetime: the sensor was never added.
+        if parsed is None or parsed.tzinfo is None:
+            return None
+        return parsed
 
 
 class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):
