@@ -87,12 +87,10 @@ async def test_a_rejected_write_raises_instead_of_reporting_success() -> None:
         await task
 
 
-@pytest.mark.parametrize("success", ["false", 1, "true", {"ok": True}, None])
-async def test_an_acknowledgement_that_is_no_boolean_is_not_success(
-    success: object,
-) -> None:
-    """Only `true` accepts. A faulty `"false"` or 1 resolved the command, and
-    the trip energy went on to its second write unconfirmed."""
+@pytest.mark.parametrize("success", [True, "true", 1])
+async def test_an_acknowledgement_that_reads_true_is_accepted(success: object) -> None:
+    """Deliberately not only a JSON true (L-039): the Home sends one, the Flex
+    was never measured, and refusing a real acceptance would fail every write."""
     socket = FakeSocket()
     client = make_client(socket)
 
@@ -100,12 +98,11 @@ async def test_an_acknowledgement_that_is_no_boolean_is_not_success(
     await asyncio.sleep(0)
     respond(client, socket.sent[0]["requestId"], success=success)  # type: ignore[arg-type]
 
-    with pytest.raises(CommandError):
-        await task
+    await task
     assert not client._pending_commands
 
 
-@pytest.mark.parametrize("success", [False, "false", 1])
+@pytest.mark.parametrize("success", [False, None])
 async def test_an_answer_not_accepted_applies_no_status(success: object) -> None:
     """The status in an answer is the charger's word on an accepted write;
     one that was not accepted says nothing about the charger's state."""

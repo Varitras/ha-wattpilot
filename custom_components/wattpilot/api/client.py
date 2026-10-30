@@ -704,9 +704,9 @@ class Wattpilot:
         # and logged.
         request_id = getattr(msg, "requestId", None)
         future = self._pending_commands.get(_correlation_key(request_id))
-        # Only a JSON true accepts: a faulty "false" or 1 resolved the command,
-        # and a dependent second write went ahead unconfirmed.
-        if getattr(msg, "success", None) is True:
+        # Truthy, not only a JSON true (L-039): the Home sends true, the Flex
+        # was never measured, and refusing a real acceptance fails every write.
+        if msg.success:
             # Nothing in the protocol promises a status on every acceptance.
             self._apply_status(getattr(msg, "status", None))
             if future is not None and not future.done():

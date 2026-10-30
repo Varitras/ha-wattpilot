@@ -20,9 +20,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A number set to NaN, for example by an action with `value: "nan"`, is
   refused with an error. The price limit sent it to the charger, and the
   next-trip energy changed its unit before failing.
-- A setting is reported as written only when the charger answers with
-  `true`. An answer such as `"false"` or `1` counted as accepted, and the
-  next-trip energy went on to its second write.
 - **Local time** reads unknown when the charger sends a time without its
   UTC offset, or one with no UTC equivalent, such as the first hour of
   year 1. Home Assistant refused such a value, and the sensor, once
