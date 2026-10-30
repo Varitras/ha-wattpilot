@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import html
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
@@ -292,7 +292,7 @@ def _instant(parsed: datetime | None) -> datetime | None:
     if parsed is None or parsed.tzinfo is None:
         return None
     try:
-        parsed.astimezone(UTC)
+        dt_util.as_utc(parsed)
     except OverflowError:
         return None
     return parsed
