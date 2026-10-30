@@ -87,6 +87,24 @@ async def test_a_rejected_write_raises_instead_of_reporting_success() -> None:
         await task
 
 
+@pytest.mark.parametrize("success", ["false", 1, "true", {"ok": True}, None])
+async def test_an_acknowledgement_that_is_no_boolean_is_not_success(
+    success: object,
+) -> None:
+    """Only `true` accepts. A faulty `"false"` or 1 resolved the command, and
+    the trip energy went on to its second write unconfirmed."""
+    socket = FakeSocket()
+    client = make_client(socket)
+
+    task = asyncio.ensure_future(client.set_property("amp", 10))
+    await asyncio.sleep(0)
+    respond(client, socket.sent[0]["requestId"], success=success)  # type: ignore[arg-type]
+
+    with pytest.raises(CommandError):
+        await task
+    assert not client._pending_commands
+
+
 async def test_an_acknowledged_write_returns() -> None:
     socket = FakeSocket()
     client = make_client(socket)

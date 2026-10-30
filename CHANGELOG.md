@@ -20,6 +20,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A number set to NaN or infinity, for example by an action with
   `value: "nan"`, is refused with an error instead of being sent to the
   charger. For the next-trip energy nothing is sent at all.
+- A setting is reported as written only when the charger answers with
+  `true`. An answer such as `"false"` or `1` counted as accepted, and the
+  next-trip energy went on to its second write.
 
 ## [0.3.0] - 2026-10-21
 
