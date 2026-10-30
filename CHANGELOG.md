@@ -17,9 +17,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Charging current preset** offers only whole amperes. A preset the
   charger reported as `true` or `12.9` showed as "True A" or "12.9 A",
   and choosing it set 1 A or 12 A.
-- A number set to NaN or infinity, for example by an action with
-  `value: "nan"`, is refused with an error instead of being sent to the
-  charger. For the next-trip energy nothing is sent at all.
+- A number set to NaN, for example by an action with `value: "nan"`, is
+  refused with an error. The price limit sent it to the charger, and the
+  next-trip energy changed its unit before failing.
 - A setting is reported as written only when the charger answers with
   `true`. An answer such as `"false"` or `1` counted as accepted, and the
   next-trip energy went on to its second write.

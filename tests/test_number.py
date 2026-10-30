@@ -256,8 +256,9 @@ async def test_the_minimum_current_stays_within_the_variant(
 async def test_a_value_that_is_no_number_is_not_sent(
     hass: HomeAssistant, fake_charger: FakeWattpilot, uid: str, value: float
 ) -> None:
-    """An action with value "nan" passed the range check and reached the
-    charger as NaN; for the trip energy, after the unit had been sent."""
+    """An action with value "nan" passed the range check: the price limit
+    sent NaN, the trip energy wrote its unit first, and the current failed
+    on rounding instead of reporting the value."""
     fake_charger._properties.update({"awp": 10, "amp": 16, "fte": 50000})
     number = await make_number(hass, fake_charger, uid)
 

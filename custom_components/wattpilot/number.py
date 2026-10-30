@@ -64,8 +64,8 @@ class WattpilotNumber(WattpilotEntity, NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         """Write the new value to the charger."""
-        # Before any write: NaN passes every range comparison, so an action
-        # with "nan" reached the charger, the trip energy after its unit.
+        # Before any write: NaN passes every range comparison. The price limit
+        # sent it, and the trip energy wrote its unit before failing.
         if not math.isfinite(value):
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
