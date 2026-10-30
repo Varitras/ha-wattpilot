@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import logging
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
@@ -275,14 +276,26 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
         # writing state, so a second conversion here would only change what
         # .hour reports depending on the HA instance's timezone, not the
         # exposed state.
-        parsed = dt_util.parse_datetime(value) or dt_util.parse_datetime(
-            value.replace(" +", "+").replace(" -", "-")
+        return _instant(
+            dt_util.parse_datetime(value)
+            or dt_util.parse_datetime(value.replace(" +", "+").replace(" -", "-"))
         )
-        # Without its offset the time names no instant, and Home Assistant
-        # refuses a naive datetime: the sensor was never added.
-        if parsed is None or parsed.tzinfo is None:
-            return None
-        return parsed
+
+
+def _instant(parsed: datetime | None) -> datetime | None:
+    """
+    Return a time Home Assistant can show, or None.
+
+    It refuses a time without offset and converts the rest to UTC; either
+    failure kept the enabled sensor from being added at all.
+    """
+    if parsed is None or parsed.tzinfo is None:
+        return None
+    try:
+        parsed.astimezone(UTC)
+    except OverflowError:
+        return None
+    return parsed
 
 
 class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):
