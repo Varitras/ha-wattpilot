@@ -15,13 +15,13 @@ that did -- while the enforced index was correct the whole time. A second
 hand-maintained list of the same rule is the bug of tomorrow, so this file
 points at the enforced one instead of restating it.
 
-The one guard outside that index, because it is not a test (entity parity
+The guards outside that index, because they are not tests (entity parity
 with the fork is checked in each platform's own test file):
 
 | Guard | Holds |
 |---|---|
 | mutation run (check.sh --release) | tests are real: every mutant in hub/sensor/init must die, except the equivalent ones in scripts/equivalent-mutants.txt, which must survive exactly |
-| next Home Assistant (.github/workflows/ha-next.yml) | weekly, against the newest beta: what it reports or removes shows up before the release; the tests run once a harness for it exists, the import check always. A warning, not a merge gate |
+| next Home Assistant (.github/workflows/ha-next.yml) | weekly, against the newest release on PyPI, beta included: what it reports or removes shows up before the release; the tests run once a harness for it exists, the import check always. A warning, not a merge gate |
 
 ## Recorded frame sequences
 

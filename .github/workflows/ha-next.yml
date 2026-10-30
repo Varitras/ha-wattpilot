@@ -1,11 +1,14 @@
 name: Next Home Assistant
 
 # CI tests the Home Assistant that the newest
-# pytest-homeassistant-custom-component pins: today's release. This looks one
-# release ahead, at the newest beta, so whatever that release removes or newly
-# reports as deprecated turns up while there is time to change it. Weekly and
-# by hand, and on a pull request that changes the check itself. Red here
-# means the next release, not this one: it is a warning, not a merge gate.
+# pytest-homeassistant-custom-component pins: today's release. This takes the
+# newest release on PyPI, beta included -- while a beta is out, one release
+# ahead -- so whatever it removes or newly reports as deprecated turns up
+# while there is time to change it. Weekly and by hand, and on a pull request
+# that changes the check or what it installs. Red here means that release,
+# not this branch: it is a warning, not a merge gate. In a public repository
+# GitHub disables a schedule after 60 days without activity; re-enable it in
+# the Actions tab.
 on:
   schedule:
     - cron: "17 4 * * 1"
@@ -14,7 +17,11 @@ on:
     paths:
       - .github/workflows/ha-next.yml
       - scripts/import_check.py
+      - tests/__init__.py
+      - tests/conftest.py
       - tests/deprecations.py
+      - pyproject.toml
+      - custom_components/wattpilot/manifest.json
 
 permissions:
   contents: read
@@ -22,6 +29,7 @@ permissions:
 jobs:
   next:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -37,7 +45,9 @@ jobs:
           import json, os, re, urllib.request
 
           def pypi(name):
-              with urllib.request.urlopen(f"https://pypi.org/pypi/{name}/json") as answer:
+              with urllib.request.urlopen(
+                  f"https://pypi.org/pypi/{name}/json", timeout=30
+              ) as answer:
                   return json.load(answer)
 
           def order(version):
