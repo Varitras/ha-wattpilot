@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -93,10 +94,25 @@ def no_identifier_reaches_the_log(request: pytest.FixtureRequest) -> Iterator[No
 @pytest.fixture(autouse=True)
 def no_deprecation_reported() -> Iterator[None]:
     """Fail a test during which Home Assistant reported the integration."""
-    REPORTS.unattributed += REPORTS.take()
+    REPORTS.set_aside()
     yield
-    reported = [record.getMessage() for record in REPORTS.take()]
-    assert not reported, f"Home Assistant reported: {reported[:3]}"
+    REPORTS.check()
+
+
+def pytest_sessionfinish(session: pytest.Session) -> None:
+    """
+    Fail the run on reports outside any test, such as a deprecated constant
+    imported during collection: whichever tests were selected, and including
+    whatever arrived after the last one.
+    """
+    REPORTS.set_aside()
+    if not REPORTS.unattributed:
+        return
+    session.exitstatus = pytest.ExitCode.TESTS_FAILED
+    for record in REPORTS.unattributed:
+        sys.stderr.write(
+            f"Home Assistant reported outside a test: {record.getMessage()}\n"
+        )
 
 
 @pytest.fixture(autouse=True)

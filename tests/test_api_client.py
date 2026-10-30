@@ -331,7 +331,7 @@ async def test_a_rejection_without_request_id_is_reported_with_its_reason(
     unconditionally raised, the frame was dropped as unreadable, and the
     charger's reason for the failure never reached the log."""
     client = make_client(FakeSocket())
-    caplog.set_level(logging.ERROR)
+    caplog.set_level(logging.ERROR, logger="custom_components.wattpilot")
 
     await client._handle_message(
         json.dumps({"type": "response", "success": False, "message": "busy"})
