@@ -1357,7 +1357,8 @@ def _test_functions(path: Path) -> set[str]:
     return {
         node.name
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        and node.name.startswith("test_")
     }
 
 
