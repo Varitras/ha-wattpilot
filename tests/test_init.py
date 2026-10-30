@@ -354,6 +354,9 @@ async def test_a_push_during_platform_setup_is_not_lost(
     assert float(hass.states.get(entity_id).state) == pytest.approx(9.999)
 
 
+# Frozen clock: the interval runs on the event loop's real time, and a
+# machine stalled for 5 s let its flush land between push and check.
+@pytest.mark.usefixtures("freezer")
 async def test_setup_applies_the_default_update_interval(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
