@@ -91,6 +91,9 @@
     "unknown_option": {
       "message": "Unbekannte Option: {option}"
     },
+    "value_not_a_number": {
+      "message": "Keine Zahl: {value}"
+    },
     "wrong_charger": {
       "message": "Dieser Eintrag gehört zu Ladegerät {expected}, das Gerät unter dieser Adresse meldet aber die Seriennummer {found}. Hat das Ladegerät eine neue Adresse, Neu konfigurieren wählen; wurde es ersetzt, diesen Eintrag löschen und das neue hinzufügen."
     }

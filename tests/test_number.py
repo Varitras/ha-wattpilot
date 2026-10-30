@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from homeassistant.const import EntityCategory
+from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.wattpilot.descriptions import NUMBER_DESCRIPTIONS
 from custom_components.wattpilot.hub import WattpilotHub
@@ -248,3 +249,19 @@ async def test_the_minimum_current_stays_within_the_variant(
     await number.async_set_native_value(8.0)
     assert fake_charger.set_calls[-1] == ("mca", 8)
     assert isinstance(fake_charger.set_calls[-1][1], int)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+@pytest.mark.parametrize("uid", ["awp", "amp", "fte"])
+async def test_a_value_that_is_no_number_is_not_sent(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, uid: str, value: float
+) -> None:
+    """An action with value "nan" passed the range check and reached the
+    charger as NaN; for the trip energy, after the unit had been sent."""
+    fake_charger._properties.update({"awp": 10, "amp": 16, "fte": 50000})
+    number = await make_number(hass, fake_charger, uid)
+
+    with pytest.raises(ServiceValidationError):
+        await number.async_set_native_value(value)
+    assert fake_charger.set_calls == []
+    assert fake_charger.next_trip_energy_calls == []

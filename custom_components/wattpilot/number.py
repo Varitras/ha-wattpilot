@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.number import NumberEntity
+from homeassistant.exceptions import ServiceValidationError
 
+from .const import DOMAIN
 from .descriptions import (
     NUMBER_DESCRIPTIONS,
     WattpilotNumberEntityDescription,
@@ -61,6 +64,14 @@ class WattpilotNumber(WattpilotEntity, NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         """Write the new value to the charger."""
+        # Before any write: NaN passes every range comparison, so an action
+        # with "nan" reached the charger, the trip energy after its unit.
+        if not math.isfinite(value):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="value_not_a_number",
+                translation_placeholders={"value": str(value)},
+            )
         key = self.entity_description.charger_key
         if key == _NEXT_TRIP_ENERGY_KEY:
             await self._hub.async_set_next_trip_energy(value)
