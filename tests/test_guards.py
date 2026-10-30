@@ -1361,6 +1361,14 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         "test_a_deprecation_warning_in_the_integration_fails": (
             "a Python deprecation warning from the integration is an error"
         ),
+        "test_a_report_during_a_test_fails_it": "the per-test check can fail",
+        "test_a_report_outside_a_test_fails_the_run": (
+            "a report during collection fails the run, whatever was selected"
+        ),
+        "test_the_import_check_fails_on_a_report": "the import check can fail",
+        "test_no_test_hides_warnings_from_the_check": (
+            "no test raises the root log level past WARNING"
+        ),
     },
 }
 
