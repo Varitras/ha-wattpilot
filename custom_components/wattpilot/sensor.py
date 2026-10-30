@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import html
 import logging
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
@@ -284,15 +283,16 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
 
 def _instant(parsed: datetime | None) -> datetime | None:
     """
-    Return a time Home Assistant can show, or None.
+    Return the charger's time, or None when Home Assistant cannot show it.
 
-    It refuses a time without offset and converts the rest to UTC; either
-    failure kept the enabled sensor from being added at all.
+    The charger's offset is kept: Home Assistant converts to UTC itself when
+    writing the state, and refuses a time without offset or with no UTC
+    equivalent. Either refusal kept the enabled sensor from being added.
     """
     if parsed is None or parsed.tzinfo is None:
         return None
     try:
-        dt_util.as_utc(parsed)
+        dt_util.as_utc(parsed)  # the conversion Home Assistant will make
     except OverflowError:
         return None
     return parsed
