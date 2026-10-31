@@ -4,9 +4,14 @@ Home Assistant's reports about this integration, collected to fail the tests.
 Home Assistant reports a deprecated call by logging a warning and carrying
 on, so a suite stays green on code that the release named in the warning
 breaks for every user at once. The static list in test_guards.py only knows
-the calls someone already entered; this catches every wording Home
-Assistant's report helpers use (test_deprecations.py produces each from Home
-Assistant itself), on the paths the tests run.
+the calls someone already entered; this catches every wording of Home
+Assistant's report helpers, helpers.frame and helpers.deprecation
+(test_deprecations.py produces each from Home Assistant itself), on the
+paths the tests run.
+
+Not yet: the warnings other parts of Home Assistant log themselves and end
+with "please report it to the custom integration author" (an entity without
+a platform, an impossible state class, a duplicate unique ID).
 """
 
 from __future__ import annotations
@@ -28,17 +33,22 @@ INTEGRATION = json.loads((PACKAGE / "manifest.json").read_text(encoding="utf-8")
 ]
 _OWN_LOGGER = f"custom_components.{INTEGRATION}"
 _DOMAIN = re.escape(INTEGRATION)
+# Home Assistant's own loggers: a deprecation report arrives on the logger
+# of the deprecated object's module, which can be any of them.
+_HOME_ASSISTANT_LOGGER = "homeassistant"
 
 # The wordings of helpers.frame and helpers.deprecation (Home Assistant
 # 2026.10). A call from no integration is, in this suite, the tests or what
 # they drive, so it counts as well. A call from another integration does not.
+# Matched at the start of the message and never across a line: a traceback
+# or an argument below may quote a path or a word, and is not the report.
 _REPORT = re.compile(
     "|".join(
         (
             rf"Detected that custom integration '{_DOMAIN}' ",
             r"Detected code that ",
-            rf"The deprecated .+? was [^.]+? from {_DOMAIN}\.",
-            r"The deprecated .+? was (?:(?! from )[^.])+\.",
+            rf"The deprecated .+? was [^.\n]+? from {_DOMAIN}\.",
+            r"The deprecated .+? was (?:(?! from )[^.\n])+\.",
         )
     )
 )
@@ -46,26 +56,20 @@ _REPORT = re.compile(
 # module that used the old name, which is ours or someone else's.
 _RENAMED = re.compile(r"'[^']+' is deprecated\. Please rename ")
 
-# Loggers the reports above arrive on. A test that silences one of them, or
-# the root logger they all reach the check through, hides reports.
-_REPORTING_LOGGERS = (
-    "homeassistant.helpers.frame",
-    "homeassistant.helpers.deprecation",
-    "homeassistant.const",
-    _OWN_LOGGER,
-)
+
+def _within(name: str, parent: str) -> bool:
+    """Whether a logger is parent or below it; a dev copy's prefix is not."""
+    return name == parent or name.startswith(f"{parent}.")
 
 
 def is_report(record: logging.LogRecord) -> bool:
     """Whether Home Assistant reports something this integration does."""
     if record.levelno < logging.WARNING:
         return False
-    # The first line only: a traceback or an argument below it may quote a
-    # path or a word, and is not the report.
-    first_line = record.getMessage().partition("\n")[0]
-    if _REPORT.match(first_line):
+    message = record.getMessage()
+    if _REPORT.match(message):
         return True
-    return bool(_RENAMED.match(first_line)) and record.name.startswith(_OWN_LOGGER)
+    return bool(_RENAMED.match(message)) and _within(record.name, _OWN_LOGGER)
 
 
 class Reports(logging.Handler):
@@ -94,7 +98,7 @@ REPORTS = Reports()
 
 def _reaches_the_check(logger: logging.Logger) -> bool:
     """Whether a WARNING on this logger gets to the root logger's handlers."""
-    if logger.getEffectiveLevel() > logging.WARNING:
+    if logger.disabled or logger.getEffectiveLevel() > logging.WARNING:
         return False
     current: logging.Logger | None = logger
     while current is not None and current is not logging.root:
@@ -105,16 +109,29 @@ def _reaches_the_check(logger: logging.Logger) -> bool:
 
 
 def assert_listening() -> None:
-    """Fail when the check can no longer hear Home Assistant's reports."""
+    """
+    Fail when the check can no longer hear Home Assistant's reports.
+
+    Asked once the test body has run: a level raised and restored within the
+    body (caplog.at_level) goes unseen.
+    """
     assert REPORTS in logging.root.handlers, "the deprecation check was removed"
     assert logging.root.manager.disable < logging.WARNING, (
         "logging.disable hides Home Assistant's reports from the deprecation check"
     )
-    deaf = [
-        name
-        for name in _REPORTING_LOGGERS
-        if not _reaches_the_check(logging.getLogger(name))
+    existing = [
+        logging.getLogger(_HOME_ASSISTANT_LOGGER),
+        logging.getLogger(_OWN_LOGGER),
+        *(
+            logger
+            for name, logger in logging.root.manager.loggerDict.items()
+            if isinstance(logger, logging.Logger)
+            and (_within(name, _HOME_ASSISTANT_LOGGER) or _within(name, _OWN_LOGGER))
+        ),
     ]
+    deaf = sorted(
+        {logger.name for logger in existing if not _reaches_the_check(logger)}
+    )
     assert not deaf, (
         f"warnings on {deaf} no longer reach the deprecation check; "
         "pass logger= to caplog.set_level"

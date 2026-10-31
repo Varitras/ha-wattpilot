@@ -124,17 +124,25 @@ def pytest_sessionfinish(session: pytest.Session) -> None:
 
     Reports after the last test's own check, such as from a session
     fixture torn down with it, and deprecated constants in modules the
-    selected tests never imported. Only a run that would pass is turned
-    red: another exit status says more about what went wrong. Under xdist,
+    selected tests never imported, or that do not import at all. A run that
+    already failed is only told: its exit status says more about what went
+    wrong, and nothing is imported over a collection error. Under xdist,
     only the controller's own imports count here.
     """
-    import_every_module()
-    reported = [record.getMessage() for record in REPORTS.take()]
-    if not reported:
-        return
-    for message in reported:
-        sys.stderr.write(f"Home Assistant reported after the last test: {message}\n")
-    if session.exitstatus in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED):
+    would_pass = session.exitstatus in (
+        pytest.ExitCode.OK,
+        pytest.ExitCode.NO_TESTS_COLLECTED,
+    )
+    problems = []
+    if would_pass:
+        try:
+            import_every_module()
+        except Exception as error:  # noqa: BLE001 -- any import failure fails the run
+            problems.append(f"importing the integration failed: {error!r}")
+    problems += [record.getMessage() for record in REPORTS.take()]
+    for problem in problems:
+        sys.stderr.write(f"Home Assistant reported after the last test: {problem}\n")
+    if problems and would_pass:
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
 
