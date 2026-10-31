@@ -1350,6 +1350,40 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         ),
         "test_no_field_is_registered_as_leaking": "no field knowingly leaks",
     },
+    "test_deprecations.py": {
+        "test_the_deprecation_check_recognises_home_assistants_reports": (
+            "the check still reads every wording Home Assistant reports in"
+        ),
+        "test_the_deprecation_check_lets_other_reports_pass": (
+            "counter-check: other integrations, own lines, tracebacks"
+        ),
+        "test_a_report_during_a_test_fails_it": "the per-test check can fail",
+        "test_the_check_notices_when_it_cannot_hear": (
+            "no test can silence the logs the check listens to"
+        ),
+        "test_the_suite_fails_on_reports_where_they_happen": (
+            "the real conftest fails a run at collection, test, end and silencing"
+        ),
+        "test_a_report_after_the_last_test_keeps_a_more_telling_exit_status": (
+            "a report never hides why a run failed"
+        ),
+        "test_a_module_that_does_not_import_fails_a_passing_run": (
+            "an unimportable module fails a run that would pass"
+        ),
+        "test_a_failed_run_is_left_as_it_failed": (
+            "the end-of-run import never masks why a run failed"
+        ),
+        "test_the_end_of_a_run_imports_what_no_selected_test_did": (
+            "a partial run still sees every module's imports"
+        ),
+        "test_the_import_check_fails_on_a_report": "the import check can fail",
+        "test_importing_the_integration_reports_no_deprecation": (
+            "no deprecated constant is imported"
+        ),
+        "test_a_deprecation_warning_in_the_integration_fails": (
+            "a Python deprecation warning from the integration is an error"
+        ),
+    },
 }
 
 
@@ -1357,7 +1391,8 @@ def _test_functions(path: Path) -> set[str]:
     return {
         node.name
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        and node.name.startswith("test_")
     }
 
 
@@ -1409,7 +1444,8 @@ def test_the_log_check_lets_ordinary_output_pass(text: str) -> None:
 def test_the_log_check_outlasts_home_assistant() -> None:
     """hass comes in through auto_enable_custom_integrations, and autouse
     fixtures start in name order: only requesting the log fixtures first sets
-    them up before hass and tears them down after its stop (PC6-04)."""
+    them up before hass and tears them down after its stop (PC6-04). The
+    deprecation check likewise: Home Assistant reports while it stops, too."""
     tree = ast.parse(
         (Path(__file__).parent / "conftest.py").read_text(encoding="utf-8")
     )
@@ -1421,6 +1457,7 @@ def test_the_log_check_outlasts_home_assistant() -> None:
     )
     assert [arg.arg for arg in hook.args.args] == [
         "no_identifier_reaches_the_log",
+        "no_deprecation_reported",
         "drop_serial_masks",
         "enable_custom_integrations",
     ]

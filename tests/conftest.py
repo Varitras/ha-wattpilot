@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -12,8 +13,10 @@ import pytest
 
 from custom_components.wattpilot import _SerialMask
 
+from .deprecations import REPORTS, assert_listening, import_every_module
+
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Generator, Iterator
 
 pytest_plugins = "pytest_homeassistant_custom_component"
 
@@ -21,6 +24,7 @@ pytest_plugins = "pytest_homeassistant_custom_component"
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(
     no_identifier_reaches_the_log: None,
+    no_deprecation_reported: None,
     drop_serial_masks: None,
     enable_custom_integrations: None,
 ) -> None:
@@ -85,6 +89,61 @@ def no_identifier_reaches_the_log(request: pytest.FixtureRequest) -> Iterator[No
         line for line in handler.lines if IDENTIFIERS.search(ENTITY_ID.sub("", line))
     ]
     assert not leaked, f"identifier(s) in the log: {leaked[:3]}"
+
+
+@pytest.fixture(autouse=True)
+def no_deprecation_reported() -> Iterator[None]:
+    """
+    Fail a test during which Home Assistant reported the integration.
+
+    What arrived before it fails it too: a deprecated constant reports while
+    the tests are collected, and the first test of a run -- or of each xdist
+    worker -- is where that can still fail something.
+    """
+    REPORTS.check("before this test, outside any test")
+    yield
+    REPORTS.check("during this test")
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call() -> Generator[None, object, object]:
+    """
+    Fail a test that stopped the deprecation check hearing reports.
+
+    Checked right after the test body, while its fixtures still hold:
+    caplog puts the levels back at its own teardown.
+    """
+    result = yield
+    assert_listening()
+    return result
+
+
+def pytest_sessionfinish(session: pytest.Session) -> None:
+    """
+    Fail the run on what no test was there to see.
+
+    Reports after the last test's own check, such as from a session
+    fixture torn down with it, and deprecated constants in modules the
+    selected tests never imported, or that do not import at all. A run that
+    already failed is only told: its exit status says more about what went
+    wrong, and nothing is imported over a collection error. Under xdist,
+    only the controller's own imports count here.
+    """
+    would_pass = session.exitstatus in (
+        pytest.ExitCode.OK,
+        pytest.ExitCode.NO_TESTS_COLLECTED,
+    )
+    problems = []
+    if would_pass:
+        try:
+            import_every_module()
+        except Exception as error:  # noqa: BLE001 -- any import failure fails the run
+            problems.append(f"importing the integration failed: {error!r}")
+    problems += [record.getMessage() for record in REPORTS.take()]
+    for problem in problems:
+        sys.stderr.write(f"Home Assistant reported after the last test: {problem}\n")
+    if problems and would_pass:
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
 
 @pytest.fixture(autouse=True)

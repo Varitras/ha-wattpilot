@@ -43,6 +43,12 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = ["-q"]
+# Ours only: a deprecation inside Home Assistant or a library is theirs to
+# fix, and would turn the suite red with no change here.
+filterwarnings = [
+    'error::DeprecationWarning:custom_components\.wattpilot',
+    'error::PendingDeprecationWarning:custom_components\.wattpilot',
+]
 # The marker names what the test is, and `-m e2e` still selects it. It is no
 # longer deselected by default: it drives a full HA setup against the fake
 # charger, not real hardware, and costs 3.3 s -- cheap enough that hiding it
