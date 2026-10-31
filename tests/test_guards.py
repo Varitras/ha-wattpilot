@@ -1352,22 +1352,30 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
     },
     "test_deprecations.py": {
         "test_the_deprecation_check_recognises_home_assistants_reports": (
-            "the check still reads what Home Assistant writes"
+            "the check still reads every wording Home Assistant reports in"
         ),
-        "test_the_deprecation_check_lets_other_reports_pass": "counter-check for it",
+        "test_the_deprecation_check_lets_other_reports_pass": (
+            "counter-check: other integrations, own lines, tracebacks"
+        ),
+        "test_a_report_during_a_test_fails_it": "the per-test check can fail",
+        "test_the_check_notices_when_it_cannot_hear": (
+            "no test can silence the logs the check listens to"
+        ),
+        "test_the_suite_fails_on_reports_where_they_happen": (
+            "the real conftest fails a run at collection, test, end and silencing"
+        ),
+        "test_a_report_after_the_last_test_keeps_a_more_telling_exit_status": (
+            "a report never hides why a run failed"
+        ),
+        "test_the_end_of_a_run_imports_what_no_selected_test_did": (
+            "a partial run still sees every module's imports"
+        ),
+        "test_the_import_check_fails_on_a_report": "the import check can fail",
         "test_importing_the_integration_reports_no_deprecation": (
             "no deprecated constant is imported"
         ),
         "test_a_deprecation_warning_in_the_integration_fails": (
             "a Python deprecation warning from the integration is an error"
-        ),
-        "test_a_report_during_a_test_fails_it": "the per-test check can fail",
-        "test_a_report_outside_a_test_fails_the_run": (
-            "a report during collection fails the run, whatever was selected"
-        ),
-        "test_the_import_check_fails_on_a_report": "the import check can fail",
-        "test_no_test_hides_warnings_from_the_check": (
-            "no test raises the root log level past WARNING"
         ),
     },
 }

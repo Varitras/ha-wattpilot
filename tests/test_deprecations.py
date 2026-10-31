@@ -2,31 +2,57 @@
 
 from __future__ import annotations
 
-import ast
 import importlib
 import logging
+import os
+import subprocess
+import sys
 import warnings
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 import pytest
-from homeassistant.helpers.deprecation import deprecated_function, get_deprecated
+from homeassistant.helpers.deprecation import (
+    deprecated_function,
+    deprecated_hass_argument,
+    deprecated_substitute,
+    get_deprecated,
+)
 from homeassistant.helpers.frame import ReportBehavior, report_usage
 
 from scripts import import_check
 
 from . import conftest
-from .deprecations import INTEGRATION, REPORTS, import_every_module
+from .deprecations import INTEGRATION, REPORTS, assert_listening, import_every_module
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
+
+    from homeassistant.core import HomeAssistant
 
 # Where Home Assistant looks for the integration behind a call: the frame of
 # a file under custom_components/<domain>/. The module's own file name, as
 # get_deprecated finds the caller's module by it.
-CALLER_FILE = str(
-    importlib.import_module(f"custom_components.{INTEGRATION}.sensor").__file__
-)
+SENSOR_MODULE = f"custom_components.{INTEGRATION}.sensor"
+CALLER_FILE = str(importlib.import_module(SENSOR_MODULE).__file__)
 # Code outside every integration, as a test helper is: Home Assistant then
 # reports without naming anyone.
 ELSEWHERE_FILE = str(Path(__file__).parent / "helper.py")
+OTHER_INTEGRATION_FILE = "/config/custom_components/other/sensor.py"
+CORE_INTEGRATION_FILE = "/usr/lib/homeassistant/components/demo/light.py"
+
+RENAMED_PROPERTY = """
+class Entity:
+    old_name = 1
+
+    @deprecated_substitute("old_name")
+    def new_name(self):
+        return 2
+
+Entity().new_name()
+"""
 
 
 def _call_from(file_name: str, source: str, **names: object) -> None:
@@ -35,114 +61,279 @@ def _call_from(file_name: str, source: str, **names: object) -> None:
     exec(code, names)  # noqa: S102 -- the frame Home Assistant attributes reports by
 
 
-def _replaced() -> object:
-    return deprecated_function("its replacement", breaks_in_ha_version="2099.1")(
-        lambda: None
-    )
+def _helpers(hass: HomeAssistant) -> dict[str, object]:
+    return {
+        "replaced": deprecated_function("its replacement")(lambda: None),
+        "takes_no_hass": deprecated_hass_argument()(lambda: None),
+        "report_usage": report_usage,
+        "get_deprecated": get_deprecated,
+        "deprecated_substitute": deprecated_substitute,
+        "LOG": ReportBehavior.LOG,
+        "hass": hass,
+    }
 
 
-# Each probe is caught by one rule only: a probe two rules catch leaves one
-# of them untested.
+# Every wording Home Assistant's report helpers use, each from the place
+# that makes it ours. Each probe is caught by one rule only: a probe two
+# rules catch leaves one of them untested.
 REPORT_PROBES = {
-    "deprecated, from the integration": (
-        CALLER_FILE,
-        "replaced()",
-        "The deprecated function",
-    ),
     "misuse, from the integration": (
         CALLER_FILE,
-        "report_usage('calls something that goes away', breaks_in_ha_version='2099.1')",
+        "report_usage('calls something that goes away')",
         "Detected that custom integration",
     ),
-    "deprecated, from outside any integration": (
-        ELSEWHERE_FILE,
-        "replaced()",
-        "The deprecated function",
-    ),
-    "misuse, from outside any integration": (
+    "misuse, from no integration": (
         ELSEWHERE_FILE,
         "report_usage('calls something that goes away', core_behavior=LOG)",
         "Detected code that",
+    ),
+    "deprecated function, from the integration": (
+        CALLER_FILE,
+        "replaced()",
+        "The deprecated function",
+    ),
+    "deprecated function, from no integration": (
+        ELSEWHERE_FILE,
+        "replaced()",
+        "The deprecated function",
+    ),
+    "hass argument, from no integration": (
+        ELSEWHERE_FILE,
+        "takes_no_hass(hass)",
+        "The deprecated argument hass was passed to",
     ),
     "renamed configuration key, read by the integration": (
         CALLER_FILE,
         "get_deprecated({'old': 1}, 'new', 'old')",
         "'old' is deprecated",
     ),
+    "renamed property, on an integration class": (
+        CALLER_FILE,
+        RENAMED_PROPERTY,
+        "'old_name' is deprecated",
+    ),
 }
 
 
 @pytest.mark.parametrize("probe", REPORT_PROBES)
-def test_the_deprecation_check_recognises_home_assistants_reports(probe: str) -> None:
+async def test_the_deprecation_check_recognises_home_assistants_reports(
+    hass: HomeAssistant, probe: str
+) -> None:
     """
-    Every wording Home Assistant reports in, produced by Home Assistant
-    itself: if it rewords one, this fails rather than the check going blind.
+    Produced by Home Assistant itself: if it rewords one, this fails rather
+    than the check going blind.
     """
     file_name, source, opening = REPORT_PROBES[probe]
-    _call_from(
-        file_name,
-        source,
-        replaced=_replaced(),
-        report_usage=report_usage,
-        get_deprecated=get_deprecated,
-        LOG=ReportBehavior.LOG,
-    )
+    names = {"__name__": SENSOR_MODULE} if file_name == CALLER_FILE else {}
+    _call_from(file_name, source, **names, **_helpers(hass))
 
     reported = [record.getMessage() for record in REPORTS.take()]
     assert len(reported) == 1, reported
     assert reported[0].startswith(opening), reported
 
 
-def test_the_deprecation_check_lets_other_reports_pass() -> None:
-    """Counter-check: other integrations' reports and ordinary warnings."""
-    for name, message in [
-        ("homeassistant.helpers.frame", "Detected that custom integration 'other' x"),
-        ("homeassistant.helpers.deprecation", "The deprecated y was used from other."),
-        (f"custom_components.{INTEGRATION}.hub", "Charger unavailable"),
-    ]:
-        logging.getLogger(name).warning(message)
+def _logs_with_a_traceback() -> None:
+    try:
+        raise ValueError("custom_components/wattpilot/deprecation-test/hub.py")  # noqa: TRY301
+    except ValueError:
+        logging.getLogger(f"custom_components.{INTEGRATION}.hub").warning(
+            "Write failed", exc_info=True
+        )
+
+
+NOT_OURS: dict[str, Callable[[HomeAssistant], None]] = {
+    "misuse, from another integration": lambda hass: _call_from(
+        OTHER_INTEGRATION_FILE, "report_usage('does x')", **_helpers(hass)
+    ),
+    "deprecated function, from a core integration": lambda hass: _call_from(
+        CORE_INTEGRATION_FILE, "replaced()", **_helpers(hass)
+    ),
+    "renamed configuration key, read elsewhere": lambda hass: _call_from(
+        ELSEWHERE_FILE, "get_deprecated({'old': 1}, 'new', 'old')", **_helpers(hass)
+    ),
+    "own warning quoting the word": lambda _hass: logging.getLogger(
+        f"custom_components.{INTEGRATION}.hub"
+    ).warning("The charger calls %s deprecated", "this mode"),
+    "own warning with a traceback through a checkout named so": (
+        lambda _hass: _logs_with_a_traceback()
+    ),
+    "own warning naming the integration on a later line": lambda _hass: (
+        logging.getLogger(f"custom_components.{INTEGRATION}").warning(
+            "Charger unavailable\nThe deprecated x was used from %s.", INTEGRATION
+        )
+    ),
+}
+
+
+@pytest.mark.parametrize("case", NOT_OURS)
+async def test_the_deprecation_check_lets_other_reports_pass(
+    hass: HomeAssistant, case: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Counter-check: each case logs a warning, and none of them is ours."""
+    NOT_OURS[case](hass)
+
+    assert any(record.levelno >= logging.WARNING for record in caplog.records)
     assert REPORTS.take() == []
 
 
-def test_importing_the_integration_reports_no_deprecation() -> None:
-    """
-    A deprecated constant reports when a module imports it, which happens
-    while the tests are collected, before any test runs. The check is
-    installed before that (tests/__init__.py) and keeps what it saw.
-    """
-    import_every_module()
-    reported = REPORTS.unattributed + REPORTS.take()
-    assert reported == [], [record.getMessage() for record in reported]
-
-
-def _a_report() -> None:
+def _a_report(when: str = "does a thing") -> None:
     logging.getLogger("homeassistant.helpers.frame").warning(
-        "Detected that custom integration '%s' does a thing", INTEGRATION
+        "Detected that custom integration '%s' %s", INTEGRATION, when
     )
 
 
 def test_a_report_during_a_test_fails_it() -> None:
-    """What the autouse fixture runs after every test."""
     _a_report()
     with pytest.raises(AssertionError, match="does a thing"):
-        REPORTS.check()
-    REPORTS.check()
+        REPORTS.check("during this test")
+    REPORTS.check("after the take")
 
 
-def test_a_report_outside_a_test_fails_the_run() -> None:
-    """
-    One logged while the tests are collected belongs to no test. It is kept,
-    and fails the run whichever tests were selected.
-    """
-    before = len(REPORTS.unattributed)
-    _a_report()
-    REPORTS.set_aside()
-    REPORTS.check()
-    session = SimpleNamespace(exitstatus=pytest.ExitCode.OK)
+@contextmanager
+def _restoring_logging() -> Iterator[None]:
+    """Undo what a case does to logging before the test body ends."""
+    root = logging.getLogger()
+    own = logging.getLogger(f"custom_components.{INTEGRATION}")
+    homeassistant = logging.getLogger("homeassistant")
+    saved = (root.level, own.level, homeassistant.propagate)
     try:
-        conftest.pytest_sessionfinish(session)  # type: ignore[arg-type]
+        yield
     finally:
-        del REPORTS.unattributed[before:]
+        logging.disable(logging.NOTSET)
+        root.setLevel(saved[0])
+        own.setLevel(saved[1])
+        homeassistant.propagate = saved[2]
+        if REPORTS not in root.handlers:
+            root.addHandler(REPORTS)
+
+
+SILENCERS: dict[str, Callable[[], None]] = {
+    "root level raised": lambda: logging.getLogger().setLevel(logging.ERROR),
+    "own logger raised": lambda: logging.getLogger(
+        f"custom_components.{INTEGRATION}"
+    ).setLevel(logging.ERROR),
+    "logging disabled": lambda: logging.disable(logging.WARNING),
+    "Home Assistant's loggers cut off": lambda: setattr(
+        logging.getLogger("homeassistant"), "propagate", False
+    ),
+    "check removed": lambda: logging.getLogger().removeHandler(REPORTS),
+}
+
+
+@pytest.mark.parametrize("silencer", SILENCERS)
+def test_the_check_notices_when_it_cannot_hear(silencer: str) -> None:
+    """
+    What the runtest hook asks after every test body -- which is why this
+    one restores logging inside its body.
+    """
+    assert_listening()
+    with _restoring_logging():
+        SILENCERS[silencer]()
+        with pytest.raises(AssertionError):
+            assert_listening()
+
+
+INNER_TESTS = """
+import logging
+
+import pytest
+
+
+def _report(when):
+    logging.getLogger("homeassistant.helpers.frame").warning(
+        "Detected that custom integration '{domain}' reports %s", when
+    )
+
+
+_report("at collection")
+
+
+@pytest.fixture(scope="session")
+def reports_on_the_way_out():
+    yield
+    _report("after the last test")
+
+
+def test_first():
+    pass
+
+
+def test_reports(reports_on_the_way_out):
+    _report("during a test")
+
+
+def test_hides_the_logs(caplog):
+    caplog.set_level(logging.ERROR)
+"""
+
+
+@pytest.mark.e2e
+def test_the_suite_fails_on_reports_where_they_happen(tmp_path: Path) -> None:
+    """
+    The real conftest.py in a pytest run of its own: a report at collection,
+    during a test and after the last one, and a test that stops the check
+    hearing, each end up as a failure.
+    """
+    (tmp_path / "test_inner.py").write_text(
+        INNER_TESTS.format(domain=INTEGRATION), encoding="utf-8"
+    )
+    repository = Path(__file__).parents[1]
+    result = subprocess.run(  # noqa: S603 -- the interpreter running this suite
+        [
+            sys.executable,
+            *("-m", "pytest", "-p", "tests.conftest", "-p", "no:cacheprovider"),
+            *("-o", "asyncio_mode=auto"),
+            *("-o", "asyncio_default_fixture_loop_scope=function"),
+            "test_inner.py",
+        ],
+        cwd=tmp_path,
+        env={**os.environ, "PYTHONPATH": str(repository)},
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+    )
+    output = result.stdout + result.stderr
+
+    assert result.returncode == pytest.ExitCode.TESTS_FAILED, output
+    for expected in (
+        "reported before this test, outside any test",
+        "reports at collection",
+        "reported during this test",
+        "reports during a test",
+        "no longer reach the deprecation check",
+        "reported after the last test",
+        "reports after the last test",
+    ):
+        assert expected in output, output
+
+
+@pytest.mark.parametrize(
+    ("before", "after"),
+    [
+        (pytest.ExitCode.OK, pytest.ExitCode.TESTS_FAILED),
+        (pytest.ExitCode.NO_TESTS_COLLECTED, pytest.ExitCode.TESTS_FAILED),
+        (pytest.ExitCode.INTERRUPTED, pytest.ExitCode.INTERRUPTED),
+        (pytest.ExitCode.USAGE_ERROR, pytest.ExitCode.USAGE_ERROR),
+    ],
+)
+def test_a_report_after_the_last_test_keeps_a_more_telling_exit_status(
+    before: pytest.ExitCode, after: pytest.ExitCode
+) -> None:
+    """check.sh tells "could not judge" from "killed" by the exit status."""
+    _a_report()
+    session = SimpleNamespace(exitstatus=before)
+    conftest.pytest_sessionfinish(session)  # type: ignore[arg-type]
+    assert session.exitstatus == after
+
+
+def test_the_end_of_a_run_imports_what_no_selected_test_did(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A partial run still sees a deprecated constant in any module."""
+    monkeypatch.setattr(conftest, "import_every_module", _a_report)
+    session = SimpleNamespace(exitstatus=pytest.ExitCode.OK)
+    conftest.pytest_sessionfinish(session)  # type: ignore[arg-type]
     assert session.exitstatus == pytest.ExitCode.TESTS_FAILED
 
 
@@ -153,25 +344,13 @@ def test_the_import_check_fails_on_a_report(monkeypatch: pytest.MonkeyPatch) -> 
     assert import_check.main() == 0
 
 
-def test_no_test_hides_warnings_from_the_check() -> None:
+def test_importing_the_integration_reports_no_deprecation() -> None:
     """
-    caplog.set_level without a logger raises the root logger's level, and a
-    WARNING from Home Assistant then never reaches the check for that test.
+    A deprecated constant reports when a module imports it. The modules no
+    selected test imports are imported here, and at the end of every run.
     """
-    hiding = {"ERROR", "CRITICAL"}
-    offenders = [
-        f"{path.name}:{node.lineno}"
-        for path in sorted(Path(__file__).parent.glob("test_*.py"))
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr in {"set_level", "at_level"}
-        and not any(keyword.arg == "logger" for keyword in node.keywords)
-        and node.args
-        and isinstance(node.args[0], ast.Attribute)
-        and node.args[0].attr in hiding
-    ]
-    assert offenders == [], offenders
+    import_every_module()
+    REPORTS.check("while importing the integration")
 
 
 @pytest.mark.parametrize("category", [DeprecationWarning, PendingDeprecationWarning])
