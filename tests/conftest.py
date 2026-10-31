@@ -13,10 +13,10 @@ import pytest
 
 from custom_components.wattpilot import _SerialMask
 
-from .deprecations import REPORTS
+from .deprecations import REPORTS, assert_listening, import_every_module
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Generator, Iterator
 
 pytest_plugins = "pytest_homeassistant_custom_component"
 
@@ -93,26 +93,49 @@ def no_identifier_reaches_the_log(request: pytest.FixtureRequest) -> Iterator[No
 
 @pytest.fixture(autouse=True)
 def no_deprecation_reported() -> Iterator[None]:
-    """Fail a test during which Home Assistant reported the integration."""
-    REPORTS.set_aside()
+    """
+    Fail a test during which Home Assistant reported the integration.
+
+    What arrived before it fails it too: a deprecated constant reports while
+    the tests are collected, and the first test of a run -- or of each xdist
+    worker -- is where that can still fail something.
+    """
+    REPORTS.check("before this test, outside any test")
     yield
-    REPORTS.check()
+    REPORTS.check("during this test")
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call() -> Generator[None, object, object]:
+    """
+    Fail a test that stopped the deprecation check hearing reports.
+
+    Checked right after the test body, while its fixtures still hold:
+    caplog puts the levels back at its own teardown.
+    """
+    result = yield
+    assert_listening()
+    return result
 
 
 def pytest_sessionfinish(session: pytest.Session) -> None:
     """
-    Fail the run on reports outside any test, such as a deprecated constant
-    imported during collection: whichever tests were selected, and including
-    whatever arrived after the last one.
+    Fail the run on what no test was there to see.
+
+    Reports after the last test's own check, such as from a session
+    fixture torn down with it, and deprecated constants in modules the
+    selected tests never imported. Only a run that would pass is turned
+    red: another exit status says more about what went wrong. Under xdist,
+    only the controller's own imports count here.
     """
-    REPORTS.set_aside()
-    if not REPORTS.unattributed:
+    import_every_module()
+    reported = [record.getMessage() for record in REPORTS.take()]
+    if not reported:
         return
-    session.exitstatus = pytest.ExitCode.TESTS_FAILED
-    for record in REPORTS.unattributed:
-        sys.stderr.write(
-            f"Home Assistant reported outside a test: {record.getMessage()}\n"
-        )
+    for message in reported:
+        sys.stderr.write(f"Home Assistant reported after the last test: {message}\n")
+    if session.exitstatus in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED):
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
 
 @pytest.fixture(autouse=True)
