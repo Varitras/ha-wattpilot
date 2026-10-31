@@ -1367,6 +1367,12 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         "test_a_report_after_the_last_test_keeps_a_more_telling_exit_status": (
             "a report never hides why a run failed"
         ),
+        "test_a_module_that_does_not_import_fails_a_passing_run": (
+            "an unimportable module fails a run that would pass"
+        ),
+        "test_a_failed_run_is_left_as_it_failed": (
+            "the end-of-run import never masks why a run failed"
+        ),
         "test_the_end_of_a_run_imports_what_no_selected_test_did": (
             "a partial run still sees every module's imports"
         ),

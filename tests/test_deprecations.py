@@ -157,6 +157,12 @@ NOT_OURS: dict[str, Callable[[HomeAssistant], None]] = {
     "own warning with a traceback through a checkout named so": (
         lambda _hass: _logs_with_a_traceback()
     ),
+    "renamed configuration key, from a dev copy's logger": lambda _hass: (
+        logging.getLogger(f"custom_components.{INTEGRATION}_dev.sensor").warning(
+            "'old' is deprecated. Please rename 'old' to 'new' in your "
+            "configuration file."
+        )
+    ),
     "own warning naming the integration on a later line": lambda _hass: (
         logging.getLogger(f"custom_components.{INTEGRATION}").warning(
             "Charger unavailable\nThe deprecated x was used from %s.", INTEGRATION
@@ -193,19 +199,28 @@ def test_a_report_during_a_test_fails_it() -> None:
 def _restoring_logging() -> Iterator[None]:
     """Undo what a case does to logging before the test body ends."""
     root = logging.getLogger()
-    own = logging.getLogger(f"custom_components.{INTEGRATION}")
-    homeassistant = logging.getLogger("homeassistant")
-    saved = (root.level, own.level, homeassistant.propagate)
+    touched = [
+        logging.getLogger(name)
+        for name in (f"custom_components.{INTEGRATION}", "homeassistant", UNLISTED)
+    ]
+    saved = [(logger.level, logger.propagate, logger.disabled) for logger in touched]
+    root_level = root.level
     try:
         yield
     finally:
         logging.disable(logging.NOTSET)
-        root.setLevel(saved[0])
-        own.setLevel(saved[1])
-        homeassistant.propagate = saved[2]
+        root.setLevel(root_level)
+        for logger, (level, propagate, disabled) in zip(touched, saved, strict=True):
+            logger.setLevel(level)
+            logger.propagate = propagate
+            logger.disabled = disabled
         if REPORTS not in root.handlers:
             root.addHandler(REPORTS)
 
+
+# Deprecation reports arrive on the deprecated object's module: any of
+# Home Assistant's loggers, not only the few the helpers name.
+UNLISTED = "homeassistant.helpers.device_registry"
 
 SILENCERS: dict[str, Callable[[], None]] = {
     "root level raised": lambda: logging.getLogger().setLevel(logging.ERROR),
@@ -217,6 +232,12 @@ SILENCERS: dict[str, Callable[[], None]] = {
         logging.getLogger("homeassistant"), "propagate", False
     ),
     "check removed": lambda: logging.getLogger().removeHandler(REPORTS),
+    "a Home Assistant logger raised": lambda: logging.getLogger(UNLISTED).setLevel(
+        logging.ERROR
+    ),
+    "a Home Assistant logger disabled": lambda: setattr(
+        logging.getLogger(UNLISTED), "disabled", True
+    ),
 }
 
 
@@ -268,12 +289,17 @@ def test_hides_the_logs(caplog):
 
 
 @pytest.mark.e2e
-def test_the_suite_fails_on_reports_where_they_happen(tmp_path: Path) -> None:
+def test_the_suite_fails_on_reports_where_they_happen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """
     The real conftest.py in a pytest run of its own: a report at collection,
     during a test and after the last one, and a test that stops the check
     hearing, each end up as a failure.
     """
+    # The outer run's options are not the inner run's: --maxfail=1 would
+    # stop it at the first of the failures it has to show.
+    monkeypatch.setenv("PYTEST_ADDOPTS", "--maxfail=1")
     (tmp_path / "test_inner.py").write_text(
         INNER_TESTS.format(domain=INTEGRATION), encoding="utf-8"
     )
@@ -287,7 +313,14 @@ def test_the_suite_fails_on_reports_where_they_happen(tmp_path: Path) -> None:
             "test_inner.py",
         ],
         cwd=tmp_path,
-        env={**os.environ, "PYTHONPATH": str(repository)},
+        env={
+            **{
+                name: value
+                for name, value in os.environ.items()
+                if not name.startswith("PYTEST_")
+            },
+            "PYTHONPATH": str(repository),
+        },
         capture_output=True,
         text=True,
         timeout=180,
@@ -324,7 +357,32 @@ def test_a_report_after_the_last_test_keeps_a_more_telling_exit_status(
     _a_report()
     session = SimpleNamespace(exitstatus=before)
     conftest.pytest_sessionfinish(session)  # type: ignore[arg-type]
+    REPORTS.take()
     assert session.exitstatus == after
+
+
+def _breaks_on_import() -> None:
+    raise SyntaxError("invalid syntax (diagnostics.py, line 1)")
+
+
+def test_a_module_that_does_not_import_fails_a_passing_run(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(conftest, "import_every_module", _breaks_on_import)
+    session = SimpleNamespace(exitstatus=pytest.ExitCode.OK)
+    conftest.pytest_sessionfinish(session)  # type: ignore[arg-type]
+    assert session.exitstatus == pytest.ExitCode.TESTS_FAILED
+    assert "diagnostics.py" in capsys.readouterr().err
+
+
+def test_a_failed_run_is_left_as_it_failed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A collection error stays exit 2: nothing is imported over it."""
+    imported: list[bool] = []
+    monkeypatch.setattr(conftest, "import_every_module", lambda: imported.append(True))
+    session = SimpleNamespace(exitstatus=pytest.ExitCode.INTERRUPTED)
+    conftest.pytest_sessionfinish(session)  # type: ignore[arg-type]
+    assert session.exitstatus == pytest.ExitCode.INTERRUPTED
+    assert imported == []
 
 
 def test_the_end_of_a_run_imports_what_no_selected_test_did(
