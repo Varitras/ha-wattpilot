@@ -390,11 +390,11 @@ class Connection:
             try:
                 raw = frame.decode("utf-8") if isinstance(frame, bytes) else frame
                 await self._handle_frame(raw)
-            except ValueError, TypeError, AttributeError, LookupError:
-                # One unreadable frame -- bad JSON, bytes that are not UTF-8 --
-                # ended the loop with the socket open (A11-06, A19-08). Errors
-                # of the connection itself are deliberately not caught.
-                _LOGGER.warning("Ignoring an unreadable frame (%d bytes)", len(frame))
+            except Exception as exc:  # noqa: BLE001 -- one frame, not the connection
+                # A failing frame (bad JSON, not UTF-8, nested past the recursion
+                # limit) ended the reader; connection errors end the loop itself.
+                cause = type(exc).__name__
+                _LOGGER.warning("Skipping a frame (%d bytes): %s", len(frame), cause)
 
     async def _message_loop(self) -> None:
         # Started without a socket (resume_reconnecting), it begins in its backoff.

@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Hashable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.exceptions import ServiceValidationError
 
 from .const import DOMAIN
 from .descriptions import (
+    NUMBER_DESCRIPTIONS,
     SELECT_DESCRIPTIONS,
     WattpilotSelectEntityDescription,
     filter_supported,
+    variant_supported,
 )
 from .entity import WattpilotEntity
 from .readings import describe_with_length
@@ -73,8 +75,10 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
         if not isinstance(allowed, list):
             return {}
         # Whole amperes only: a true or a 12.9 was offered and written as 1 or
-        # 12 A, and an unhashable entry took the whole platform down (PC7-02).
-        return {value: f"{value} A" for value in allowed if _is_whole_current(value)}
+        # 12 A, and an unhashable entry took the whole platform down. Within
+        # the range the current number allows: 0 or 99 A were written too.
+        limits = _current_range(self._hub.variant, description.charger_key)
+        return {value: f"{value} A" for value in allowed if _is_preset(value, limits)}
 
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
         options = self._wire_options()
@@ -120,5 +124,18 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
         )
 
 
-def _is_whole_current(value: Any) -> bool:  # noqa: ANN401 -- charger payload
-    return isinstance(value, int) and not isinstance(value, bool)
+def _current_range(variant: object, charger_key: str) -> tuple[float, float]:
+    """Return the range the number for *charger_key* has on this variant."""
+    numbers = [d for d in NUMBER_DESCRIPTIONS if d.charger_key == charger_key]
+    number = next(d for d in numbers if variant_supported(variant, d.variant))
+    # The current numbers declare both ends; the type allows None.
+    return cast("float", number.native_min_value), cast(
+        "float", number.native_max_value
+    )
+
+
+def _is_preset(value: Any, limits: tuple[float, float]) -> bool:  # noqa: ANN401 -- charger payload
+    """Whether *value* is a whole current within the number's range."""
+    lowest, highest = limits
+    whole = isinstance(value, int) and not isinstance(value, bool)
+    return whole and lowest <= value <= highest

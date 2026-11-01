@@ -56,6 +56,9 @@ class WattpilotNumber(WattpilotEntity, NumberEntity):
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
         if value is None and self.entity_description.zero_means_null:
             value = 0
+        if isinstance(value, bool):  # float(True) is 1.0: a true showed as 1 A
+            self._attr_native_value = None
+            return
         try:
             self._attr_native_value = float(value) / self.entity_description.wire_scale
         # OverflowError: an int past the float range (PC6-02).

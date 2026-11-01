@@ -27,6 +27,8 @@ from .entity import WattpilotEntity
 from .readings import (
     charging_minutes,
     describe_shape,
+    fit_for_state,
+    held_positions,
     is_number,
     namespace_get,
     number_or_none,
@@ -133,11 +135,10 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
                 self._attr_native_value = self._parse_timestamp(value)
                 return
             if description.enum is not None:
-                self._attr_native_value = description.enum.get(value, value)
-                return
-            if self._expects_number:
+                value = description.enum.get(value, value)
+            elif self._expects_number:
                 value = self._number(description, value)
-            self._attr_native_value = value
+            self._attr_native_value = fit_for_state(value, description.key)
         except (TypeError, ValueError, LookupError) as err:
             # Bounded, purposeful catch: one malformed push must not kill
             # the platform; keep the previous state.
@@ -197,12 +198,11 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
         return value
 
     def _unwrap_indexed(self, value: Any, index: int) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
+        reading = value[index]  # first: a list too short for an attribute froze it
         attributes = self.entity_description.index_attributes
         if attributes:
-            self._attr_extra_state_attributes = {
-                name: value[position] for name, position in attributes.items()
-            }
-        return value[index]
+            self._attr_extra_state_attributes = held_positions(value, attributes)
+        return reading
 
     def _unwrap_namespace(self, value: Any, field: str) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
         self._attr_extra_state_attributes = {

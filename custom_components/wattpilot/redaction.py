@@ -76,6 +76,18 @@ REPLACE: dict[str, Any] = {
     "ocppfd": "<redacted>",
     "ocpptt": "<redacted>",
     "otaif": "<redacted>",
+    # Declared with no type and empty on every charger seen: the SSID, the
+    # last ID chip read, fields nothing describes, and the load balancing
+    # members, whose shape nobody has seen and which may name neighbours.
+    "wss": "TestNet",
+    "lri": "<redacted>",
+    "cdv": "<redacted>",
+    "fntp": "<redacted>",
+    "ftls": "<redacted>",
+    "lbh": "<redacted>",
+    "ledo": "<redacted>",
+    "stao": "<redacted>",
+    "lom": "<redacted>",
 }
 # A car profile names the owner's car, so a known one is replaced; one
 # outside the app's list is what a report about it needs, by its shape (#25).
@@ -116,6 +128,9 @@ NET_FIELDS = frozenset(
         "resolv",  # resolv.conf: name servers and the local search domain
     }
 )
+# Secrets inside containers, by name: a Wi-Fi key sent as text in wifis.
+# A bool there only says whether one is set and stays.
+SECRET_FIELDS = frozenset({"key", "password", "pass"})
 NET_REPLACEMENTS: dict[str, Any] = {
     "ssid": "TestNet",
     "bssid": MAC_SENTINEL,
@@ -179,6 +194,16 @@ def _scrub_text(text: str, serial: str | None) -> str:
     return IPV6_CANDIDATE.sub(_documentation_address, text)
 
 
+def _field_replacement(key: str, value: Any) -> Any:  # noqa: ANN401 -- untyped JSON
+    """Return what a field inside a container becomes, or _KEEP."""
+    name = key.lower().removeprefix("static")
+    if name in SECRET_FIELDS and not isinstance(value, bool):
+        return _stand_in(value, "<redacted>")
+    if name in NET_FIELDS and not _is_safe_address(value):
+        return NET_REPLACEMENTS.get(name, "192.0.2.1")
+    return _KEEP
+
+
 def scrub(value: Any, serial: str | None = None) -> Any:  # noqa: ANN401 -- recurses over untyped JSON
     """Replace MACs, addresses, the serial and network fields in JSON values."""
     if isinstance(value, str):
@@ -186,10 +211,9 @@ def scrub(value: Any, serial: str | None = None) -> Any:  # noqa: ANN401 -- recu
     if isinstance(value, dict):
         cleaned = {k: scrub(v, serial) for k, v in value.items()}
         for key, current in cleaned.items():
-            net_key = key.lower().removeprefix("static")
-            if net_key not in NET_FIELDS or _is_safe_address(current):
-                continue
-            cleaned[key] = NET_REPLACEMENTS.get(net_key, "192.0.2.1")
+            replacement = _field_replacement(key, current)
+            if replacement is not _KEEP:
+                cleaned[key] = replacement
         return cleaned
     if isinstance(value, list):
         return [scrub(item, serial) for item in value]
