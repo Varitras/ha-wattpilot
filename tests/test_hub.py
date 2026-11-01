@@ -274,18 +274,19 @@ async def test_shutdown_disconnects_and_stops_dispatch(
     assert fake_charger._callbacks == []
 
 
-async def test_shutdown_maps_disconnect_error_and_still_clears_callbacks(
+async def test_disconnect_maps_disconnect_error_and_still_clears_callbacks(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """A failing disconnect must surface as HomeAssistantError, but the
     hub's handle cleanup (unsubscribe, cancel timer) must already have
-    happened -- a failed shutdown must not leave the hub half-alive."""
+    happened -- a failed disconnect must not leave the hub half-alive.
+    Shutting down for good logs the error instead (test_init)."""
     hub = make_hub(hass, fake_charger)
     await hub.async_connect()
     hub.start_dispatch()
     fake_charger.disconnect_error = ConnectionError("socket closed")
     with pytest.raises(HomeAssistantError) as raised:
-        await hub.async_shutdown()
+        await hub.async_disconnect()
     assert_translated(raised, "disconnect_failed", error="ConnectionError")
     assert fake_charger._callbacks == []
     assert hub._unsubscribe_properties is None
@@ -535,8 +536,7 @@ async def test_a_failed_disconnect_still_reports_unavailable(
     assert hub.available
 
     fake_charger.disconnect_error = ConnectionError("close failed")
-    with pytest.raises(HomeAssistantError):
-        await hub.async_shutdown()
+    await hub.async_shutdown()
 
     assert fake_charger.connected, "precondition: the client's own flag stays set"
     assert not hub.available

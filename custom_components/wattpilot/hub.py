@@ -130,8 +130,7 @@ class WattpilotHub:
         are forwarded, on purpose: an entity subscribes before it reads its
         initial value, so starting early cannot lose a push, while starting
         late loses any push that lands between an entity's read and this call
-        (see async_setup_entry). Availability signalling does not run until
-        this runs. Idempotent: reconnect_charger calls it again.
+        (see async_setup_entry). Idempotent: reconnect_charger calls it again.
         """
         if self._unsubscribe_properties is not None:
             return
@@ -178,23 +177,24 @@ class WattpilotHub:
 
     async def async_shutdown(self) -> None:
         """
-        Close for good: unload, failed setup, a config-flow probe.
+        Close for good: unload, failed setup, a config-flow probe, HA stop.
 
-        A reconnect already under way loses its connection attempt to the
-        close; one that starts later is refused.
+        A reconnect under way loses its attempt to the close, a later one is
+        refused. A failure to close is only logged: no caller can act on it,
+        and a failed unload kept the entry from reloading until a restart.
         """
         self._retired = True
         self._clear_refusals()  # this hub's connection; a new setup finds out afresh
-        await self.async_disconnect()
+        try:
+            await self.async_disconnect()
+        except HomeAssistantError:
+            _LOGGER.debug("Ignoring error while closing for good", exc_info=True)
 
     async def async_disconnect(self) -> None:
         """
         Stop dispatching and close the connection; a reconnect may follow.
 
-        Handle cleanup (unsubscribe, cancel timer) runs first and
-        unconditionally, before the I/O call that can fail -- a failed
-        disconnect must still leave the hub's callbacks fully torn down,
-        not half-alive.
+        Callbacks go first, so that a failed close cannot leave them half alive.
         """
         self._torn_down = True
         if self._unsubscribe_properties is not None:

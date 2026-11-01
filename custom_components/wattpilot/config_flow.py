@@ -20,7 +20,6 @@ from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryError,
     ConfigEntryNotReady,
-    HomeAssistantError,
 )
 from homeassistant.helpers.selector import (
     NumberSelector,
@@ -146,15 +145,8 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
                 e for kind, e in PROBE_ERRORS.items() if isinstance(err, kind)
             ), ""
         finally:
-            # The probe connection is disposable: a failure closing it must
-            # not replace the validation result with a disconnect error.
-            try:
-                await hub.async_shutdown()
-            except HomeAssistantError:
-                _LOGGER.debug(
-                    "Ignoring error while closing the probe connection",
-                    exc_info=True,
-                )
+            # Disposable: a failure closing it never replaces the result.
+            await hub.async_shutdown()
         return {}, hub.serial
 
     def _identity_error(self, entry: ConfigEntry, serial: str) -> str | None:

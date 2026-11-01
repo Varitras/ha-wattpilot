@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME, EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import callback
-from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
+from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
@@ -159,13 +159,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: WattpilotConfigEntry) ->
         await _finish_setup(hass, entry, hub)
     except BaseException:
         # A failed disconnect must not replace the error that ended setup --
-        # that one says what the user has to fix.
-        try:
-            await hub.async_shutdown()
-        except HomeAssistantError:
-            _LOGGER.debug(
-                "Ignoring error while closing after failed setup", exc_info=True
-            )
+        # that one says what the user has to fix; async_shutdown keeps it out.
+        await hub.async_shutdown()
         raise
     return True
 

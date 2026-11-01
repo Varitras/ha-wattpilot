@@ -509,7 +509,7 @@ async def test_a_refused_charger_is_reported_even_if_disconnecting_fails(
     cleanup = [
         r
         for r in caplog.records
-        if r.getMessage() == "Ignoring error while closing after failed setup"
+        if r.getMessage() == "Ignoring error while closing for good"
     ]
     assert len(cleanup) == 1
     # Not `is not None`: logging keeps exc_info=False as False.
