@@ -17,7 +17,7 @@ from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.wattpilot.api import AuthenticationError
+from custom_components.wattpilot.api import AuthenticationError, DeviceIdentityError
 from custom_components.wattpilot.const import (
     CONF_AWAITING_SERIAL,
     CONF_CONNECTION_TYPE,
@@ -223,6 +223,51 @@ async def test_reconfigure_rejects_wrong_device(
     # Entry must remain unchanged when rejecting a different charger.
     assert entry.data == original_data
     assert entry.unique_id == original_unique_id
+
+
+@pytest.mark.parametrize(
+    ("start", "user_input"),
+    [
+        ("start_reauth_flow", {"password": "other"}),
+        ("start_reconfigure_flow", {**USER_INPUT, "password": "other"}),
+    ],
+)
+async def test_another_charger_with_another_password_is_the_wrong_device(
+    hass: HomeAssistant,
+    device_properties: dict[str, Any],
+    start: str,
+    user_input: dict[str, str],
+) -> None:
+    """
+    The charger answering is another one, and its password differs too.
+
+    The client checks a serial it is given before it answers the password
+    challenge, the way setup builds it. The flows built theirs without one,
+    so this reached the password check first and told the user their
+    password was wrong.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="999999",  # a different charger than the fake (123456)
+        version=2,
+        data={CONF_CONNECTION_TYPE: CONNECTION_LOCAL, **USER_INPUT},
+    )
+    entry.add_to_hass(hass)
+    charger = FakeWattpilot(device_properties)
+
+    def build(**kwargs: Any) -> FakeWattpilot:
+        if kwargs["serial"] not in (None, charger.serial):
+            charger.connect_error = DeviceIdentityError("other", found=charger.serial)
+        else:
+            charger.connect_error = AuthenticationError("Wrong password")
+        return charger
+
+    result = await getattr(entry, start)(hass)
+    with patch("custom_components.wattpilot.hub.Wattpilot", side_effect=build):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], user_input
+        )
+    assert result["errors"] == {"base": "wrong_device"}
 
 
 async def test_reconfigure_rescues_a_fork_entry_whose_address_changed(
