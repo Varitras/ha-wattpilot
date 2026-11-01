@@ -298,3 +298,12 @@ def test_secrets_nested_or_undeclared_stay_out_of_the_download() -> None:
     # A key flag is no secret and stays readable.
     snapshot["wifis"][0]["key"] = True
     assert sanitize_snapshot(snapshot)["wifis"][0]["key"] is True
+
+
+def test_an_empty_or_zero_value_is_not_given_a_stand_in() -> None:
+    """A stand-in reads as a real value; an empty list, false or 0 names
+    nobody and stays as the charger sent it."""
+    snapshot = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    snapshot.update({"lom": [], "ftls": False, "lbh": 0})
+    sanitized = sanitize_snapshot(snapshot)
+    assert (sanitized["lom"], sanitized["ftls"], sanitized["lbh"]) == ([], False, 0)

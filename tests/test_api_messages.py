@@ -245,3 +245,17 @@ async def test_an_unreadable_delta_does_not_complete_the_snapshot(
         await send(client, {"type": "deltaStatus", "status": status})
 
     assert not client.properties_initialized
+
+
+def test_a_value_nested_too_deep_costs_only_itself() -> None:
+    """A value nested past the recursion limit cost the rest of its frame,
+    and in the last chunk of the first full status the initialisation."""
+    from types import SimpleNamespace  # noqa: PLC0415 -- the wire shape
+
+    client = Wattpilot("192.0.2.10", "secret")
+    nested: object = 1
+    for _ in range(1200):
+        nested = SimpleNamespace(x=nested)
+    client._apply_status(SimpleNamespace(amp=nested, lmo=3))
+
+    assert client.all_properties.get("lmo") == 3

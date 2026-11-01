@@ -1351,6 +1351,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         "test_secrets_nested_or_undeclared_stay_out_of_the_download": (
             "nested secrets, the SSID and member lists are redacted"
         ),
+        "test_an_empty_or_zero_value_is_not_given_a_stand_in": (
+            "a stand-in never invents a value for an empty one"
+        ),
     },
     "test_deprecations.py": {
         "test_the_deprecation_check_recognises_home_assistants_reports": (

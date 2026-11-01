@@ -526,7 +526,7 @@ async def test_malformed_value_keeps_previous_state(
     # Compared whole rather than as a substring: a substring check passes just
     # as happily when the message has grown extra text around it.
     assert any(
-        record.getMessage() == "charging_power: unexpected str for nrg (IndexError)"
+        record.getMessage() == "charging_power: unexpected str for nrg (TypeError)"
         for record in caplog.records
     )
     # Only our own sink: Home Assistant's dispatcher logs its signal payload
@@ -1145,3 +1145,34 @@ async def test_a_true_in_a_number_field_is_no_number(
     sensor = await make_sensor(hass, fake_charger, "nrg")
 
     assert sensor.native_value is None
+
+
+@pytest.mark.parametrize(
+    ("uid", "value", "shown"),
+    [("car", True, None), ("car", 1, "Idle"), ("alw", True, "Allowed")],
+)
+async def test_a_true_is_no_numbered_state(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    uid: str,
+    value: object,
+    shown: str | None,
+) -> None:
+    """A true equals 1 in Python: car=true read as "Idle". A table with
+    true and false keys still reads them."""
+    fake_charger._properties[uid] = value
+    sensor = await make_sensor(hass, fake_charger, uid)
+    assert sensor.native_value == shown
+
+
+async def test_a_reading_past_the_end_of_a_short_list_is_unknown(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The power factors sit at positions 12 to 15: a list of 12 froze them,
+    with a warning on every push."""
+    fake_charger._properties["nrg"] = [230, 230, 230, 0, 0, 0, 0, 0, 0, 0, 0, 6900]
+    sensor = await make_sensor(hass, fake_charger, "l1_power_factor")
+    assert sensor.native_value is None
+    assert "nrg" not in caplog.text
