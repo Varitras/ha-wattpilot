@@ -13,6 +13,7 @@ import errno
 import itertools
 import json
 import logging
+import re
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -1511,7 +1512,7 @@ async def test_a_frame_that_keeps_failing_is_warned_about_once(
             await task
     warnings = _api_records(caplog, logging.WARNING)
     assert len(warnings) == 1, warnings
-    assert "connection.py" in warnings[0], "it has to say where it failed"
+    assert re.search(r"\w+\.py:\d+", warnings[0]), "it has to say where it failed"
 
 
 @pytest.mark.parametrize("peer", ["silent", "closing"])
@@ -1555,3 +1556,48 @@ async def test_a_charger_that_never_gets_ready_is_retried_ever_more_slowly(
     assert len(gaps) >= 5, gaps
     assert gaps[4] > 3 * gaps[0], f"the backoff did not grow: {gaps}"
     assert _api_records(caplog, logging.WARNING) == []
+
+
+async def test_the_backoff_starts_over_once_the_charger_was_back(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The counter-question to the growing backoff: a connection that got
+    ready proves the charger is back, and its next drop is retried at once
+    again, not after the delay the outage had grown to."""
+    ready = [
+        json.dumps({"type": "authSuccess"}),
+        json.dumps({"type": "fullStatus", "partial": False, "status": {"amp": 6}}),
+    ]
+    sockets: list[FakeSocket] = []
+    attempts: list[float] = []
+
+    async def connect(_url: str) -> FakeSocket:
+        await asyncio.sleep(0)
+        attempts.append(time.monotonic())
+        sockets.append(FakeSocket(ready if len(sockets) == 4 else []))
+        return sockets[-1]
+
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
+        connect,
+    )
+    connection = client._connection
+    connection._reconnect_delay_min = 0.01
+    connection.connect_timeout = connection.init_timeout = 0.01
+    connection.socket = FakeSocket([])
+    connection.message_loop_task = asyncio.create_task(connection._message_loop())
+    await connection.socket.close()
+    for _ in range(300):
+        if connection.initialized and len(sockets) == 5:
+            break
+        await asyncio.sleep(0.01)
+    dropped = time.monotonic()
+    await sockets[4].close()
+    for _ in range(300):
+        if len(attempts) >= 6:
+            break
+        await asyncio.sleep(0.01)
+    await connection.close()
+
+    assert len(attempts) >= 6, attempts
+    assert attempts[5] - dropped < 0.1, "the grown delay outlived the recovery"

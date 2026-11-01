@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 import websockets
 import websockets.asyncio.client
 
-from .exceptions import WattpilotConnectionError, describe_error
+from .exceptions import WattpilotConnectionError, describe_error, where_raised
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
@@ -58,6 +58,7 @@ class Connection:
         self._auto_reconnect = auto_reconnect
         self._reconnect_delay_min = reconnect_delay_min
         self._reconnect_delay_max = reconnect_delay_max
+        self._reconnect_delay = reconnect_delay_min
 
         self.socket: websockets.asyncio.client.ClientConnection | None = None
         self.message_loop_task: asyncio.Task[None] | None = None
@@ -70,6 +71,7 @@ class Connection:
         self._authenticated = False
         self._initialized = False
         self._streaming_full_status = False
+        self._skipped_frames: set[str] = set()
         self._authenticated_event = asyncio.Event()
         self._initialized_event = asyncio.Event()
         self._disconnected_event = asyncio.Event()
@@ -138,8 +140,9 @@ class Connection:
             self.mark_initialized()
 
     def mark_initialized(self) -> None:
-        """Record that the complete property snapshot has arrived."""
+        """Record the complete snapshot; only that ends the reconnect backoff."""
         self._initialized = True
+        self._reconnect_delay = self._reconnect_delay_min
         self._initialized_event.set()
 
     def fail(self, error: WattpilotError) -> None:
@@ -247,6 +250,7 @@ class Connection:
         self._cancel_readiness_guard()
         self._initialized = False
         self._streaming_full_status = False
+        self._skipped_frames.clear()
         self._initialized_event.clear()
         self._authenticated_event.clear()
         self.fatal_error = None
@@ -342,13 +346,9 @@ class Connection:
         """
         Give up on a reconnected socket that never finishes the handshake.
 
-        open() can wait for readiness inline because a separate task does the
-        reading. After an automatic reconnect the reader is this very loop, so
-        the same wait would deadlock -- nothing would read the frames it waits
-        for. Watching from the side instead: a peer whose socket stays up
-        while its application handshake stalls used to hold the integration
-        unavailable for good, with no further retry. Closing
-        the socket ends the frame iteration, and the loop tries again.
+        After an automatic reconnect the reader is this very loop, so waiting
+        inline as open() does would deadlock. Watching from the side, closing
+        the socket ends the frame iteration and the loop tries again.
         """
         try:
             await asyncio.wait_for(
@@ -356,7 +356,7 @@ class Connection:
                 self.connect_timeout + self.init_timeout,
             )
         except TimeoutError:
-            _LOGGER.warning("Reconnected socket never became ready; closing it")
+            _LOGGER.debug("Reconnected socket never became ready; closing it")
             if self.socket is not None:
                 await self.socket.close()
 
@@ -393,12 +393,18 @@ class Connection:
             except Exception as exc:  # noqa: BLE001 -- one frame, not the connection
                 # A failing frame (bad JSON, not UTF-8, nested past the recursion
                 # limit) ended the reader; connection errors end the loop itself.
-                cause = type(exc).__name__
-                _LOGGER.warning("Skipping a frame (%d bytes): %s", len(frame), cause)
+                self._skip_frame(len(frame), exc)
+
+    def _skip_frame(self, size: int, error: Exception) -> None:
+        """Warn once per connection and cause: a defect can break every frame."""
+        cause = f"{type(error).__name__} at {where_raised(error)}"
+        level = logging.DEBUG if cause in self._skipped_frames else logging.WARNING
+        self._skipped_frames.add(cause)
+        _LOGGER.log(level, "Skipping a frame (%d bytes): %s", size, cause)
 
     async def _message_loop(self) -> None:
         # Started without a socket (resume_reconnecting), it begins in its backoff.
-        reconnect_delay = self._reconnect_delay_min
+        self._reconnect_delay = self._reconnect_delay_min
         try:
             while True:
                 try:
@@ -414,24 +420,19 @@ class Connection:
                 # Retrying cannot help against rejected credentials or a
                 # charger that is not ours; both would loop forever.
                 if self.fatal_error is not None:
-                    _LOGGER.error("Not reconnecting: %s", self.fatal_error)
+                    _LOGGER.debug("Not reconnecting: %s", self.fatal_error)
                     break
 
-                _LOGGER.debug("Reconnecting in %.0fs...", reconnect_delay)
-                await asyncio.sleep(reconnect_delay)
+                delay = self._reconnect_delay
+                _LOGGER.debug("Reconnecting in %.0fs...", delay)
+                await asyncio.sleep(delay)
+                self._reconnect_delay = min(delay * 2, self._reconnect_delay_max)
                 try:
                     self.begin()
                     self.socket = await websockets.asyncio.client.connect(self._url)
                     self._readiness_guard = asyncio.create_task(self._guard_readiness())
-                    reconnect_delay = self._reconnect_delay_min
                 except (OSError, websockets.exceptions.WebSocketException) as exc:
-                    reconnect_delay = min(
-                        reconnect_delay * 2, self._reconnect_delay_max
-                    )
-                    cause = describe_error(exc)
                     # Once per cycle while the charger is away: DEBUG, not WARNING.
-                    _LOGGER.debug(
-                        "Reconnect failed: %s, retry in %.0fs", cause, reconnect_delay
-                    )
+                    _LOGGER.debug("Reconnect failed: %s", describe_error(exc))
         finally:
             self._set_authenticated(value=False)

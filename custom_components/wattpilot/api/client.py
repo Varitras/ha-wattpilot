@@ -251,7 +251,7 @@ class Wattpilot:
         except BaseException:
             await self._connection.close()
             raise
-        _LOGGER.info("Connected to Wattpilot %s", mask_serial(self._device.serial))
+        _LOGGER.debug("Connected to Wattpilot %s", mask_serial(self._device.serial))
 
     async def disconnect(self) -> None:
         """Close the WebSocket connection."""
@@ -666,7 +666,7 @@ class Wattpilot:
 
     async def _on_auth_error(self, msg: SimpleNamespace) -> None:
         error_msg = getattr(msg, "message", "Unknown auth error")
-        _LOGGER.error("Authentication failed: %s", error_msg)
+        _LOGGER.debug("Authentication failed: %s", error_msg)
         # Rejected, not failed: after authSuccess the socket stayed open.
         await self._connection.reject(AuthenticationError(error_msg))
 

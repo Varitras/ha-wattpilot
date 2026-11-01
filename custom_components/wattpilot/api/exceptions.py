@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import errno
 import socket
+import traceback
+from pathlib import Path
+
+_INTEGRATION = str(Path(__file__).parent.parent)
 
 
 class WattpilotError(Exception):
@@ -59,3 +63,18 @@ def describe_error(error: BaseException) -> str:
     if code is None:
         return type(error).__name__
     return f"{type(error).__name__} ({errno.errorcode.get(code, code)})"
+
+
+def where_raised(error: BaseException) -> str:
+    """
+    Return the integration's own line an error passed last, as file:line.
+
+    Enough to find a defect from a log line; the message is left out, as it
+    can quote what the charger sent.
+    """
+    own = [
+        frame
+        for frame in traceback.extract_tb(error.__traceback__)
+        if frame.filename.startswith(_INTEGRATION)
+    ]
+    return f"{Path(own[-1].filename).name}:{own[-1].lineno}" if own else "?"
