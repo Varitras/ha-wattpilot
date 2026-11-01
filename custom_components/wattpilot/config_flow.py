@@ -18,6 +18,7 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
+    ConfigEntryError,
     ConfigEntryNotReady,
     HomeAssistantError,
 )
@@ -106,6 +107,18 @@ def _address_update(known: ConfigEntry | None, ipv4: str) -> dict[str, str] | No
     return {"host": ipv4}
 
 
+# What the form says for each way a probe fails. The hub raises
+# ConfigEntryError only for another charger's serial. A ValueError is an
+# address that cannot be built (an unbracketed IPv6 address, a bad port, an
+# empty label), which the form showed as "Unknown error".
+PROBE_ERRORS: dict[type[Exception], dict[str, str]] = {
+    ConfigEntryError: {"base": "wrong_device"},
+    ConfigEntryAuthFailed: {"base": "invalid_auth"},
+    ConfigEntryNotReady: {"base": "cannot_connect"},
+    ValueError: {"host": "invalid_host"},
+}
+
+
 class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle the local setup, reauth and reconfigure flows."""
 
@@ -120,27 +133,18 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
         return WattpilotOptionsFlow()
 
     async def _async_validate(
-        self, host: str, password: str
+        self, host: str, password: str, serial: str | None = None
     ) -> tuple[dict[str, str], str]:
-        """
-        Try to connect; return (errors, serial).
-
-        The probe connection is always closed before returning -- on the
-        success path as well as every failure path -- via the `finally`,
-        which is the one point every path through this function converges
-        on, rather than repeating the shutdown call in each branch.
-        """
-        hub = WattpilotHub.create_local(self.hass, "config_flow", host, password)
+        """Try to connect; return (errors, serial). The probe is always closed."""
+        hub = WattpilotHub.create_local(
+            self.hass, "config_flow", host, password, serial=serial
+        )
         try:
             await hub.async_connect()
-        except ConfigEntryAuthFailed:
-            return {"base": "invalid_auth"}, ""
-        except ConfigEntryNotReady:
-            return {"base": "cannot_connect"}, ""
-        except ValueError:
-            # An unbracketed IPv6 address, a bad port, an empty label: building
-            # the address raised, and the form showed "Unknown error".
-            return {"host": "invalid_host"}, ""
+        except tuple(PROBE_ERRORS) as err:
+            return next(
+                e for kind, e in PROBE_ERRORS.items() if isinstance(err, kind)
+            ), ""
         finally:
             # The probe connection is disposable: a failure closing it must
             # not replace the validation result with a disconnect error.
@@ -153,11 +157,6 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
         return {}, hub.serial
 
-    @staticmethod
-    def _is_another_charger(entry: ConfigEntry, serial: str) -> bool:
-        """Whether the connected charger contradicts the entry's own identity."""
-        return not awaits_serial(entry) and serial != entry.unique_id
-
     def _identity_error(self, entry: ConfigEntry, serial: str) -> str | None:
         """
         Name what is wrong with moving this entry onto that charger, if anything.
@@ -166,11 +165,37 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
         one that has an entry of its own: the setup after the flow would
         refuse it as a duplicate, with host and password already overwritten.
         """
-        if self._is_another_charger(entry, serial):
+        if not awaits_serial(entry) and serial != entry.unique_id:
             return "wrong_device"
         if serial_taken_by_other_entry(self.hass, entry, serial):
             return "charger_has_entry"
         return None
+
+    async def _async_validate_for(
+        self, entry: ConfigEntry, host: str, password: str
+    ) -> dict[str, str]:
+        """
+        Probe for an existing entry, which only its own charger may take.
+
+        A known serial is checked before the password is sent, as setup does:
+        another charger is the wrong device, not a wrong password.
+        """
+        known = None if awaits_serial(entry) else entry.unique_id
+        errors, serial = await self._async_validate(host, password, known)
+        identity = None if errors else self._identity_error(entry, serial)
+        return {"base": identity} if identity else errors
+
+    def _create_local_entry(self, host: str, password: str) -> ConfigFlowResult:
+        name = new_device_name(self.hass)
+        return self.async_create_entry(
+            title=name,
+            data={
+                CONF_NAME: name,
+                CONF_CONNECTION_TYPE: CONNECTION_LOCAL,
+                "host": host,
+                "password": password,
+            },
+        )
 
     @staticmethod
     def _local_entry_data(
@@ -206,15 +231,8 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
                 # must not stop adding it by hand; it goes once the entry exists.
                 await self.async_set_unique_id(serial, raise_on_progress=False)
                 self._abort_if_unique_id_configured()
-                name = new_device_name(self.hass)
-                return self.async_create_entry(
-                    title=name,
-                    data={
-                        CONF_NAME: name,
-                        CONF_CONNECTION_TYPE: CONNECTION_LOCAL,
-                        "host": user_input["host"],
-                        "password": user_input["password"],
-                    },
+                return self._create_local_entry(
+                    user_input["host"], user_input["password"]
                 )
         return self.async_show_form(
             step_id="user", data_schema=USER_SCHEMA, errors=errors
@@ -278,15 +296,8 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
                 # card was open, and a second entry with it would make Home
                 # Assistant delete the first.
                 self._abort_if_unique_id_configured()
-                name = new_device_name(self.hass)
-                return self.async_create_entry(
-                    title=name,
-                    data={
-                        CONF_NAME: name,
-                        CONF_CONNECTION_TYPE: CONNECTION_LOCAL,
-                        "host": self._discovered_host,
-                        "password": user_input["password"],
-                    },
+                return self._create_local_entry(
+                    self._discovered_host, user_input["password"]
                 )
         return self.async_show_form(
             step_id="zeroconf_confirm",
@@ -321,14 +332,9 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         entry = self._get_reauth_entry()
         if user_input is not None:
-            errors, serial = await self._async_validate(
-                entry.data["host"], user_input["password"]
+            errors = await self._async_validate_for(
+                entry, entry.data["host"], user_input["password"]
             )
-            # The check reconfigure makes: without it a password accepted by
-            # whatever answers at the address was written in and reported as
-            # success, leaving the entry broken.
-            if not errors and (identity := self._identity_error(entry, serial)):
-                errors = {"base": identity}
             if not errors:
                 return self.async_update_reload_and_abort(
                     entry, data_updates={"password": user_input["password"]}
@@ -357,11 +363,9 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         entry = self._get_reconfigure_entry()
         if user_input is not None:
-            errors, serial = await self._async_validate(
-                user_input["host"], user_input["password"]
+            errors = await self._async_validate_for(
+                entry, user_input["host"], user_input["password"]
             )
-            if not errors and (identity := self._identity_error(entry, serial)):
-                errors = {"base": identity}
             if not errors:
                 return self.async_update_reload_and_abort(
                     entry, data=self._local_entry_data(entry, user_input)
