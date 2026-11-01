@@ -427,18 +427,22 @@ async def test_unique_id_upgraded_from_ip_to_serial(
     assert entry.unique_id == "123456"
 
 
+@pytest.mark.parametrize("unique_id", ["192.168.1.50", "123456"])
 async def test_the_serial_upgrade_permission_is_consumed_once(
-    hass: HomeAssistant, device_properties: dict[str, Any]
+    hass: HomeAssistant, device_properties: dict[str, Any], unique_id: str
 ) -> None:
     """
     A fork entry may adopt a serial exactly once, then never again.
 
     If the permission outlived the upgrade, the entry would stay open to
     being relabelled by whatever charger answers at that address next -- the
-    guard would exist but protect nothing from the second time on.
+    guard would exist but protect nothing from the second time on. That
+    includes an entry already keyed on the serial it is confirmed with, as a
+    cloud entry made local by Reconfigure is: it used to keep the permission
+    forever, and with it a client that never checked the charger's identity.
     """
     entry = MockConfigEntry(
-        domain=DOMAIN, data=V2_AWAITING_SERIAL, version=2, unique_id="192.168.1.50"
+        domain=DOMAIN, data=V2_AWAITING_SERIAL, version=2, unique_id=unique_id
     )
     assert await setup_entry(hass, entry, FakeWattpilot(device_properties))
     assert entry.unique_id == "123456"
