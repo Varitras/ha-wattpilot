@@ -71,7 +71,7 @@ def _newest_version(raw_versions: list[str]) -> str | None:
 def _version(value: Any) -> str | None:  # noqa: ANN401 -- charger payload
     """Return a version string, or None for anything else."""
     # Home Assistant compares versions through a cache, and anything
-    # unhashable raised there (post-check PC7-02).
+    # unhashable raised there.
     return value if isinstance(value, str) and value else None
 
 

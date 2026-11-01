@@ -388,7 +388,7 @@ async def test_a_reconnect_during_shutdown_does_not_revive_the_hub(
     """Shutdown unregisters first and then waits for the disconnect. A
     reconnect in that window registered callbacks and timers again and
     cleared the torn-down flag; shutdown then returned with a hub live
-    behind an entry that was being unloaded (audit A15-02)."""
+    behind an entry that was being unloaded."""
     hub = make_hub(hass, fake_charger, timedelta(seconds=5))
     await hub.async_connect()
     hub.start_dispatch()
@@ -521,7 +521,7 @@ async def test_an_unannounced_drop_is_reported_at_info(
 async def test_a_failed_disconnect_still_reports_unavailable(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
-    """Audit VA-04: `available` used to read the vendor client's `connected`
+    """`available` used to read the vendor client's `connected`
     flag, which that client clears only after a successful ws.close(). A
     close that raises left the flag True while its message loop was already
     gone -- entities kept claiming a live charger that could never update
@@ -545,7 +545,7 @@ async def test_a_failed_disconnect_still_reports_unavailable(
 async def test_a_refused_write_reaches_the_user_as_an_error(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
-    """Audit VA-03, from the outside: the charger refusing a value must fail
+    """From the outside: the charger refusing a value must fail
     the action, not end quietly. The vendored client raises CommandError for
     that now; the hub has to keep translating it rather than let it escape as
     a library exception."""
@@ -579,8 +579,7 @@ async def test_a_recovery_is_announced_with_the_current_values(
     """The first replayed value announced the recovery, so every entity
     showed its reading from before the outage -- charging, 11 kW -- until the
     next flush, and `to: charging` automations fired on stale data. The
-    announcement now waits for the full status and comes after its values
-    (audit A18-20)."""
+    announcement now waits for the full status and comes after its values."""
     hub = make_hub(hass, fake_charger, update_interval=timedelta(seconds=5))
     await hub.async_connect()
     hub.start_dispatch()
@@ -621,7 +620,7 @@ async def test_a_reconnect_between_two_checks_does_not_flap_the_entities(
     """The client reconnects within its 5 s backoff, before the 30 s check
     saw it gone. The replay of the full status took every entity through
     unavailable at the moment the charger was back, logged an outage and
-    fired `to:` triggers again (R1-04)."""
+    fired `to:` triggers again."""
     caplog.set_level(logging.INFO, logger="custom_components.wattpilot.hub")
     hub = make_hub(hass, fake_charger)
     await hub.async_connect()

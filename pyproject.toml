@@ -3,8 +3,7 @@ name = "ha-wattpilot"
 # Kept equal to custom_components/wattpilot/manifest.json, which is the
 # version Home Assistant and HACS actually read; a guard enforces it. This
 # file is tooling config, but two version numbers with no rule between them
-# drift, and the release gate only ever compared the tag to the manifest
-# (audit VA-17).
+# drift, and the release gate only ever compared the tag to the manifest.
 version = "0.3.0"
 description = "Home Assistant integration for Fronius Wattpilot EV chargers"
 readme = "README.md"
@@ -52,8 +51,7 @@ filterwarnings = [
 # The marker names what the test is, and `-m e2e` still selects it. It is no
 # longer deselected by default: it drives a full HA setup against the fake
 # charger, not real hardware, and costs 3.3 s -- cheap enough that hiding it
-# behind a release-only gate only meant finding those regressions late
-# (audit VA-16).
+# behind a release-only gate only meant finding those regressions late.
 markers = [
     "e2e: drives a complete Home Assistant setup (fake charger, not hardware)",
     "logs_identifiers: the test logs a charger identifier on purpose",

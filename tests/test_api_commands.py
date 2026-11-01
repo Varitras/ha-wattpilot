@@ -82,7 +82,7 @@ async def test_the_departure_is_written_unshifted_in_every_zone_mode(
     scheme and the process clock was in summer time. Measured on the real
     charger on 2026-09-06, during summer time and with `tds` = 1: a departure
     set to 07:30 in the Wattpilot app reads back as 27000, not 30600. The
-    firmware applies no offset, so neither do we (audit A12-06).
+    firmware applies no offset, so neither do we.
 
     Parametrized over every `tds` value because that announcement is what the
     old branch keyed on. There is no clock to pin any more: the write is
@@ -119,7 +119,7 @@ async def test_enable_cloud_api_gives_up_within_the_timeout_it_was_given(
     client: Wattpilot,
 ) -> None:
     """The wait counted whole one-second sleeps, so a 10 ms timeout still
-    slept a full second before giving up (audit A13-04)."""
+    slept a full second before giving up."""
     # The first write loads the API definition from disk; that one-off cost
     # is not the wait being measured here.
     await client.set_property("cae", False)  # noqa: FBT003 -- a written value

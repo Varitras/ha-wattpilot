@@ -54,7 +54,7 @@ class WattpilotTime(WattpilotEntity, TimeEntity):
             return
         try:
             seconds = int(value) % _SECONDS_PER_DAY
-        # OverflowError: infinity (PC6-02).
+        # OverflowError: infinity.
         except TypeError, ValueError, OverflowError:
             self._attr_native_value = None
             return

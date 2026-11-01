@@ -159,7 +159,7 @@ async def test_a_malformed_frame_does_not_kill_the_message_loop(
     """One bad frame must not end the loop -- the charger would still be
     connected, and nothing would ever update again. The predecessor of this
     test called the handler twice and never the loop, so it proved nothing
-    about the claim in its own name (audit A11-06)."""
+    about the claim in its own name."""
     client._connection.socket = FakeSocket(  # type: ignore[assignment]
         ["{not json", json.dumps({"type": "deltaStatus", "status": {"amp": 6}})]
     )
@@ -178,7 +178,7 @@ async def test_disconnect_closes_the_socket_after_the_loop_failed(
     client: Wattpilot,
 ) -> None:
     """Whatever ended the message loop, the socket still has to be closed --
-    re-raising the loop's exception first left it open (audit A11-06)."""
+    re-raising the loop's exception first left it open."""
     socket = FakeSocket([])
     client._connection.socket = socket  # type: ignore[assignment]
 
@@ -200,7 +200,7 @@ async def test_a_cancelled_connect_leaves_nothing_running(
 ) -> None:
     """Home Assistant cancels a setup that takes too long. The cleanup used to
     catch Exception, which CancelledError is not, so socket and message loop
-    survived the cancelled attempt (audit A11-05)."""
+    survived the cancelled attempt."""
     socket = FakeSocket([])
 
     async def fake_connect(_url: str) -> FakeSocket:
@@ -248,7 +248,7 @@ async def test_a_reconnect_to_a_different_charger_is_refused(
 ) -> None:
     """Setup checks the serial once, but the address can be reused by DHCP or
     the hardware replaced. A reconnect kept the config entry, its entities and
-    their history pointed at whatever answered (audit A11-02)."""
+    their history pointed at whatever answered."""
     client._device.serial = "111111"
     socket = FakeSocket(
         [
@@ -279,7 +279,7 @@ async def test_an_explicit_reconnect_waits_for_the_new_snapshot(
 ) -> None:
     """The explicit path carried _all_props_initialized over from the previous
     connection, so the first partial replay satisfied readiness and connect()
-    returned before the new snapshot arrived (audit A11-07)."""
+    returned before the new snapshot arrived."""
     client._connection.mark_initialized()
     socket = FakeSocket(
         [
@@ -307,8 +307,7 @@ async def test_an_explicit_reconnect_to_a_different_charger_is_refused(
 ) -> None:
     """The service-driven path has to refuse the same way the automatic one
     does -- the check sits in the frame both of them send, so this is the
-    counter-question to the automatic case rather than a second mechanism
-    (audit A11-02)."""
+    counter-question to the automatic case rather than a second mechanism."""
     client._device.serial = "111111"
     socket = FakeSocket([json.dumps({"type": "hello", "serial": "222222"})])
 
@@ -357,7 +356,7 @@ async def test_an_explicit_reconnect_during_backoff_leaves_one_reader(
     """A reconnect action while the client is waiting out its retry backoff
     must not leave the old reader running. It still owns a socket, and the
     two then race on the same connection object: measured three sockets and
-    two readers, two of them still open after disconnect (audit A12-01)."""
+    two readers, two of them still open after disconnect."""
     factory = SocketFactory()
     monkeypatch.setattr(
         "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
@@ -389,7 +388,7 @@ async def test_two_explicit_opens_leave_no_socket_behind(
     """Two reconnect actions arriving together: each passed the "already
     connected" check, each opened a socket, and the second overwrote the
     references to the first. close() then reached only the last pair, and
-    the first socket and its reader lived on unowned (audit A13-01)."""
+    the first socket and its reader lived on unowned."""
     factory = SocketFactory()
     monkeypatch.setattr(
         "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
@@ -413,7 +412,7 @@ async def test_a_close_during_a_pending_open_stays_closed(
     """close() ran while open() was still waiting for the connector, found
     neither socket nor reader, and returned. The connector then delivered,
     open() installed socket and reader, and a connection that had just been
-    torn down was live again behind the caller's back (audit A14-01)."""
+    torn down was live again behind the caller's back."""
     factory = SocketFactory()
     release = asyncio.Event()
 
@@ -453,7 +452,7 @@ async def test_an_open_queued_before_a_close_does_not_outlive_it(
     """Two opens, then a close, all requested before any connector returned.
     The first open noticed the close; the second one, queued behind it,
     only looked afterwards and opened a live connection after close() had
-    returned (audit A15-01)."""
+    returned."""
     factory = SocketFactory()
     release = asyncio.Event()
     entered = asyncio.Event()
@@ -521,7 +520,7 @@ async def test_an_open_during_the_cancel_step_of_a_close_stays_open(
 ) -> None:
     """close() cancelled the pending attempt and only then made itself
     visible. An open() in that gap started on its own, succeeded -- and was
-    torn down by the close it had come after (audit A16-01)."""
+    torn down by the close it had come after."""
     connection = client._connection
     entered = asyncio.Event()
     calls: list[str] = []
@@ -615,7 +614,7 @@ async def test_an_open_during_a_slow_close_waits_for_a_new_connection(
 ) -> None:
     """While close() waited for the socket's close handshake, the connection
     still counted as connected -- so an open() in that window returned at
-    once, reporting a connection the close then took down (audit A15-01)."""
+    once, reporting a connection the close then took down."""
     factory = SocketFactory()
     monkeypatch.setattr(
         "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
@@ -651,7 +650,7 @@ async def test_a_silent_socket_after_reconnect_is_given_up_on(
 ) -> None:
     """The explicit path bounds the handshake; the automatic retry did not.
     A peer whose socket stays open but never finishes the application
-    handshake held the integration unavailable for good (audit A12-04)."""
+    handshake held the integration unavailable for good."""
     factory = SocketFactory()
     monkeypatch.setattr(
         "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
@@ -686,7 +685,7 @@ class BufferedSocket(FakeSocket):
 
     Real WebSockets do exactly that: closing does not discard frames that
     already arrived. FakeSocket ends its iteration on close, and that
-    difference hid a defect (audit A12-02).
+    difference hid a defect.
     """
 
     async def __anext__(self) -> str:
@@ -703,7 +702,7 @@ async def test_no_frame_is_applied_after_the_charger_was_refused(
 ) -> None:
     """Refusing the identity closes the socket, but frames already in the
     receive buffer still arrive. They were applied: amp=14 from the wrong
-    charger landed in the cache after the rejection (audit A12-02)."""
+    charger landed in the cache after the rejection."""
     client._device.serial = "111111"
     socket = BufferedSocket(
         [
@@ -731,7 +730,7 @@ async def test_a_cancelled_definition_load_hands_the_connection_back(
 ) -> None:
     """connect() is handshake plus definition load. A cancellation between
     the two fell outside the transport's cleanup scope and outside the
-    integration's, leaving reader and socket alive (audit A12-03)."""
+    integration's, leaving reader and socket alive."""
     socket = FakeSocket(
         [
             json.dumps({"type": "authSuccess"}),
@@ -772,7 +771,7 @@ async def test_the_firmware_wait_keeps_the_budget_it_was_given(
 ) -> None:
     """The reconnect loop counted only its own sleeps, so every attempt could
     burn a full authentication timeout for free -- with the default budget
-    roughly half an hour past the two minutes asked for (audit A12-08).
+    roughly half an hour past the two minutes asked for.
     """
     client._all_props["onv"] = ["42.6"]
 
@@ -783,7 +782,7 @@ async def test_the_firmware_wait_keeps_the_budget_it_was_given(
 
     monkeypatch.setattr(client, "set_property", lambda *_a, **_k: asyncio.sleep(0))
     monkeypatch.setattr(client, "connect", slow_and_failing)
-    # The timeout hands recovery back to the reconnect loop (A18-06); park it.
+    # The timeout hands recovery back to the reconnect loop; park it.
     client._connection._reconnect_delay_min = 3600
 
     started = time.monotonic()
@@ -799,7 +798,7 @@ async def test_a_binary_frame_that_is_not_utf8_does_not_end_the_reader(
     client: Wattpilot,
 ) -> None:
     """The frame was decoded before the frame guard, so a byte sequence that
-    is not UTF-8 ended the reader instead of being skipped (audit A19-08)."""
+    is not UTF-8 ended the reader instead of being skipped."""
     client._connection.socket = FakeSocket(  # type: ignore[assignment]
         [bytes([0xFF, 0xFE]), json.dumps({"type": "deltaStatus", "status": {"amp": 6}})]  # type: ignore[list-item]
     )
@@ -818,7 +817,7 @@ async def test_an_empty_array_does_not_end_the_reader(client: Wattpilot) -> None
     """`nrg` arrives as a list the client indexes into. An empty one raised
     IndexError, which the frame guard did not catch -- so the reader stopped
     and the valid frame behind it was never read, while the socket still
-    looked alive (audit 12.4, the remainder of A11-06)."""
+    looked alive."""
     client._connection.socket = FakeSocket(  # type: ignore[assignment]
         [
             json.dumps({"type": "deltaStatus", "status": {"nrg": []}}),
@@ -859,7 +858,7 @@ async def test_a_failed_reconnect_action_during_backoff_keeps_recovering(
     """The reconnect action stopped the loop that was waiting out its backoff
     before its own attempt had a socket. When that attempt failed, nothing
     was left to retry: the charger came back to an integration that never
-    reached it again (audit A18-05)."""
+    reached it again."""
     connector = RefusingConnector()
     monkeypatch.setattr(CONNECT, connector)
     connection = client._connection
@@ -886,8 +885,7 @@ async def test_a_firmware_update_outlasting_its_budget_keeps_recovering(
 ) -> None:
     """The update closes the connection to reconnect by itself. When the
     charger took longer than the budget, the action failed and left the
-    client closed for good -- the updated charger was never reached again
-    (audit A18-06)."""
+    client closed for good -- the updated charger was never reached again."""
     monkeypatch.setattr(CONNECT, RefusingConnector())
     client._all_props["onv"] = ["42.6"]
     monkeypatch.setattr(client, "set_property", lambda *_a, **_k: asyncio.sleep(0))
@@ -906,7 +904,7 @@ async def test_a_refusal_ends_the_firmware_wait_with_its_reason(
     client: Wattpilot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Retrying cannot help against a refusal. The wait went on until its
-    deadline and reported a timeout, never the reason (reaudit R1-13)."""
+    deadline and reported a timeout, never the reason."""
 
     async def refused() -> None:
         client._connection.fail(WattpilotConnectionError("Unsupported password hash"))
@@ -926,8 +924,7 @@ async def test_a_firmware_wait_with_no_time_for_an_attempt_keeps_recovering(
 ) -> None:
     """The charger dropped the socket only as the budget ran out, so no
     attempt ran. The update's own disconnect still counted as an unload, and
-    the hand-back at the deadline was refused: nothing retried (post-check
-    PC-01)."""
+    the hand-back at the deadline was refused: nothing retried."""
     monkeypatch.setattr(CONNECT, RefusingConnector())
     client._all_props["onv"] = ["42.6"]
     monkeypatch.setattr(client, "set_property", lambda *_a, **_k: asyncio.sleep(0))
@@ -951,7 +948,7 @@ async def test_a_close_before_the_attempt_runs_is_not_undone(
 ) -> None:
     """The attempt cleared the stop flag as its first line, so a close that
     landed between open() starting the attempt and the attempt running was
-    undone, and a later hand-back reconnected after an unload (PC-01)."""
+    undone, and a later hand-back reconnected after an unload."""
     release = asyncio.Event()
 
     async def blocked_connect(_url: str) -> FakeSocket:
@@ -988,7 +985,7 @@ async def test_a_close_during_the_firmware_wait_is_not_overridden(
 ) -> None:
     """The update reconnects by itself and, at its deadline, handed recovery
     back to a reconnect loop -- even when the entry had been unloaded in the
-    meantime, so a session outlived its integration (reaudit R1-11)."""
+    meantime, so a session outlived its integration."""
     connector = RefusingConnector()
     monkeypatch.setattr(CONNECT, connector)
     client._all_props["onv"] = ["42.6"]
@@ -1036,8 +1033,8 @@ async def test_no_second_reader_while_an_open_is_pending(
 async def test_a_cancelled_reconnect_action_keeps_recovering(
     client: Wattpilot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Sibling of A18-05: an action cancelled while connecting (an automation
-    restarted) stopped the loop that was retrying (reaudit R1-12)."""
+    """An action cancelled while connecting (an automation
+    restarted) stopped the loop that was retrying."""
 
     connecting = asyncio.Event()
 
@@ -1067,7 +1064,7 @@ async def test_an_open_into_a_stalled_handshake_keeps_recovering(
     client: Wattpilot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The reconnect had authenticated but the full status stalled; an open
-    then timed out and closed the only loop (reaudit R1-12)."""
+    then timed out and closed the only loop."""
     monkeypatch.setattr(CONNECT, RefusingConnector())
     connection = client._connection
     connection._reconnect_delay_min = 3600
@@ -1085,10 +1082,10 @@ async def test_an_open_into_a_stalled_handshake_keeps_recovering(
         await connection.close()
 
 
-# ---- One rule over every way in and every settled state (ledger L-021) ----
+# ---- One rule over every way in and every settled state ----
 #
 # The single interleaving tests above each came from a finding, and two of the
-# fixes made the next finding (R1-11, PC-01). This matrix states the rule once:
+# fixes made the next finding. This matrix states the rule once:
 # a deliberate close leaves nothing running; any other way in leaves recovery
 # as it found it -- a reconnect loop that existed still exists, none is made
 # up -- and never two readers or a socket without a reader. An open after a
@@ -1228,7 +1225,7 @@ async def test_a_password_refused_after_sign_in_drops_the_connection(
 ) -> None:
     """An authError after authSuccess set the refusal but left the socket open
     and the client signed in until the next frame: the entities stayed
-    available while the reauthentication started (post-check PC2-02)."""
+    available while the reauthentication started."""
     socket = FakeSocket(
         [
             json.dumps({"type": "authSuccess"}),
@@ -1253,7 +1250,7 @@ async def test_a_refused_connection_stops_counting_as_connected_at_once(
 ) -> None:
     """The refusal closed the socket, but the close waits for the charger's
     reply -- up to ten seconds -- and the client counted as signed in all
-    that time (post-check PC3-01)."""
+    that time."""
     release = asyncio.Event()
     socket = SlowClosingSocket(release)
     connection = client._connection
@@ -1274,8 +1271,7 @@ async def test_a_refusal_during_the_full_status_is_reported_as_itself(
     client: Wattpilot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A refusal after authSuccess did not end the wait for the full status:
-    setup reported a timeout and retried, and never asked for the password
-    (post-check PC3-02)."""
+    setup reported a timeout and retried, and never asked for the password."""
     from custom_components.wattpilot.api.exceptions import (  # noqa: PLC0415
         AuthenticationError,
     )
@@ -1304,7 +1300,7 @@ async def test_a_refusal_ends_the_wait_of_an_open_into_a_signed_in_reconnect(
 ) -> None:
     """The other branch of open(): the reconnect loop is signed in and the
     full status pending, as when the reconnect action or the firmware wait
-    opens (post-check PC4-01, sibling of PC3-02)."""
+    opens."""
     from custom_components.wattpilot.api.exceptions import (  # noqa: PLC0415
         AuthenticationError,
     )
@@ -1331,8 +1327,7 @@ async def test_a_close_while_an_open_stops_the_old_reader_is_not_swallowed(
 ) -> None:
     """The open first stops the reader in its backoff. A close landing there
     was taken for that reader's own cancellation: the attempt went on to
-    open a socket after the close, and the close waited for it (reaudit
-    RF-L-02)."""
+    open a socket after the close, and the close waited for it."""
     connector = RefusingConnector()
     monkeypatch.setattr(CONNECT, connector)
     connection = client._connection
@@ -1358,8 +1353,8 @@ async def test_an_unload_while_the_firmware_update_waits_for_the_reboot_wins(
 ) -> None:
     """The close itself ended the wait for the reboot, and the close count
     was taken only after it: the update reconnected and reported success
-    behind an unloaded entry (reaudit RF-L-01; R1-11 covered the reconnect
-    phase only)."""
+    behind an unloaded entry; an earlier fix covered the reconnect phase
+    only."""
     sockets: list[FakeSocket] = []
 
     async def signs_in(_url: str) -> FakeSocket:

@@ -139,7 +139,7 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
             return {"base": "cannot_connect"}, ""
         except ValueError:
             # An unbracketed IPv6 address, a bad port, an empty label: building
-            # the address raised, and the form showed "Unknown error" (A18-21).
+            # the address raised, and the form showed "Unknown error".
             return {"host": "invalid_host"}, ""
         finally:
             # The probe connection is disposable: a failure closing it must
@@ -164,8 +164,7 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
 
         An entry still awaiting its serial accepts any charger -- but not
         one that has an entry of its own: the setup after the flow would
-        refuse it as a duplicate, with host and password already overwritten
-        (audit A18-22).
+        refuse it as a duplicate, with host and password already overwritten.
         """
         if self._is_another_charger(entry, serial):
             return "wrong_device"
@@ -248,9 +247,9 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
         Abort for an entry at this address that has yet to learn its serial.
 
         Keyed on its address until it connects, it was not found by the
-        serial, and an entry made from a card or the form locked it out
-        (R1-14, PC-04). shortcut: the address is compared as written, so a
-        host name against an IP goes unnoticed; resolve both if that occurs.
+        serial, and an entry made from a card or the form locked it out.
+        shortcut: the address is compared as written, so a host name
+        against an IP goes unnoticed; resolve both if that occurs.
         """
         awaiting = entry_awaiting_serial_at(self.hass, host)
         if awaiting is None:
@@ -303,7 +302,7 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
         A fork entry learns its serial only once it connects, so a card for
         the same charger can still be open. Home Assistant resolves an
         ignored card with that unique_id by replacing the entry with it,
-        entities and entity ids gone (audit A18-01).
+        entities and entity ids gone.
         """
         await self.async_set_unique_id(user_input["unique_id"], raise_on_progress=False)
         self._abort_if_unique_id_configured()
@@ -327,7 +326,7 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
             )
             # The check reconfigure makes: without it a password accepted by
             # whatever answers at the address was written in and reported as
-            # success, leaving the entry broken (audit A12-07).
+            # success, leaving the entry broken.
             if not errors and (identity := self._identity_error(entry, serial)):
                 errors = {"base": identity}
             if not errors:

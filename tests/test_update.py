@@ -140,7 +140,7 @@ async def test_installed_version_reacts_to_its_own_push(
 
 # What a charger could send instead of a version string. Home Assistant
 # compares versions through a cache, and an unhashable one raised there, so
-# the entity was never added (post-check PC7-02).
+# the entity was never added.
 ODD_VERSIONS = {"object": {"v": "43.0"}, "list_of_lists": [["43.0"]], "number": 43}
 
 

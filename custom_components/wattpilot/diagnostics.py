@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from .hub import WattpilotConfigEntry
 
 # Config-entry fields -- see module docstring. A carried-over device name is
-# whatever the fork's user called the charger (README audit RM2-01).
+# whatever the fork's user called the charger.
 TO_REDACT = {"password", "host", CONF_NAME, "serial"}
 
 

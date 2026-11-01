@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   # The tag alone would publish whatever check.sh --release passes; hassfest,
-  # HACS and the minimum-HA run only ever saw the branch (audit A13-02).
+  # HACS and the minimum-HA run only ever saw the branch.
   compatibility:
     uses: ./.github/workflows/ci.yml
 
@@ -24,7 +24,7 @@ jobs:
         with:
           fetch-depth: 0  # the history main has, for the check below
       # Tags come from main only. One pushed from a branch before its merge
-      # published code main does not contain, to every HACS user (A18-31).
+      # published code main does not contain, to every HACS user.
       - name: Release only what main contains
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - uses: actions/setup-python@v7

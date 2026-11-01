@@ -43,7 +43,7 @@ def fixture_from(snapshot: dict[str, Any]) -> dict[str, Any]:
     cleaned = sanitize_snapshot(snapshot)
     if cleaned.get("ct"):
         # Diagnostics tell a known profile from an unknown one; the suite
-        # needs one the car profile select offers (post-check F31-01).
+        # needs one the car profile select offers.
         cleaned["ct"] = "default"
     return cleaned
 

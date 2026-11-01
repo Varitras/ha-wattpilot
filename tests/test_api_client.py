@@ -72,7 +72,7 @@ def respond(client: Wattpilot, request_id: int | str, *, success: bool) -> None:
 
 
 async def test_a_rejected_write_raises_instead_of_reporting_success() -> None:
-    """Audit VA-03: set_property returned as soon as the frame was on the
+    """set_property returned as soon as the frame was on the
     wire. A later `success: false` was only logged, so a switch the charger
     refused still showed as flipped."""
     socket = FakeSocket()
@@ -89,7 +89,7 @@ async def test_a_rejected_write_raises_instead_of_reporting_success() -> None:
 
 @pytest.mark.parametrize("success", [True, "true", 1])
 async def test_an_acknowledgement_that_reads_true_is_accepted(success: object) -> None:
-    """Deliberately not only a JSON true (L-039): the Home sends one, the Flex
+    """Deliberately not only a JSON true: the Home sends one, the Flex
     was never measured, and refusing a real acceptance would fail every write."""
     socket = FakeSocket()
     client = make_client(socket)
@@ -159,7 +159,7 @@ async def test_disconnect_releases_a_waiting_command() -> None:
 
 
 async def test_a_failing_close_still_marks_the_client_disconnected() -> None:
-    """Audit VA-04: `connected` stayed True when ws.close() raised, while the
+    """`connected` stayed True when ws.close() raised, while the
     message loop behind it was already cancelled."""
     socket = FakeSocket()
     socket.close_error = ConnectionResetError("close failed")
@@ -173,7 +173,7 @@ async def test_a_failing_close_still_marks_the_client_disconnected() -> None:
 async def test_no_frame_payload_reaches_the_log(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Audit VA-01, fixed at the source now that the client is ours: frames
+    """Fixed at the source now that the client is ours: frames
     carry Wi-Fi passwords, cloud tokens and OCPP keys, and DEBUG logging is
     one UI toggle away."""
     socket = FakeSocket()
@@ -308,8 +308,7 @@ def test_a_socket_error_is_described_without_the_chargers_address() -> None:
 
 def test_a_name_resolution_error_keeps_its_hint() -> None:
     """A resolver error quotes no address, and `gaierror (-2)` dropped the
-    one thing that says what to fix: the name did not resolve (reaudit
-    R1-18)."""
+    one thing that says what to fix: the name did not resolve."""
     error = socket.gaierror(socket.EAI_NONAME, "Name or service not known")
 
     assert describe_error(error) == "gaierror (Name or service not known)"
@@ -412,7 +411,7 @@ async def test_connect_loads_the_api_definition_off_the_event_loop() -> None:
 async def test_an_acknowledgement_completes_whichever_id_type_arrives(
     request_id: int | str,
 ) -> None:
-    """Audit A11-01: commands go out with an integer id, but the bundled
+    """Commands go out with an integer id, but the bundled
     protocol documents responses carrying it as a string. Looking the waiter
     up unnormalized meant a string answer applied its properties and left the
     caller waiting for its full timeout -- a write that worked, reported as a

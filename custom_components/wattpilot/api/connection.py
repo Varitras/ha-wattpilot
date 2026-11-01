@@ -74,7 +74,7 @@ class Connection:
         self._initialized_event = asyncio.Event()
         self._disconnected_event = asyncio.Event()
         self._disconnected_event.set()
-        # One transition at a time (audits A13-01, A14-01, A15-01): opens
+        # One transition at a time: opens
         # share one attempt, close() cancels it rather than waiting it out,
         # and an open() during a close() waits for a fresh connection.
         self._opening: asyncio.Task[None] | None = None
@@ -143,7 +143,7 @@ class Connection:
         self._initialized_event.set()
 
     def fail(self, error: WattpilotError) -> None:
-        """Record the refusal, sign out at once and wake open()'s waits (PC3-01/02)."""
+        """Record the refusal, sign out at once and wake open()'s waits."""
         self.fatal_error = error
         self._set_authenticated(value=False)
         self._authenticated_event.set()
@@ -162,11 +162,11 @@ class Connection:
         # Every close in progress, not just the first: one can start as another ends.
         while self._closing is not None and not self._closing.done():
             await asyncio.wait({self._closing})
-        self._stopped = False  # not in the attempt, which undid a close (PC-01)
+        self._stopped = False  # not in the attempt, which undid a close
         attempt = self._opening = self._ongoing(self._opening, self._open)
         try:
             # Not shielded: a caller Home Assistant gives up on takes the
-            # attempt down with it, socket and reader included (A11-05).
+            # attempt down with it, socket and reader included.
             await attempt
         except asyncio.CancelledError:
             if _cancelled_by_caller(attempt):
@@ -181,13 +181,13 @@ class Connection:
                 await self._finish_initialization()
                 return
             # A reader still sitting out its retry backoff owns a socket;
-            # replacing it without stopping it left two readers racing (A12-01).
+            # replacing it without stopping it left two readers racing.
             if had_reader:
                 await self._close()
             await self._open_socket()
         except BaseException:
             # That reader was the one retrying; failed, timed out or cancelled,
-            # nothing reached the charger again (A18-05, R1-12).
+            # nothing reached the charger again.
             if had_reader:
                 self.resume_reconnecting()
             raise
@@ -218,7 +218,7 @@ class Connection:
 
     def resume_reconnecting(self) -> None:
         """Restart the reconnect loop after a failed attempt -- not after a refusal."""
-        # Nor after a close: an unload in a firmware wait was overridden (R1-11).
+        # Nor after a close: an unload in a firmware wait was overridden.
         if self._stopped or self.fatal_error is not None or self._reader_owned():
             return
         if self._auto_reconnect:
@@ -240,9 +240,9 @@ class Connection:
         Reset everything that belongs to a single connection.
 
         Every path that opens a socket comes through here; carrying the
-        initialized flag over let open() return before the new snapshot
-        (audit A11-07). The property cache is deliberately kept: clearing it
-        would blank every entity for the length of the outage.
+        initialized flag over let open() return before the new snapshot.
+        The property cache is deliberately kept: clearing it would blank
+        every entity for the length of the outage.
         """
         self._cancel_readiness_guard()
         self._initialized = False
@@ -258,7 +258,7 @@ class Connection:
     async def close(self) -> None:
         """Stop the reader and close the socket, however either of them ended."""
         # Visible before anything is awaited: while it cancelled the pending
-        # attempt unannounced, a new open() started and was torn down (A16-01).
+        # attempt unannounced, a new open() started and was torn down.
         self._stopped = True
         self.close_count += 1
         self._closing = self._ongoing(self._closing, self._cancel_and_close)
@@ -297,15 +297,15 @@ class Connection:
             if task is not None:
                 task.cancel()
                 # wait(), not await: catching the reader's cancellation also
-                # swallowed a close aimed at the caller (RF-L-02).
+                # swallowed a close aimed at the caller.
                 await asyncio.wait({task})
                 if not task.cancelled() and (err := task.exception()) is not None:
-                    # A failed loop re-raised here, before the socket closed
-                    # (A11-06). No traceback: it can quote the address (PC-02).
+                    # A failed loop re-raised here, before the socket closed.
+                    # No traceback: it can quote the address.
                     _LOGGER.debug("Message loop ended: %s", describe_error(err))
         finally:
             # Reset even when close() raises, or `connected` stays True with
-            # the reader already cancelled (audit VA-04).
+            # the reader already cancelled.
             try:
                 if self.socket is not None:
                     await self.socket.close()
@@ -347,7 +347,7 @@ class Connection:
         the same wait would deadlock -- nothing would read the frames it waits
         for. Watching from the side instead: a peer whose socket stays up
         while its application handshake stalls used to hold the integration
-        unavailable for good, with no further retry (audit A12-04). Closing
+        unavailable for good, with no further retry. Closing
         the socket ends the frame iteration, and the loop tries again.
         """
         try:
@@ -367,7 +367,7 @@ class Connection:
 
         BaseException, not Exception: Home Assistant cancels a setup that
         takes too long, and CancelledError is not an Exception -- the
-        narrower catch left both running behind it (audit A11-05).
+        narrower catch left both running behind it.
         """
         try:
             yield
@@ -384,7 +384,7 @@ class Connection:
         async for frame in self.socket:
             if self.fatal_error is not None:
                 # Frames buffered before a refusal were still applied: the
-                # wrong device's amp reached the cache (audit A12-02).
+                # wrong device's amp reached the cache.
                 _LOGGER.debug("Dropping a frame that arrived after the refusal")
                 break
             try:

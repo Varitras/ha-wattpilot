@@ -90,7 +90,7 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
     def _report_unknown(self, value: Any, *, known: bool) -> None:  # noqa: ANN401 -- charger payload
         # Unknown alone told nobody (#25). Once until a known value: a NaN
         # never equals itself, and one unknown value after another tells
-        # nothing new (F31-03). A preset select sees a current between its
+        # nothing new. A preset select sees a current between its
         # presets as a matter of course, so only a fixed table reports.
         if known:
             self._unknown_reported = False

@@ -157,10 +157,10 @@ async def async_migrate_legacy_unique_ids(
             # history, entity id and customisations, and the one kept is
             # already bound. Whether that history still matters is the
             # owner's call, so nothing is deleted or renamed -- but it is
-            # reported instead of only logged (audit VA-06).
+            # reported instead of only logged.
             collisions.append(entity_entry.entity_id)
-            # Not the entity ID, here or below: it can carry the serial
-            # (R1-02). The repair issue names it; that is not logged.
+            # Not the entity ID, here or below: it can carry the serial.
+            # The repair issue names it; that is not logged.
             _LOGGER.warning(
                 "Not migrating a %s entity for %s: one already exists",
                 entity_entry.domain,
@@ -184,7 +184,7 @@ def _collision_issue_id(entry: ConfigEntry) -> str:
 
 
 def async_clear_collisions(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Drop the notice with the entry it is about (audit A18-23)."""
+    """Drop the notice with the entry it is about."""
     ir.async_delete_issue(hass, DOMAIN, _collision_issue_id(entry))
 
 
@@ -197,7 +197,7 @@ def _report_collisions(
         return
     registry = er.async_get(hass)
     # Registry ids, not entity IDs: a listed entity renamed was still named
-    # by its old ID, and deleting it then left the notice up (RF-E-02).
+    # by its old ID, and deleting it then left the notice up.
     listed = {found.id for name in collisions if (found := registry.async_get(name))}
 
     @callback
@@ -206,7 +206,7 @@ def _report_collisions(
 
     @callback
     def _recount(_event: Event[er.EventEntityRegistryUpdatedData]) -> None:
-        # Deleting what the notice lists left it up until a reload (R1-19).
+        # Deleting what the notice lists left it up until a reload.
         entries = (registry.async_get(registry_id) for registry_id in listed)
         _show_collisions(hass, entry, {found.entity_id for found in entries if found})
 

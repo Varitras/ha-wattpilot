@@ -264,7 +264,7 @@ async def test_an_unknown_value_is_reported_once_until_a_known_one(
     caplog: pytest.LogCaptureFixture,
     pushes: list[object],
 ) -> None:
-    """Logged on every push before (post-check F31-03)."""
+    """Logged on every push before."""
     fake_charger._properties["ct"] = "default"
     await make_select(hass, fake_charger, "ct")
     for value in pushes:

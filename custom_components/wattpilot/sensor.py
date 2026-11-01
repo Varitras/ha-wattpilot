@@ -111,7 +111,7 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
     # readings that differ in nearly every update while charging: history
     # of either would only fill the recorder.
     _unrecorded_attributes = frozenset({"prices", "readings", *NRG_ATTRIBUTES})
-    # Held against, not an unknown a null left on display (RF-D-02).
+    # Held against, not an unknown a null left on display.
     _last_number: float | None = None
 
     def __init__(self, *args: Any) -> None:  # noqa: ANN401 -- forwards WattpilotEntity's args unchanged
@@ -146,10 +146,10 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
             # the platform; keep the previous state.
             # Shape and error type, never the value: this sink is not the
             # diagnostics download and nothing redacts it, so a card list
-            # logged with %r put holder names into the log (audit A12-05).
+            # logged with %r put holder names into the log.
             # The exception's own message can quote the value too, so only
             # its type is reported. The sensor by its key: the entity ID
-            # carries the serial (R1-02).
+            # carries the serial.
             _LOGGER.warning(
                 "%s: unexpected %s for %s (%s)",
                 description.key,
@@ -237,7 +237,7 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
         absent slot is the entity having nothing to show, not a malformed
         push: indexing past the end raised, and the generic handler then
         logged the whole card list with %r -- holder names included, in a
-        sink nothing redacts (audit A12-05).
+        sink nothing redacts.
         """
         if index >= len(value):
             self._attr_native_value = None
@@ -309,7 +309,7 @@ class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):
         """Seed the hold against a step back with the last reported total."""
         # In memory only, the hold ended with the entity: a reload in the
         # window after a charger restart -- the one a firmware update
-        # triggers -- reported the lower total (audit A18-25).
+        # triggers -- reported the lower total.
         last = await self.async_get_last_sensor_data()
         if last is not None and isinstance(last.native_value, (int, float)):
             self._attr_native_value = self._restored_total = last.native_value
@@ -321,7 +321,7 @@ class WattpilotTotalSensor(WattpilotSensor, RestoreSensor):
     ) -> bool:
         restored, self._restored_total = self._restored_total, None
         # A restored total can be another charger's: a replacement that took
-        # over this entity ID was held at the old total for years (R1-03).
+        # over this entity ID was held at the old total for years.
         # Only a step back as small as a restart's is held.
         if restored is not None and value < restored * _RESET_THRESHOLD_RATIO:
             return False
@@ -348,7 +348,7 @@ class WattpilotAveragePowerSensor(WattpilotSensor):
 
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- charger payload
         # tpa keeps the last session's average after charging, and threshold
-        # automations kept firing on it for hours (audit A18-13).
+        # automations kept firing on it for hours.
         live = total_power(
             self._hub.get_property(self.entity_description.companion_key)  # type: ignore[arg-type]
         )
@@ -361,11 +361,11 @@ class WattpilotAveragePowerSensor(WattpilotSensor):
     def _show_live(self, value: Any, live: float | None) -> None:  # noqa: ANN401 -- charger payload
         if not live or value is None:
             # Unknown, whichever reading is: no telling a stale average, and
-            # which one is stale stays known (PC5-R-03, PC6-03, PC7-01).
+            # which one is stale stays known.
             super()._apply_value(None)
             return
         if value == self._stale:
-            self._attr_native_value = 0  # until this session's own average (RF-D-04)
+            self._attr_native_value = 0  # until this session's own average
             return
         self._stale = None
         super()._apply_value(value)

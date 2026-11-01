@@ -50,7 +50,7 @@ DROP_KEYS = {
 # host/hsta/hsts/fwan: hostnames the bundled definition documents as
 # "Wattpilot_<serial>". None of them is populated on firmware 42.5, which is
 # exactly why they had no decision -- the register only knew the fields this
-# one device happened to report (audit A11-03).
+# one device happened to report.
 REPLACE: dict[str, Any] = {
     "sse": "123456",
     "fna": "Wattpilot",
@@ -65,14 +65,14 @@ REPLACE: dict[str, Any] = {
     "wae": True,
     # Free text nobody bounds: a load group named after a place, a WiFi error
     # quoting a network name. Empty on the reference device, which proves
-    # nothing about the next (audit A17-02).
+    # nothing about the next.
     "log": "<redacted>",
     "wsm": "<redacted>",
     # Readable on the reference device, a TLS error; on a Flex on Ethernet
     # it quotes the charger's address.
     "cle": "<redacted>",
     # Flex free text nothing documents: an OCPP fallback card and tariff
-    # text, an OTA field. Placeholders on the one Flex seen (audit A18-15).
+    # text, an OTA field. Placeholders on the one Flex seen.
     "ocppfd": "<redacted>",
     "ocpptt": "<redacted>",
     "otaif": "<redacted>",
@@ -141,7 +141,7 @@ NET_REPLACEMENTS: dict[str, Any] = {
 # rules only know the keys someone has seen, and a Flex on Ethernet reported
 # a dozen nobody had. ipaddress decides, so times and versions survive.
 # A full stop may end the IPv4 address, a label may precede the IPv6 one:
-# "Connect to <address>." and "inet6:<address>" got through (R1-07).
+# "Connect to <address>." and "inet6:<address>" got through.
 IPV4_CANDIDATE = re.compile(r"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?!\d)(?!\.\d)")
 IPV6_CANDIDATE = re.compile(
     r"(?<!\w)[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?:%\w+)?(?![\w:])"
@@ -252,9 +252,9 @@ def _sanitized_card(index: int, card: Any) -> Any:  # noqa: ANN401 -- untyped JS
 def _sanitized_cards(value: Any) -> Any:  # noqa: ANN401 -- untyped JSON
     # A card that is not a dict used to pass through as-is, which for a bare
     # string means the identifier itself survived. An unknown shape is
-    # exactly the case we cannot judge, so it is dropped (VA-12) -- and so
+    # exactly the case we cannot judge, so it is dropped -- and so
     # is an outer value that is not a list, which used to abort the whole
-    # diagnostics download (A13-05).
+    # diagnostics download.
     if not isinstance(value, list):
         return UNEXPECTED_SHAPE
     return [_sanitized_card(i, card) for i, card in enumerate(value)]
@@ -287,7 +287,7 @@ def _sanitized_companion(value: Any, serial: str | None) -> Any:  # noqa: ANN401
     if not isinstance(value, dict):
         # An unconditional update() raised on anything else, which took the
         # whole diagnostics download with it -- the one thing a user needs
-        # when reporting a problem (VA-12).
+        # when reporting a problem.
         return UNEXPECTED_SHAPE
     companion = scrub(value, serial)
     for field, replacement in _COMPANION_STAND_INS.items():
@@ -310,7 +310,7 @@ def sanitize_property(key: str, value: Any, serial: str | None = None) -> Any:  
         # a private IP is not, and nothing in the value tells them apart, so
         # it always goes. Not a NET_FIELDS entry, which matches by name at any
         # depth while `smd` carries a numeric `ts` of its own -- a timestamp,
-        # which must survive -- and only for a string (audit VA-07).
+        # which must survive -- and only for a string.
         return _stand_in(value, TIME_SERVER_REPLACEMENT)
     replacement = _replacement_for(key, value)
     if replacement is not _KEEP:

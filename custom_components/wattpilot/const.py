@@ -103,7 +103,7 @@ def serial_taken_by_other_entry(
     A second entry for the same charger would fight over the device. An
     ignored card is not one: it holds the serial only to keep the card from
     coming back, and counting it locked the fork entry out of its own
-    charger for good (audit A18-07). Setup and the reconfigure and reauth
+    charger for good. Setup and the reconfigure and reauth
     flows decide on this together, like on awaits_serial.
     """
     return any(
@@ -152,7 +152,7 @@ def reload_failed_entry(
 
     Home Assistant reloads only a loaded or retrying entry after a discovery
     update: one that met another charger at its old address and failed stayed
-    failed with the right address stored (reaudit RF-E-01). Only a change
+    failed with the right address stored. Only a change
     reloads, or every announcement would.
     """
     if entry is None or not updates or entry.state is not ConfigEntryState.SETUP_ERROR:

@@ -41,7 +41,7 @@ _AVAILABILITY_CHECK_INTERVAL = timedelta(seconds=30)
 # The client's own errors, raw websockets errors it does not wrap, and socket
 # failures. A write the charger refused (CommandError) lands here too: either
 # way the action did not take effect. Raised `from None`: a setup traceback
-# shows the cause, and a refused connect quotes the address (R1-01).
+# shows the cause, and a refused connect quotes the address.
 _WRITE_ERRORS = (WattpilotError, WebSocketException, OSError)
 _REFUSAL_ISSUES = ("wrong_charger", "charger_refused")  # also translation keys
 
@@ -72,7 +72,7 @@ class WattpilotHub:
         self._cancel_flush: CALLBACK_TYPE | None = None
         # Set by async_shutdown, cleared by async_connect: see `available`.
         self._torn_down = False
-        # Set once by async_shutdown: an unloaded hub never comes back (A15-02).
+        # Set once by async_shutdown: an unloaded hub never comes back.
         self._retired = False
 
     @classmethod
@@ -262,10 +262,10 @@ class WattpilotHub:
         """Return whether the charger is currently reachable."""
         # Not the client's flag alone: a close that raised leaves `connected`
         # True with the loop behind it gone, and once this hub has torn itself
-        # down no update reaches an entity again (audit VA-04). Nor before the
-        # full status (A18-20) -- unless no outage was seen: a reconnect
+        # down no update reaches an entity again. Nor before the
+        # full status -- unless no outage was seen: a reconnect
         # between two checks replays it into entities still shown, and they
-        # flapped (R1-04).
+        # flapped.
         return (
             not self._torn_down
             and bool(self.charger.connected)
@@ -297,7 +297,7 @@ class WattpilotHub:
                 self._hass, signal_property(self._entry_id, key), value
             )
         # Not buffered: the first push after the full status (the next delta,
-        # about a second later) announces a recovery (R1-23).
+        # about a second later) announces a recovery.
         self._update_availability(available=self.available)
 
     @callback
@@ -323,7 +323,7 @@ class WattpilotHub:
             # Not reauth: a new password would not bring this charger back.
             self._report_refusal("wrong_charger", {"serial": self.serial})
         elif refusal is not None:
-            # A sign-in scheme the client does not know (reaudit R1-13).
+            # A sign-in scheme the client does not know.
             self._report_refusal("charger_refused", {"error": describe_error(refusal)})
 
     def _clear_refusals(self) -> None:
@@ -350,8 +350,8 @@ class WattpilotHub:
         never_reported = self._last_available is None
         self._last_available = available
         if available:
-            self._flush_pending()  # the values before the announcement (A18-20)
-            self._clear_refusals()  # a reconnect left them up beside it (RF-L-03)
+            self._flush_pending()  # the values before the announcement
+            self._clear_refusals()  # a reconnect left them up beside it
         self._log_availability(
             available=available, expected=expected, never_reported=never_reported
         )

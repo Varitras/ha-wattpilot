@@ -4,7 +4,7 @@ The redaction fixtures are plain JSON, but the client rebuilds every nested
 object as a SimpleNamespace. `scrub` walks dictionaries, lists and strings,
 so the namespaces went past it untouched and Home Assistant's exporter wrote
 their repr() into the download -- IPs, SSIDs and MAC addresses from `dns`,
-`wifis` and `scan` (audit A11-03). Dictionary-only fixtures cannot see that
+`wifis` and `scan`. Dictionary-only fixtures cannot see that
 boundary, so this module drives frames through the client instead.
 """
 
@@ -84,7 +84,7 @@ async def test_the_normal_client_shapes_are_not_treated_as_unexpected(
 ) -> None:
     """`cards` and `cci` carry their own handling. Reporting the client's
     ordinary values as an unknown shape drops the very data a bug report
-    needs (audit A11-03)."""
+    needs."""
     sanitized = sanitize_snapshot(loaded_client.all_properties)
 
     assert sanitized["cci"]["model"] == "Symo"

@@ -48,7 +48,7 @@ WSL — the suite only runs there, and the `gitleaks` on the Windows PATH is an
 older build without the `git` subcommand — and the blocklist itself lives
 outside the repository, because several of its entries are exactly the words
 it keeps out. **A fresh clone therefore has no hook.** The template it was
-adapted from is in the erosionsschutz kit.
+adapted from lives outside the repository as well.
 
 Why a blocklist next to `gitleaks`: on 2026-09-05 `gitleaks` reported zero
 findings over the full history while a test fixture carried the repository

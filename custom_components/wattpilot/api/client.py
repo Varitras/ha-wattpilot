@@ -54,7 +54,7 @@ def _plain_json(value: Any) -> Any:  # noqa: ANN401 -- recurses over untyped JSO
     SimpleNamespace per nested object, because the message handlers read
     fields by attribute. Everything downstream -- entities, diagnostics, the
     redaction that walks dictionaries and lists -- expects plain containers,
-    and a namespace slipped past all of it (audit A11-03).
+    and a namespace slipped past all of it.
     """
     if isinstance(value, SimpleNamespace):
         return {key: _plain_json(item) for key, item in vars(value).items()}
@@ -77,7 +77,7 @@ def _correlation_key(request_id: object) -> str:
 
     Commands are sent with an integer; the protocol's own examples answer
     with a string. Comparing them raw left the caller waiting for an answer
-    that had already arrived (audit A11-01).
+    that had already arrived.
     """
     return str(request_id)
 
@@ -205,9 +205,9 @@ class Wattpilot:
             reconnect_delay_max=reconnect_delay_max,
         )
         self._request_id = 0
-        # Pending setValue commands, so a rejection reaches its caller (VA-03).
+        # Pending setValue commands, so a rejection reaches its caller.
         # Keyed by string: ids go out as int, but answers may carry them as
-        # strings, and an unnormalized lookup missed those (audit A11-01).
+        # strings, and an unnormalized lookup missed those.
         self._pending_commands: dict[str, asyncio.Future[None]] = {}
         self.command_timeout = 10.0
         self._all_props: dict[str, Any] = {}
@@ -240,7 +240,7 @@ class Wattpilot:
         """Open the WebSocket and authenticate."""
         await self._connection.open()
         # Same cleanup scope as the handshake: a cancellation between the two
-        # left reader and socket alive (audit A12-03).
+        # left reader and socket alive.
         try:
             await self._load_api_definition()
         except BaseException:
@@ -343,7 +343,7 @@ class Wattpilot:
         if name in _NEVER_ACKNOWLEDGED:
             await self._send(message, secure=secure)
             return
-        # Wait for the answer, not just the send (audit VA-03).
+        # Wait for the answer, not just the send.
         await self._send_command(message, secure=secure)
 
     async def set_next_trip(
@@ -367,7 +367,7 @@ class Wattpilot:
 
         # No DST hour. Measured 2026-09-06, summer time, `tds` = 1: 07:30 set
         # in the app reads back as 27000, not 30600; adding the hour made it
-        # come back as 08:30 (audit A12-06).
+        # come back as 08:30.
         await self.set_property("ftt", timestamp)
 
     async def set_next_trip_energy(self, energy_wh: float) -> None:
@@ -440,12 +440,12 @@ class Wattpilot:
             version = versions[0]
 
         # Counted from here: a close in the wait for the reboot ended that
-        # wait as if the charger had gone, and the update reconnected (RF-L-01).
+        # wait as if the charger had gone, and the update reconnected.
         closes = self._connection.close_count
         await self.set_property("oct", version)
 
         # A monotonic deadline: a sum of sleeps never counted the reconnect
-        # waits and overran the two-minute budget by half an hour (A12-08).
+        # waits and overran the two-minute budget by half an hour.
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
 
@@ -456,7 +456,7 @@ class Wattpilot:
             msg = "Charger did not disconnect for firmware update"
             raise WattpilotConnectionError(msg)
 
-        # No disconnect() of its own: it counted as an unload (PC-01).
+        # No disconnect() of its own: it counted as an unload.
         await self._reconnect_before(deadline, closes)
 
     async def _reconnect_before(self, deadline: float, closes: int) -> None:
@@ -466,10 +466,10 @@ class Wattpilot:
         Every attempt is bounded by what is left of the budget, and so is the
         pause between them. Both used to be free: the caller's timeout was a
         sum of sleeps, and a single attempt could sit in a full
-        authentication wait without spending any of it (audit A12-08).
+        authentication wait without spending any of it.
         """
         loop = asyncio.get_running_loop()
-        # Another close (an unload) ends the wait; reconnecting outlived it (R1-11).
+        # Another close (an unload) ends the wait; reconnecting outlived it.
         while self._connection.close_count == closes:
             remaining = deadline - loop.time()
             if remaining <= 0:
@@ -481,8 +481,8 @@ class Wattpilot:
                 break
             await asyncio.sleep(min(_REBOOT_RETRY_PAUSE, remaining))
 
-        # Giving up without a reader left the updated charger unreached
-        # (A18-06); a failed attempt may have stopped the one there was.
+        # Giving up without a reader left the updated charger unreached;
+        # a failed attempt may have stopped the one there was.
         self._connection.resume_reconnecting()
         msg = "Timeout reconnecting after firmware update"
         raise WattpilotConnectionError(msg)
@@ -494,7 +494,7 @@ class Wattpilot:
                 await self.connect()
         except Exception:
             if self.refusal is not None:
-                # Retried, it ended up reported as a timeout (R1-13).
+                # Retried, it ended up reported as a timeout.
                 raise
             return False
         return True
@@ -584,7 +584,7 @@ class Wattpilot:
     # function's whole content. The complexity ratchet in tests/ freezes
     # the number so it cannot creep upward unnoticed.
     async def _handle_message(self, raw: str) -> None:  # noqa: C901
-        # wattpilot: type only, never the payload (audit VA-01). Frames
+        # wattpilot: type only, never the payload. Frames
         # carry Wi-Fi passwords, cloud tokens and OCPP keys, and DEBUG
         # logging for this integration is one toggle away in the UI.
         _LOGGER.debug("Message received: %s (%d bytes)", _message_type(raw), len(raw))
@@ -638,7 +638,7 @@ class Wattpilot:
 
         Hello comes on every connection, reconnects included, so the check
         lives here: DHCP can hand the address to another device, and a
-        reconnect kept the entry pointed at whatever answered (audit A11-02).
+        reconnect kept the entry pointed at whatever answered.
         """
         known = self._device.serial
         if not known or known == serial:
@@ -652,7 +652,7 @@ class Wattpilot:
     async def _on_auth_required(self, msg: SimpleNamespace) -> None:
         if hasattr(msg, "hash"):
             if msg.hash not in AuthHashType:
-                # Unanswered, this was a timeout with no cause (A18-18).
+                # Unanswered, this was a timeout with no cause.
                 msg_text = f"Unsupported password hash: {msg.hash}"
                 await self._connection.reject(WattpilotConnectionError(msg_text))
                 return
@@ -676,7 +676,7 @@ class Wattpilot:
     async def _on_auth_error(self, msg: SimpleNamespace) -> None:
         error_msg = getattr(msg, "message", "Unknown auth error")
         _LOGGER.error("Authentication failed: %s", error_msg)
-        # Rejected, not failed: after authSuccess the socket stayed open (PC2-02).
+        # Rejected, not failed: after authSuccess the socket stayed open.
         await self._connection.reject(AuthenticationError(error_msg))
 
     def _on_full_status(self, msg: SimpleNamespace) -> None:
@@ -691,7 +691,7 @@ class Wattpilot:
     def _apply_status(self, status: object) -> None:
         # wattpilot: one property at a time. A value this client cannot
         # read cost the rest of its frame, and in the last chunk of the
-        # first full status the status never completed (audit A18-16).
+        # first full status the status never completed.
         # A status that is no object (`null`) has nothing to apply.
         for key, value in getattr(status, "__dict__", {}).items():
             try:
@@ -700,12 +700,12 @@ class Wattpilot:
                 _LOGGER.warning("Ignoring an unreadable value for %s", key)
 
     def _on_response(self, msg: SimpleNamespace) -> None:
-        # wattpilot: resolve the waiting command (audit VA-03). An answer
+        # wattpilot: resolve the waiting command. An answer
         # without a waiter -- or without an id at all -- is still applied
         # and logged.
         request_id = getattr(msg, "requestId", None)
         future = self._pending_commands.get(_correlation_key(request_id))
-        # Truthy, not only a JSON true (L-039): the Home sends true, the Flex
+        # Truthy, not only a JSON true: the Home sends true, the Flex
         # was never measured, and refusing a real acceptance fails every write.
         if msg.success:
             # Nothing in the protocol promises a status on every acceptance.
@@ -731,7 +731,7 @@ class Wattpilot:
     ) -> None:
         # wattpilot: every status frame arrives here, from the full replay,
         # a delta and a command response alike -- so this is the one place
-        # that has to turn the wire shape into plain JSON (audit A11-03).
+        # that has to turn the wire shape into plain JSON.
         value = _plain_json(value)
         self._all_props[name] = value
 
@@ -755,7 +755,7 @@ class Wattpilot:
         """
         Hash the password for this device, off the event loop.
 
-        PBKDF2 measured 110-116 ms per handshake on the event loop (A11-08).
+        PBKDF2 measured 110-116 ms per handshake on the event loop.
         """
         if not self._password or not self._device.serial:
             return

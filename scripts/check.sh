@@ -53,7 +53,7 @@ mutation_gate() {
     accepted=$(grep -v -e '^#' -e '^$' scripts/equivalent-mutants.txt)
     for mutant in $accepted; do
         # A name mutmut no longer has ran the original code and was booked
-        # "survived" below, so a renumbered entry was never caught (RF-D-06).
+        # "survived" below, so a renumbered entry was never caught.
         if ! grep -q "^ *${mutant}: " mutants/results.txt; then
             echo "accepted mutant ${mutant} does not exist; renumbered?" >&2
             return 1

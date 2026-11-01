@@ -32,22 +32,22 @@ def auto_enable_custom_integrations(
     Allow HA to load custom_components/wattpilot in tests.
 
     After the log fixtures, which then outlast hass: autouse fixtures are set
-    up by name, so the stop of Home Assistant went unchecked (PC5-T-03).
+    up by name, so the stop of Home Assistant went unchecked.
     """
 
 
 # Serials and addresses the tests hand out. None may reach a log record
 # unmasked, tracebacks included: the static guard was widened three rounds
-# running and still missed shapes, so every test now checks the real output
-# (reaudit RF-P-03). Any IPv4 literal, as a list of the tests' addresses
-# missed four (post-check PC5-T-04); 192.0.2.1 is the redaction's stand-in.
+# running and still missed shapes, so every test now checks the real output.
+# Any IPv4 literal, as a list of the tests' addresses
+# missed four; 192.0.2.1 is the redaction's stand-in.
 IDENTIFIERS = re.compile(
     r"(?<![\d.])(?:123456|654321|999999|111111|222222|333333"
     r"|(?!192\.0\.2\.1(?![\d]))\d{1,3}(?:\.\d{1,3}){3}"
     r"|(?:2001:db8|fe80):[0-9a-f:]*[0-9a-f])(?![\d])"
 )
-# Entity IDs of a device named after its host name carry the serial: the
-# accepted risk L-027 for installations from before names were stored.
+# Entity IDs of a device named after its host name carry the serial: an
+# accepted risk for installations from before names were stored.
 ENTITY_ID = re.compile(r"\b[a-z_]+\.[a-z0-9_]+")
 
 
@@ -66,7 +66,7 @@ def no_identifier_reaches_the_log(request: pytest.FixtureRequest) -> Iterator[No
     """Fail a test whose log names a charger; mark the few that must."""
     handler = _LogLines()
     # Home Assistant's setup DEBUG lines too: it logs a setup retry's
-    # traceback there (post-check PC5-T-04).
+    # traceback there.
     loggers = [
         logging.getLogger(name)
         for name in (

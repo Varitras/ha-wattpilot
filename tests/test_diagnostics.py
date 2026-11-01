@@ -50,7 +50,7 @@ async def test_every_entry_field_has_a_redaction_decision(
     hass: HomeAssistant,
 ) -> None:
     """A fork entry gained a stored name, which went out in the clear while
-    the same name was replaced among the properties (README audit RM2-01).
+    the same name was replaced among the properties.
     The shapes come from the writers themselves: the config flow's and the
     migration of both fork entry kinds."""
     shapes = [{**V2_LOCAL_DATA, CONF_NAME: "Wattpilot"}, V2_AWAITING_SERIAL]
@@ -215,7 +215,7 @@ async def test_diagnostics_redact_sensitive_data(
 
 
 def test_time_server_host_is_not_exposed() -> None:
-    """Audit VA-07: `ts` is the configured NTP server. A public pool name is
+    """`ts` is the configured NTP server. A public pool name is
     harmless, an internal hostname or private IP is not, and the redaction
     cannot tell them apart -- so it replaces the string.
 
@@ -231,7 +231,7 @@ def test_time_server_host_is_not_exposed() -> None:
 
 
 def test_unexpected_card_and_companion_shapes_are_safe() -> None:
-    """Audit VA-12: the redaction is written for the shapes firmware 42.5
+    """The redaction is written for the shapes firmware 42.5
     sends. A different one must fail safe, not either way it did:
 
     - a card that is not a dict passed through untouched, so a bare string
@@ -248,7 +248,7 @@ def test_unexpected_card_and_companion_shapes_are_safe() -> None:
 
     # The same boundary one level up: the outer `cards` value was iterated
     # without a check, so None or a number raised and a string was walked
-    # character by character (audit A13-05).
+    # character by character.
     for shape in (None, "OWNER-CARD-1234", 42, {}):
         cleaned = sanitize_snapshot({"cards": shape})
         assert cleaned["cards"] == UNEXPECTED_SHAPE
@@ -310,7 +310,7 @@ def test_a_flex_on_ethernet_keeps_no_identifier_in_the_diagnostics() -> None:
 
 def test_the_serial_is_replaced_also_where_sse_is_not_in_the_map() -> None:
     """A delta or a later chunk of the full status carries no `sse`, so a
-    recording kept the serial a new key embedded (R1-09)."""
+    recording kept the serial a new key embedded."""
     sanitized = sanitize_snapshot({"newKey": "Wattpilot-91234567"}, serial="91234567")
 
     assert "91234567" not in json.dumps(sanitized)
@@ -353,7 +353,7 @@ def test_text_that_only_looks_like_an_address_is_kept(value: str) -> None:
 )
 def test_an_address_at_the_edge_of_a_text_is_replaced(text: str, address: str) -> None:
     """A full stop after an IPv4 address, or a label glued to an IPv6 one,
-    kept the address out of the net (R1-07)."""
+    kept the address out of the net."""
     assert address not in sanitize_snapshot({"unknownKey": text})["unknownKey"]
 
 
@@ -362,7 +362,7 @@ def test_an_empty_value_is_not_replaced_by_a_real_looking_one(
     empty: str | None,
 ) -> None:
     """An empty car profile became "default", a value the charger had not
-    sent (audit A18-28). An empty value names nobody; it stays as it is."""
+    sent. An empty value names nobody; it stays as it is."""
     assert sanitize_snapshot({"ct": empty, "sse": empty}) == {"ct": empty, "sse": empty}
 
 
@@ -372,7 +372,7 @@ def test_an_empty_time_server_companion_or_chip_name_stays_empty(
 ) -> None:
     """The same rule on the paths with their own stand-ins: an unset time
     server became a configured one, an unpaired inverter a named device and
-    an unnamed chip "Card 0" (R1-08)."""
+    an unnamed chip "Card 0"."""
     sanitized = sanitize_snapshot(
         {
             "ts": empty,
@@ -425,5 +425,5 @@ def test_the_fixture_keeps_a_car_profile_the_select_can_show(
 ) -> None:
     """Diagnostics say <known profile> or <unknown: ...>, neither of which the
     select offers; a regenerated fixture took that over and the suite went
-    red (post-check F31-01). The owner's car stays out either way."""
+    red. The owner's car stays out either way."""
     assert fixture_from({"ct": car_profile, "sse": "123456"})["ct"] == stand_in

@@ -123,7 +123,7 @@ async def test_a_malformed_host_is_a_form_error(
 ) -> None:
     """An unbracketed IPv6 address, a mistyped port or an empty label made
     building the address raise outside the connection errors: the form said
-    "Unknown error" and the log held a traceback (audit A18-21)."""
+    "Unknown error" and the log held a traceback."""
     result = await start_user_flow(hass)
     fake_charger.connect_error = error
     with patch_charger(fake_charger):
@@ -176,7 +176,7 @@ async def test_reauth_rejects_a_different_charger(
     accepted by whatever now answers at the address were written into the
     entry and the flow reported success -- while the setup that followed
     refused the device, leaving the entry broken with its password already
-    replaced (audit A12-07). Sibling of the setup and reconnect checks.
+    replaced. Sibling of the setup and reconnect checks.
     """
     entry = MockConfigEntry(
         domain=DOMAIN,
@@ -519,7 +519,7 @@ async def test_a_known_charger_announcing_a_new_address_updates_the_entry(
     hass: HomeAssistant,
 ) -> None:
     """DHCP moved the charger: the entry follows instead of trying the old
-    address -- where another device may answer by now (audit A15-04)."""
+    address -- where another device may answer by now."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="123456",
@@ -692,8 +692,8 @@ async def test_a_card_for_a_fork_entry_awaiting_its_serial_is_not_offered(
 ) -> None:
     """A fork entry is keyed on its address until it connects. The card for
     the charger at that address was offered anyway, and confirming it made a
-    second entry with the serial that locked the fork entry out (reaudit
-    R1-14). The charger just announced itself, so the entry tries again."""
+    second entry with the serial that locked the fork entry out. The
+    charger just announced itself, so the entry tries again."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="192.168.1.60",
@@ -720,7 +720,7 @@ async def test_adding_by_hand_a_charger_whose_entry_awaits_its_serial_is_refused
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """The same as the card, through the form: a second entry with the serial
-    locked the carried-over entry out (post-check PC-04)."""
+    locked the carried-over entry out."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id=USER_INPUT["host"],

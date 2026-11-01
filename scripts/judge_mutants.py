@@ -6,7 +6,7 @@ report itself. It also reports more outcomes than "killed" and "survived":
 "no tests", "not checked", "suspicious" and "timeout" all mean the mutant was
 never judged. Filtering for survivors alone let a newly untested mutant
 vanish from the comparison entirely while the accepted survivors still
-matched, and the gate passed (audit A11-10).
+matched, and the gate passed.
 
 Every outcome therefore gets an explicit verdict here, and anything the
 policy does not know is a failure rather than a silence.

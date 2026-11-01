@@ -107,7 +107,7 @@ async def test_a_password_rejected_while_running_asks_for_a_new_one(
     """The client stops reconnecting once the charger refuses the password
     -- retrying would only repeat the refusal. But nothing told Home
     Assistant: the entry just stayed unavailable until someone reloaded it,
-    with no hint that the password was the problem (audit A14-02)."""
+    with no hint that the password was the problem."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )
@@ -137,9 +137,9 @@ async def test_another_charger_answering_while_running_is_reported(
 ) -> None:
     """The client stops for good when a different charger answers at the
     address -- DHCP handed it on -- rather than show that charger's readings
-    as this one's. But nothing said so: the entities just stayed unavailable
-    (audit A15-04). A new password would not help, so this is a repair
-    notice, not reauthentication; it lasts as long as the loaded entry."""
+    as this one's. But nothing said so: the entities just stayed
+    unavailable. A new password would not help, so this is a repair notice,
+    not reauthentication; it lasts as long as the loaded entry."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )
@@ -167,7 +167,7 @@ async def test_a_charger_asking_for_an_unknown_sign_in_is_reported(
 ) -> None:
     """A third way the client stops for good: the charger asks for a password
     scheme it does not know. Nothing reported it; the entities just stayed
-    unavailable (reaudit R1-13)."""
+    unavailable."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )
@@ -204,7 +204,7 @@ async def test_a_refusal_notice_goes_once_the_charger_is_back(
     hass: HomeAssistant, fake_charger: FakeWattpilot, refusal: Any, kind: str
 ) -> None:
     """After a successful reconnect the notice still said the integration
-    had stopped connecting, next to available entities (reaudit RF-L-03)."""
+    had stopped connecting, next to available entities."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )
@@ -461,8 +461,7 @@ async def test_a_refused_charger_is_reported_even_if_disconnecting_fails(
     """The identity check shut the hub down before raising wrong_charger,
     and the outer setup guard shut it down a second time. With a
     disconnect that also fails, that cleanup error replaced the refusal:
-    the user saw "Failed to disconnect" instead of why setup was refused
-    (audit A14-03)."""
+    the user saw "Failed to disconnect" instead of why setup was refused."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )
@@ -643,7 +642,7 @@ async def test_a_migrated_fork_entry_names_new_entities_without_the_serial(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """A fork entry kept no name, so its device took the host name and every
-    entity the fork lacked got the serial in its ID (reaudit RF-P-04). The
+    entity the fork lacked got the serial in its ID. The
     fork's own friendly name is what its entity IDs were made from."""
     entry = MockConfigEntry(
         domain=DOMAIN,
@@ -699,7 +698,7 @@ async def test_a_migrated_fork_cloud_entry_is_named_for_its_reconfigure(
 ) -> None:
     """Setup sends a cloud entry to Reconfigure, which keeps the stored name;
     without one the device took the host name and new entity IDs carried the
-    serial (post-check PC5-R-04)."""
+    serial."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={**V1_CLOUD_DATA, "friendly_name": "Garage"},
@@ -778,7 +777,7 @@ async def test_ha_stop_disconnects(
 async def test_a_failing_setup_hands_back_the_live_connection(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
-    """Audit VA-02: everything after async_connect() owns a live connection,
+    """Everything after async_connect() owns a live connection,
     a push callback and timers, and HA calls async_unload_entry only for an
     entry that finished setup. A failure in between must give them back, or
     the next retry adds a second hub on the same dispatcher signals.
@@ -811,7 +810,7 @@ async def test_a_failing_setup_hands_back_the_live_connection(
 async def test_a_firmware_change_reloads_the_entry(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
-    """Audit VA-05: the platforms filter their tables once, at setup, and the
+    """The platforms filter their tables once, at setup, and the
     device's sw_version is frozen when the entities are built. After a
     firmware jump the newly supported entities stay missing and the device
     page keeps showing the old version until someone reloads by hand.
@@ -854,7 +853,7 @@ async def test_the_known_serial_is_checked_before_the_password_is_sent(
     """The entry knows its charger's serial; the client checks hello against
     it before answering the authentication challenge. It used to learn the
     serial from whatever answered, so a wrong device got the password proof
-    first and was refused only afterwards (audit A17-01). An entry still
+    first and was refused only afterwards. An entry still
     awaiting its serial has none to give."""
     entry = MockConfigEntry(domain=DOMAIN, data=data, version=2, unique_id=unique_id)
     entry.add_to_hass(hass)
@@ -929,8 +928,7 @@ async def test_an_entry_titled_by_its_address_does_not_log_it(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A fork entry can be titled by its IP address, and Home Assistant logs
-    the title on every failed setup; the mask knew only serials (reaudit
-    RF-P-02)."""
+    the title on every failed setup; the mask knew only serials."""
     caplog.set_level(logging.DEBUG)
     entry = MockConfigEntry(
         domain=DOMAIN,
@@ -973,7 +971,7 @@ async def test_a_setup_retry_does_not_log_the_chargers_address(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Home Assistant logs each retry's traceback at DEBUG, the chained cause
-    included -- and asyncio's refused connect quotes the address (R1-01)."""
+    included -- and asyncio's refused connect quotes the address."""
     caplog.set_level(logging.DEBUG)
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
@@ -1038,7 +1036,7 @@ async def test_an_entry_awaiting_its_serial_masks_nothing(
 ) -> None:
     """An entry carried over from the earlier integration is keyed on its
     name or address until it connects. Masked as a serial, that name turned
-    every other title holding it into `*******ot` (R1-17)."""
+    every other title holding it into `*******ot`."""
     MockConfigEntry(domain=DOMAIN, unique_id="Wattpilot").add_to_hass(hass)
     record = _record("Config entry '%s' not ready", "Wattpilot meter")
 
@@ -1054,7 +1052,7 @@ async def test_a_setup_cancelled_by_the_stop_is_logged_masked(
 ) -> None:
     """Home Assistant fires the stop event first and lets the setup retries
     it cancelled log their title afterwards. The mask went with the event,
-    so that line carried the full serial (R1-05)."""
+    so that line carried the full serial."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )
@@ -1105,8 +1103,7 @@ async def test_adopting_the_serial_closes_the_charger_s_open_card(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """The card would stay offered for a charger that is configured now --
-    and only that card: closing every flow of the domain passed too
-    (reaudit RF-E-03)."""
+    and only that card: closing every flow of the domain passed too."""
     await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": config_entries.SOURCE_ZEROCONF},
@@ -1210,7 +1207,7 @@ async def test_total_energy_does_not_fall_across_a_reload(
     """After a restart the charger reported 21 Wh less (replay fixture). The
     sensor held its value -- in memory only, so a reload in that window, as
     the one after a firmware update, reported the lower total and the energy
-    dashboard got a negative hour (audit A18-25)."""
+    dashboard got a negative hour."""
     _, total = await _total_energy_after_restore(
         hass, fake_charger, restored=2681214, reported=2681193
     )
@@ -1236,7 +1233,7 @@ async def test_a_restored_total_from_another_charger_does_not_freeze_it(
 ) -> None:
     """A replacement charger that took over the old entity ID restored the
     old charger's total and held it until its own passed it -- years at
-    zero in the energy dashboard (R1-03). Only a step back as small as a
+    zero in the energy dashboard. Only a step back as small as a
     restart's is held; a drop this large is a different meter."""
     entity_id, total = await _total_energy_after_restore(
         hass, fake_charger, restored=2681214, reported=1200
@@ -1265,7 +1262,7 @@ async def test_an_unknown_total_keeps_the_hold_against_a_step_back(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """The hold compared against what was shown, so one null wiped it and
-    the next small step back reached the energy dashboard (RF-D-02)."""
+    the next small step back reached the energy dashboard."""
     entity_id, total = await _total_energy_after_restore(
         hass, fake_charger, restored=2681214, reported=2681214
     )
@@ -1283,7 +1280,7 @@ async def test_an_infinite_total_does_not_freeze_it(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """The hold took infinity as the last number and held every later
-    reading back until a reload (post-check PC5-R-01)."""
+    reading back until a reload."""
     entity_id, _ = await _total_energy_after_restore(
         hass, fake_charger, restored=2681214, reported=2681214
     )
@@ -1302,7 +1299,7 @@ async def test_a_restored_total_takes_the_first_number_after_an_unknown(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A restored total followed by a non-number dropped the next real
-    reading, with a TypeError warning about the wrong key (post-check PC-03)."""
+    reading, with a TypeError warning about the wrong key."""
     entity_id, total = await _total_energy_after_restore(
         hass, fake_charger, restored=2681214, reported=None
     )
@@ -1379,8 +1376,7 @@ async def test_a_reading_without_total_power_keeps_the_last_sessions_average_awa
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """A push without a total power between sessions forgot which average
-    was stale, and the next session's first watt showed it (post-check
-    PC5-R-03)."""
+    was stale, and the next session's first watt showed it."""
     _, entity_id = await _average_power_while_charging(hass, fake_charger)
     await _live_power(hass, fake_charger, 0, after=5)
     await _live_power(hass, fake_charger, 0, after=60)
@@ -1398,7 +1394,7 @@ async def test_a_null_average_keeps_the_stale_one_known(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """A null average in a new session forgot which average was the last
-    session's, and it came back after (post-check PC7-01)."""
+    session's, and it came back after."""
     _, entity_id = await _average_power_while_charging(hass, fake_charger)
     await _live_power(hass, fake_charger, 0, after=5)
     await _live_power(hass, fake_charger, 0, after=60)
@@ -1416,7 +1412,7 @@ async def test_a_null_average_while_charging_is_unknown_not_zero(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """None stood for "nothing stale" too, so a null average while power
-    flowed read 0 W (post-check PC6-03)."""
+    flowed read 0 W."""
     _, entity_id = await _average_power_while_charging(hass, fake_charger)
 
     fake_charger.push("tpa", None)
@@ -1430,7 +1426,7 @@ async def test_a_total_power_that_is_no_number_is_not_idle(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """A NaN total power counted as no current, and the average fell to
-    0 W a minute later (post-check PC6-06)."""
+    0 W a minute later."""
     _, entity_id = await _average_power_while_charging(hass, fake_charger)
 
     await _live_power(hass, fake_charger, float("nan"), after=5)
@@ -1459,7 +1455,7 @@ async def test_a_session_after_an_idle_start_waits_for_its_own_average(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """At the first watt the last session's average came back until the
-    charger sent this session's (reaudit RF-D-04); also after an idle start."""
+    charger sent this session's; also after an idle start."""
     fake_charger._properties.update({"tpa": 4121.5, "nrg": nrg_reading(0)})
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
@@ -1485,11 +1481,11 @@ async def test_an_unloaded_entry_leaves_no_average_power_timer_behind(
     await hass.async_block_till_done()
 
 
-# What a charger could send where a number belongs (reaudit K-A). Never seen
+# What a charger could send where a number belongs. Never seen
 # on a device, but each one escaped the bounded catch: Home Assistant raised
 # when it wrote the state, and at setup the entity was never added.
 # NaN and infinity are what json.loads makes of NaN, Infinity and a number
-# beyond the float range; Home Assistant refuses those too (post-check PC5-R-01).
+# beyond the float range; Home Assistant refuses those too.
 NOT_A_NUMBER = {
     "text": "n/a",
     "object": {"bogus": "n/a"},
@@ -1499,16 +1495,16 @@ NOT_A_NUMBER = {
     "minus infinity": float("-inf"),
     "infinities": [float("inf")] * 16,
     # An integer literal past the float range stays an int, and converting
-    # it raises OverflowError (post-check PC6-01).
+    # it raises OverflowError.
     "beyond_float": 10**400,
-    # A list of lists: a select's option list keyed on it (post-check PC7-02).
+    # A list of lists: a select's option list keyed on it.
     "nested": [["n/a"]] * 2,
 }
 HOLDER = "Holder Example"
 
 
 # Every platform with a state: time and number raised OverflowError past
-# their catch (post-check PC6-02), a select an unhashable error (PC7-02).
+# their catch, a select an unhashable error.
 # The update entity has its own test: its installed version gates firmware.
 PLATFORM_DESCRIPTIONS = {
     "sensor": list(SENSOR_DESCRIPTIONS),
@@ -1530,7 +1526,7 @@ async def test_no_value_a_charger_sends_keeps_an_entity_away(
     """Every entity, every malformed shape, at the boundary that raised: the
     state write, or the entity's own setup. A card's holder name never
     reaches the log -- Home Assistant logged the raw card list when the
-    write failed (RF-P-01)."""
+    write failed."""
     bad = NOT_A_NUMBER[kind]
     for descriptions in PLATFORM_DESCRIPTIONS.values():
         for description in descriptions:
@@ -1538,8 +1534,7 @@ async def test_no_value_a_charger_sends_keeps_an_entity_away(
                 if key is not None and key in fake_charger._properties:
                     fake_charger._properties[key] = bad
     fake_charger._properties["cards"] = [{"name": HOLDER, "energy": bad}] * 10
-    # A Flex's chips and power per source, which the fixture does not have
-    # (post-checks PC5-T-01, F31-05).
+    # A Flex's chips and power per source, which the fixture does not have.
     fake_charger._properties.update({f"c{i}e": bad for i in range(10)})
     fake_charger._properties.update(dict.fromkeys(("ws", "wb", "wg", "wo"), bad))
     entry = MockConfigEntry(
@@ -1579,7 +1574,7 @@ async def test_a_card_energy_that_is_no_number_logs_no_holder_name(
     kind: str,
 ) -> None:
     """Home Assistant logged the raw card list, holder names included, each
-    time the state write of an enabled ID-chip sensor failed (RF-P-01)."""
+    time the state write of an enabled ID-chip sensor failed."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )
@@ -1616,7 +1611,7 @@ async def test_a_failed_entry_whose_charger_announces_a_new_address_recovers(
 ) -> None:
     """Two chargers swapped addresses: this entry met the other charger and
     failed. Discovery stored the right address, but Home Assistant reloads
-    only a loaded or retrying entry, so it stayed failed (reaudit RF-E-01)."""
+    only a loaded or retrying entry, so it stayed failed."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )

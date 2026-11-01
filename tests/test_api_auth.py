@@ -51,7 +51,7 @@ def test_the_password_hash_keeps_its_value(
     hash_type: AuthHashType, expected: bytes
 ) -> None:
     """Without a value, a change to rounds, salt or encoding still hashed
-    deterministically and passed (audit A18-17). There is no vendor test
+    deterministically and passed. There is no vendor test
     vector; these come from the implementation, which logs in on a Home 11 J
     (PBKDF2) and a Flex (bcrypt)."""
     assert hash_password(PASSWORD, SERIAL, hash_type) == expected
@@ -115,7 +115,7 @@ async def test_authentication_hashes_off_the_event_loop(
 ) -> None:
     """PBKDF2 with 100,000 rounds measured 110-116 ms per handshake. Home
     Assistant runs this client in its event loop, so every connection stalled
-    it for that long (audit A11-08)."""
+    it for that long."""
     client = Wattpilot("192.0.2.10", "secret")
     client._device.serial = "123456"
 
@@ -155,7 +155,7 @@ async def test_authentication_hashes_off_the_event_loop(
 async def test_a_reconnect_reuses_the_password_hash(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """PBKDF2 took 110-116 ms per handshake (A11-08) for a result that only
+    """PBKDF2 took 110-116 ms per handshake for a result that only
     password, serial and hash type decide, so every reconnect delayed its auth
     reply by that much for nothing. A changed hash type must still re-hash."""
     client = Wattpilot("192.0.2.10", PASSWORD)
