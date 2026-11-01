@@ -6,10 +6,11 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.update import UpdateEntity, UpdateEntityFeature
 from homeassistant.core import callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from packaging.version import InvalidVersion, Version
 
-from .const import signal_property
+from .const import DOMAIN, signal_property
 from .descriptions import (
     UPDATE_DESCRIPTIONS,
     WattpilotUpdateEntityDescription,
@@ -79,6 +80,7 @@ class WattpilotUpdate(WattpilotEntity, UpdateEntity):
     """Firmware update driven by onv (available) and fwv (installed)."""
 
     entity_description: WattpilotUpdateEntityDescription
+    _offered: tuple[str, ...] = ()  # until the charger sends onv
     _attr_supported_features = (
         UpdateEntityFeature.INSTALL | UpdateEntityFeature.SPECIFIC_VERSION
     )
@@ -113,6 +115,7 @@ class WattpilotUpdate(WattpilotEntity, UpdateEntity):
         )
         entries = value if isinstance(value, list) else [value]
         raw_versions = [entry for entry in entries if _version(entry)]
+        self._offered = tuple(raw_versions)
         self._attr_latest_version = (
             _newest_version(raw_versions) or self._attr_installed_version
         )
@@ -123,7 +126,15 @@ class WattpilotUpdate(WattpilotEntity, UpdateEntity):
         backup: bool,  # noqa: ARG002, FBT001 -- HA's UpdateEntity base signature; called by keyword
         **_kwargs: Any,  # noqa: ANN401 -- HA's UpdateEntity base signature requires **kwargs: Any
     ) -> None:
-        """Install the given version, defaulting to the displayed latest."""
+        """Install an offered version, defaulting to the displayed latest."""
         if version is None:
             version = self.latest_version
+        # The latest falls back to the installed version when nothing is
+        # offered, and the charger takes whatever it is sent.
+        if version not in self._offered:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="firmware_not_offered",
+                translation_placeholders={"version": str(version)},
+            )
         await self._hub.async_install_firmware(version)

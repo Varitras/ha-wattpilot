@@ -169,19 +169,23 @@ async def test_an_odd_installed_version_is_unknown(
 
 
 @pytest.mark.parametrize(
-    ("offered", "version"), [(["43.0"], "43.1"), ([], "43.1"), ([], None)]
+    ("offered", "version"),
+    [(["43.0"], "43.1"), ([], "43.1"), ([], None), (None, None)],
 )
 async def test_a_version_the_charger_does_not_offer_is_refused(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
-    offered: list[str],
+    offered: list[str] | None,
     version: str | None,
 ) -> None:
     """A typo in an action or automation sent whatever it named to the
     charger as the version to install; with nothing on offer, a request for
     the latest one sent the installed version."""
     fake_charger._properties["fwv"] = "42.5"
-    fake_charger._properties["onv"] = offered
+    if offered is None:
+        del fake_charger._properties["onv"]
+    else:
+        fake_charger._properties["onv"] = offered
     entity = await make_update(hass, fake_charger)
     with pytest.raises(ServiceValidationError) as raised:
         await entity.async_install(version=version, backup=False)

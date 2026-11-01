@@ -73,6 +73,9 @@
     "entry_unloaded": {
       "message": "Der Eintrag des Ladegeräts wurde entladen. Zum Wiederverbinden den Eintrag neu laden."
     },
+    "firmware_not_offered": {
+      "message": "Das Ladegerät bietet die Firmware {version} nicht an"
+    },
     "firmware_update_failed": {
       "message": "Firmware-Update fehlgeschlagen: {error}"
     },
