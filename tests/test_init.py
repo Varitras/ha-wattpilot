@@ -457,6 +457,28 @@ async def test_the_serial_upgrade_permission_is_consumed_once(
     assert raised.value.translation_key == "wrong_charger"
 
 
+async def test_an_entry_whose_disconnect_fails_still_unloads(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """
+    Unloading closes the connection for good, and nothing is left to retry.
+
+    A failure there used to fail the unload: the entry stayed at
+    FAILED_UNLOAD and refused every reload until Home Assistant restarted.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    fake_charger.disconnect_error = WattpilotError("socket already gone")
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    assert entry.state is ConfigEntryState.NOT_LOADED
+    with patch_charger(fake_charger):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.LOADED
+
+
 async def test_a_refused_charger_is_reported_even_if_disconnecting_fails(
     hass: HomeAssistant,
     device_properties: dict[str, Any],
