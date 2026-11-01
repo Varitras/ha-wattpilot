@@ -1001,7 +1001,6 @@ def test_complexity_ratchet() -> None:
         # each. The point of freezing them is that they cannot grow further
         # without someone saying so in a diff.
         "auth.py::_bcryptjs_base64_encode": 6,
-        "client.py::Wattpilot._coerce_to_json_type": 17,
         "connection.py::Connection._read_frames": 6,
         "connection.py::Connection._message_loop": 6,
         "client.py::Wattpilot._handle_message": 11,

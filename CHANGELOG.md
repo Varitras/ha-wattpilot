@@ -24,6 +24,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   UTC offset, or one with no UTC equivalent, such as the first hour of
   year 1. Home Assistant refused such a value, and the sensor, once
   enabled, was not added at all.
+- **Button current change lock** set to "Never locked" reached the charger
+  as "Locked when car is connected". Each option is now sent as offered.
+- **Next trip energy** set with a fraction is rounded to the nearest Wh. It
+  was cut off.
 
 ## [0.3.0] - 2026-10-21
 

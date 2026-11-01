@@ -107,6 +107,55 @@ def _message_type(raw: str) -> str:
     return "<not an object>"
 
 
+# A conversion that would change the value is refused, not made: the lock
+# option "never locked" (3) once went out as true, 12345.7 Wh as 12345.
+_BOOL_WORDS = dict.fromkeys(("true", "1", "yes"), True) | dict.fromkeys(
+    ("false", "0", "no"), False
+)
+
+
+def _as_bool(value: Any, name: str) -> bool:  # noqa: ANN401 -- a value to write
+    """Return *value* as a bool, if it says true or false and nothing else."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.lower() in _BOOL_WORDS:
+        return _BOOL_WORDS[value.lower()]
+    if value in (0, 1):
+        return bool(value)
+    msg = f"Cannot convert {value!r} to bool for property '{name}'"
+    raise PropertyError(msg)
+
+
+def _as_int(value: Any, name: str) -> int:  # noqa: ANN401 -- a value to write
+    """Return *value* as an int, if it is a whole number."""
+    if isinstance(value, str):
+        value = _parse_number(value)
+    if isinstance(value, int):
+        return int(value)
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    msg = f"Cannot convert {value!r} to int for property '{name}'"
+    raise PropertyError(msg)
+
+
+def _as_float(value: Any, name: str) -> float:  # noqa: ANN401 -- a value to write
+    """Return *value* as a float, if it is a number."""
+    if isinstance(value, str):
+        value = _parse_number(value)
+    if isinstance(value, int | float):
+        return float(value)
+    msg = f"Cannot convert {value!r} to float for property '{name}'"
+    raise PropertyError(msg)
+
+
+def _parse_number(text: str) -> int | float | str:
+    """Read a number from text, or give the text back unchanged."""
+    for parse in (int, float):
+        with contextlib.suppress(ValueError):
+            return parse(text)
+    return text
+
+
 class Wattpilot:
     """
     Async client for a Fronius Wattpilot wallbox.
@@ -488,9 +537,7 @@ class Wattpilot:
 
         return self._coerce_to_json_type(value, prop_def.get("jsonType", ""), name)
 
-    # A type table written as code: one branch per jsonType the charger
-    # declares. Splitting it would scatter the mapping without simplifying it.
-    def _coerce_to_json_type(  # noqa: C901, PLR0911, PLR0912
+    def _coerce_to_json_type(
         self,
         value: Any,  # noqa: ANN401 -- whatever the charger declared for this key
         json_type: str,
@@ -499,57 +546,11 @@ class Wattpilot:
         """Convert *value* to the specified JSON type for property *name*."""
         match json_type:
             case "boolean":
-                if isinstance(value, bool):
-                    return value
-                if isinstance(value, str):
-                    lower = value.lower()
-                    if lower in ("true", "1", "yes"):
-                        return True
-                    if lower in ("false", "0", "no"):
-                        return False
-                    msg = f"Cannot convert '{value}' to bool for property '{name}'"
-                    raise PropertyError(msg)
-                if isinstance(value, int | float):
-                    return bool(value)
-                msg = (
-                    f"Cannot convert {type(value).__name__} to bool "
-                    f"for property '{name}'"
-                )
-                raise PropertyError(msg)
+                return _as_bool(value, name)
             case "integer":
-                if isinstance(value, bool):
-                    return int(value)
-                if isinstance(value, int):
-                    return value
-                if isinstance(value, float):
-                    return int(value)
-                if isinstance(value, str):
-                    with contextlib.suppress(ValueError):
-                        return int(value)
-                    with contextlib.suppress(ValueError):
-                        return int(float(value))
-                    msg = f"Cannot convert '{value}' to int for property '{name}'"
-                    raise PropertyError(msg)
-                msg = (
-                    f"Cannot convert {type(value).__name__} to int "
-                    f"for property '{name}'"
-                )
-                raise PropertyError(msg)
+                return _as_int(value, name)
             case "float":
-                if isinstance(value, bool):
-                    return float(value)
-                if isinstance(value, int | float):
-                    return float(value)
-                if isinstance(value, str):
-                    with contextlib.suppress(ValueError):
-                        return float(value)
-                    msg = f"Cannot convert '{value}' to float for property '{name}'"
-                    raise PropertyError(msg)
-                msg = (
-                    f"Cannot convert {type(value).__name__} to float "
-                    f"for property '{name}'"
-                )
-                raise PropertyError(msg)
+                return _as_float(value, name)
             case "string":
                 return str(value)
             case _:

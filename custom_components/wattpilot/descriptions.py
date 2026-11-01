@@ -932,13 +932,10 @@ def _seconds_setting(key: str, charger_key: str) -> WattpilotNumberEntityDescrip
 # Bounds/mode/set_as_int verified against the fork's NUMBER_DESCRIPTIONS at
 # pinned commit 1decee7 (AST-level diff, not transcription): its 13 entries
 # match on bounds/step/mode/device_class/unit/variant/firmware/category/
-# enabled_default, but for the deviations tests/parity.py lists. The fork's own
-# runtime never reads its equivalent per-entry type hint (set_type is
-# assigned to an attribute and never consulted again); it forwards the raw
-# float to the vendor client, which coerces by its own property schema. Our
-# FakeWattpilot test double doesn't replicate that library-side coercion, so
-# set_as_int does the coercion explicitly here -- same end result, matching
-# the fork's set_type="int" flags 1:1.
+# enabled_default, but for the deviations tests/parity.py lists. set_as_int
+# rounds before the write: the client converts each value to the type the API
+# definition declares and refuses one that would change (api/client.py), so
+# a number written to an integer key has to be whole already.
 NUMBER_DESCRIPTIONS: tuple[WattpilotNumberEntityDescription, ...] = (
     WattpilotNumberEntityDescription(
         key="max_charging_current_11kw",
@@ -1083,6 +1080,7 @@ NUMBER_DESCRIPTIONS: tuple[WattpilotNumberEntityDescription, ...] = (
     WattpilotNumberEntityDescription(
         key="next_trip_charging",
         charger_key="fte",
+        set_as_int=True,
         translation_key="next_trip_charging",
         native_min_value=0,
         native_max_value=999999,
