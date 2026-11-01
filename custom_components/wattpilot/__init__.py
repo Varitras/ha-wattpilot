@@ -209,7 +209,9 @@ async def _finish_setup(
     Split out so its caller can put a single cleanup guard around all of it.
     """
     serial = hub.serial
-    if entry.unique_id != serial:
+    # Also when the serial already matches: confirming it is what ends the
+    # permission, or the client keeps being built without an identity check.
+    if entry.unique_id != serial or awaits_serial(entry):
         await _adopt_serial(hass, entry, serial)
     await async_migrate_legacy_unique_ids(
         hass, entry, serial, hub.variant, hub.properties
