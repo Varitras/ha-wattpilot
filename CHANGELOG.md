@@ -11,6 +11,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Setting up or reloading the charger is a little faster: the integration
   reads its description of the charger's settings once per Home Assistant
   start instead of every time.
+- The log is quieter. A connection, a refused password and a reconnect
+  attempt that stalls are logged at debug level only; what you need to act
+  on still reaches you as a repair notice, a password request or a setup
+  error.
+  A message from the charger that keeps failing is warned about once per
+  connection, with the line it failed at.
+- A charger that accepts the connection but never completes it is retried
+  ever more slowly, as one that does not answer at all already was.
 
 ### Fixed
 
@@ -49,6 +57,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The diagnostics download also removes a Wi-Fi key sent as text, the
   Wi-Fi network name in `wss`, the load balancing members and the last ID
   chip read.
+- An entry from the earlier cloud integration, made local with Reconfigure,
+  now checks that the charger at its address is still its own. It never
+  did, so another Wattpilot with the same password at that address would
+  have taken over its entities and history.
+- Reauthentication and Reconfigure name a different charger at the address
+  as such. When its password differed too, they reported a wrong password.
+- Installing a firmware version the charger does not offer, for example
+  through a typo in an action, is refused with an error. It was sent to the
+  charger as is.
+- Unloading or reloading no longer fails when closing the connection
+  fails. The entry then refused every reload until Home Assistant
+  restarted.
 
 ## [0.3.0] - 2026-10-21
 
