@@ -441,3 +441,28 @@ async def test_a_string_rejection_also_reaches_the_caller() -> None:
 
     with pytest.raises(CommandError, match="rejected"):
         await asyncio.wait_for(task, 1)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [0, 1, 3, True, False],
+    ids=["always", "when connected", "never", "on", "off"],
+)
+async def test_the_lock_setting_reaches_the_charger_as_it_was_offered(
+    value: object,
+) -> None:
+    """
+    bac is a number since firmware 38.5 (0, 1, 3; the charger reports 3) and
+    a switch before. "Never locked" went out as true, the same as "locked
+    when connected", because the definition declared a boolean.
+    """
+    socket = FakeSocket()
+    client = make_client(socket)
+    task = asyncio.ensure_future(client.set_property("bac", value))
+    await asyncio.sleep(0)
+    respond(client, socket.sent[0]["requestId"], success=True)
+    await task
+
+    sent = socket.sent[0]["value"]
+    assert sent == value
+    assert type(sent) is type(value)

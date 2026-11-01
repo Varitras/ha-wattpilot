@@ -288,9 +288,10 @@ the entry stores, passwords, cloud
 API tokens, MAC addresses, Wi-Fi SSIDs, ID-chip names, the log of
 neighbouring networks and free-text fields such as a load group name, a
 Wi-Fi error message, the last cloud error or a Wattpilot Flex's OCPP
-fallback card and tariff text are dropped or replaced. MAC
-and IP addresses and the serial number are also replaced wherever they
-appear inside other text. Still look over the file before posting it.
+fallback card and tariff text are dropped or replaced, and so is any
+field named `key`, `password` or `pass` at any depth. MAC addresses written
+with colons or hyphens, IP addresses and the serial number are also
+replaced inside other text. Still look over the file before posting it.
 
 The log is masked as far as this integration reaches: its own messages and
 Home Assistant's messages about setting up the entry show only the last two

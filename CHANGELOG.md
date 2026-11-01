@@ -24,6 +24,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   UTC offset, or one with no UTC equivalent, such as the first hour of
   year 1. Home Assistant refused such a value, and the sensor, once
   enabled, was not added at all.
+- **Button current change lock** set to "Never locked" reached the charger
+  as "Locked when car is connected". Each option is now sent as offered.
+- **Next trip energy** set with a fraction is rounded to the nearest Wh. It
+  was cut off.
+- A value the charger sends that is too long for a state (over 255
+  characters as text), such as an inverter label, reads unknown. Home
+  Assistant refused it and logged the whole text as an error.
+- **Charging power** keeps updating when the charger sends a shorter
+  reading list than usual. It froze, with a warning on every update.
+- A `true` where the charger should send a number no longer shows as the
+  value 1, "True", 00:00:01 or as the option or state numbered 1.
+- **Charging current preset** offers only currents the charger allows for
+  its model, 6 to 16 A or 6 to 32 A.
+- A message from the charger that cannot be read is skipped and the
+  connection stays up. Some such messages ended the connection for good,
+  and every entity stayed unavailable until a reload.
+- The diagnostics download also removes a Wi-Fi key sent as text, the
+  Wi-Fi network name in `wss`, the load balancing members and the last ID
+  chip read.
 
 ## [0.3.0] - 2026-10-21
 

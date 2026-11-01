@@ -290,3 +290,59 @@ async def test_a_preset_that_is_no_whole_current_is_not_offered(
     with pytest.raises(ServiceValidationError):
         await select.async_select_option("12.9 A")
     assert fake_charger.set_calls == []
+
+
+@pytest.mark.parametrize(
+    ("variant", "offered"),
+    [(11, ["6 A", "16 A"]), (22, ["6 A", "16 A", "32 A"])],
+)
+async def test_a_preset_no_charger_current_allows_is_not_offered(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    variant: int,
+    offered: list[str],
+) -> None:
+    """
+    0, -5 or 99 A from faulty data were offered and written. The range is
+    the current number's for this charger: 6 to 16 A, or 6 to 32 A.
+    """
+    fake_charger.variant = variant
+    fake_charger._properties.update({"clp": [0, -5, 6, 16, 32, 99], "amp": 6})
+    select = await make_select(hass, fake_charger, "amp_preset")
+
+    assert select.options == offered
+    with pytest.raises(ServiceValidationError):
+        await select.async_select_option("99 A")
+    assert fake_charger.set_calls == []
+
+
+@pytest.mark.parametrize("variant", [None, 99])
+async def test_presets_for_a_charger_of_unknown_model_are_left_out(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, variant: object
+) -> None:
+    """
+    The preset range comes from the current number for the charger's model.
+    For a model that is neither 11 nor 22 kW there is none: the lookup
+    raised, and every select of the charger failed to load.
+    """
+    fake_charger.variant = variant
+    fake_charger._properties.update({"clp": [6, 10, 16], "amp": 6})
+    select = await make_select(hass, fake_charger, "amp_preset")
+    assert select.options == []
+
+
+@pytest.mark.parametrize(
+    ("uid", "value", "shown"),
+    [("bac", True, None), ("bac", 1, "Locked when car is connected")],
+)
+async def test_a_true_is_no_numbered_option(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    uid: str,
+    value: object,
+    shown: str | None,
+) -> None:
+    """A true equals 1 in Python and was shown as the option numbered 1."""
+    fake_charger._properties[uid] = value
+    select = await make_select(hass, fake_charger, uid)
+    assert select.current_option == shown

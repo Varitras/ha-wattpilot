@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 PARALLEL_UPDATES = 1
 
-# fte needs the esk companion flag; the vendor library sets that as part of
+# fte needs the esk companion flag; the client sets that as part of
 # set_next_trip_energy, so it bypasses the plain property-write path below.
 _NEXT_TRIP_ENERGY_KEY = "fte"
 
@@ -56,6 +56,9 @@ class WattpilotNumber(WattpilotEntity, NumberEntity):
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
         if value is None and self.entity_description.zero_means_null:
             value = 0
+        if isinstance(value, bool):  # float(True) is 1.0: a true showed as 1 A
+            self._attr_native_value = None
+            return
         try:
             self._attr_native_value = float(value) / self.entity_description.wire_scale
         # OverflowError: an int past the float range (PC6-02).
@@ -74,7 +77,9 @@ class WattpilotNumber(WattpilotEntity, NumberEntity):
             )
         key = self.entity_description.charger_key
         if key == _NEXT_TRIP_ENERGY_KEY:
-            await self._hub.async_set_next_trip_energy(value)
+            await self._hub.async_set_next_trip_energy(
+                _scaled(self.entity_description, value)
+            )
             return
         await self._hub.async_set_property(
             key, _wire_value(self.entity_description, value)
@@ -87,6 +92,11 @@ def _wire_value(
     """Return what the charger is sent for the number the user set."""
     if description.zero_means_null and value == 0:
         return None
+    return _scaled(description, value)
+
+
+def _scaled(description: WattpilotNumberEntityDescription, value: float) -> float:
+    """Return the number in the charger's unit, whole where it takes integers."""
     scaled = value * description.wire_scale
     # Rounded, not cut: 2.01 min is 120599.99999999999 ms in floating point.
     return round(scaled) if description.set_as_int else scaled

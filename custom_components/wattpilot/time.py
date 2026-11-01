@@ -49,6 +49,9 @@ class WattpilotTime(WattpilotEntity, TimeEntity):
     entity_description: WattpilotTimeEntityDescription
 
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
+        if isinstance(value, bool):  # int(True) is 1: a true showed as 00:00:01
+            self._attr_native_value = None
+            return
         try:
             seconds = int(value) % _SECONDS_PER_DAY
         # OverflowError: infinity (PC6-02).

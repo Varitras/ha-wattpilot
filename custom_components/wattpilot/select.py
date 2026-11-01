@@ -3,20 +3,21 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Hashable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.exceptions import ServiceValidationError
 
 from .const import DOMAIN
 from .descriptions import (
+    NUMBER_DESCRIPTIONS,
     SELECT_DESCRIPTIONS,
     WattpilotSelectEntityDescription,
     filter_supported,
+    variant_supported,
 )
 from .entity import WattpilotEntity
-from .readings import describe_with_length
+from .readings import describe_with_length, matching_label
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -73,17 +74,18 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
         if not isinstance(allowed, list):
             return {}
         # Whole amperes only: a true or a 12.9 was offered and written as 1 or
-        # 12 A, and an unhashable entry took the whole platform down (PC7-02).
-        return {value: f"{value} A" for value in allowed if _is_whole_current(value)}
+        # 12 A, and an unhashable entry took the whole platform down. Within
+        # the range the current number allows: 0 or 99 A were written too.
+        limits = _current_range(self._hub.variant, description.charger_key)
+        return {value: f"{value} A" for value in allowed if _is_preset(value, limits)}
 
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
         options = self._wire_options()
         self._attr_options = list(options.values())
         if value == "" and self.entity_description.empty_string_means is not None:
             value = self.entity_description.empty_string_means
-        known = isinstance(value, Hashable) and value in options
-        self._attr_current_option = options[value] if known else None
-        self._report_unknown(value, known=known)
+        self._attr_current_option = matching_label(options, value)
+        self._report_unknown(value, known=self._attr_current_option is not None)
 
     def _report_unknown(self, value: Any, *, known: bool) -> None:  # noqa: ANN401 -- charger payload
         # Unknown alone told nobody (#25). Once until a known value: a NaN
@@ -120,5 +122,24 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
         )
 
 
-def _is_whole_current(value: Any) -> bool:  # noqa: ANN401 -- charger payload
-    return isinstance(value, int) and not isinstance(value, bool)
+def _current_range(variant: object, charger_key: str) -> tuple[float, float] | None:
+    """Return the range of *charger_key*'s number on this model, if it has one."""
+    for number in NUMBER_DESCRIPTIONS:
+        if number.charger_key == charger_key and variant_supported(
+            variant, number.variant
+        ):
+            # The current numbers declare both ends; the type allows None.
+            return cast("float", number.native_min_value), cast(
+                "float", number.native_max_value
+            )
+    # Neither 11 nor 22 kW: the lookup raised and took every select along.
+    return None
+
+
+def _is_preset(value: Any, limits: tuple[float, float] | None) -> bool:  # noqa: ANN401 -- charger payload
+    """Whether *value* is a whole current within the number's range."""
+    if limits is None:
+        return False
+    lowest, highest = limits
+    whole = isinstance(value, int) and not isinstance(value, bool)
+    return whole and lowest <= value <= highest

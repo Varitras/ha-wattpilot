@@ -63,9 +63,11 @@ COERCIONS: list[tuple[str, Any, Any]] = [
     ("boolean", "false", False),
     ("boolean", 1, True),
     ("boolean", 0, False),
+    ("boolean", 1.0, True),
     ("integer", 5, 5),
     ("integer", "5", 5),
-    ("integer", 5.7, 5),
+    ("integer", 5.0, 5),
+    ("integer", "5.0", 5),
     ("float", 1.5, 1.5),
     ("float", "1.5", 1.5),
     ("float", 2, 2.0),
@@ -83,7 +85,19 @@ def test_a_value_is_coerced_to_the_type_the_charger_declares(
 
 @pytest.mark.parametrize(
     ("json_type", "value"),
-    [("boolean", "maybe"), ("integer", "x"), ("float", "x")],
+    [
+        ("boolean", "maybe"),
+        ("integer", "x"),
+        ("float", "x"),
+        # Values the charger would get as something else: the lock option
+        # "never locked" (3) went out as true, a trip energy of 12345.7 Wh
+        # as 12345.
+        ("boolean", 3),
+        ("boolean", 2.5),
+        ("integer", 5.7),
+        ("integer", "5.7"),
+        ("integer", float("inf")),
+    ],
 )
 def test_a_value_that_cannot_be_coerced_is_refused(
     client: Wattpilot, json_type: str, value: Any

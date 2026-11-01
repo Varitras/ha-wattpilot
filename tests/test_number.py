@@ -79,6 +79,18 @@ async def test_fte_uses_next_trip_energy_setter(
     assert fake_charger.set_calls == []
 
 
+async def test_a_trip_energy_with_a_fraction_reaches_the_charger_rounded(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """fte is an integer on the wire; the client refuses 12345.7 rather than
+    cutting it to 12345, so the number rounds it first."""
+    fake_charger._properties["fte"] = 50000
+    number = await make_number(hass, fake_charger, "fte")
+    await number.async_set_native_value(12345.7)
+    assert fake_charger.next_trip_energy_calls == [12346]
+    assert isinstance(fake_charger.next_trip_energy_calls[0], int)
+
+
 async def test_non_numeric_value_reports_none(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
@@ -266,3 +278,12 @@ async def test_a_value_that_is_no_number_is_not_sent(
         await number.async_set_native_value(value)
     assert fake_charger.set_calls == []
     assert fake_charger.next_trip_energy_calls == []
+
+
+async def test_a_true_from_the_charger_shows_no_number(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """float(True) is 1.0: a true in amp showed as 1 A."""
+    fake_charger._properties["amp"] = True
+    number = await make_number(hass, fake_charger, "amp")
+    assert number.native_value is None

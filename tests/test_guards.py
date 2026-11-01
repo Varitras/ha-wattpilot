@@ -989,7 +989,7 @@ def test_complexity_ratchet() -> None:
     # populated by scripts/complexity_snapshot.py
     complexity_table: dict[str, int] = {
         "descriptions.py::firmware_supported": 7,
-        "redaction.py::scrub": 9,
+        "redaction.py::scrub": 8,
         # 7 since the `ts` rule (audit VA-07): one more branch in what is
         # a dispatch table written as code, not added logic.
         "redaction.py::sanitize_property": 6,
@@ -1001,7 +1001,6 @@ def test_complexity_ratchet() -> None:
         # each. The point of freezing them is that they cannot grow further
         # without someone saying so in a diff.
         "auth.py::_bcryptjs_base64_encode": 6,
-        "client.py::Wattpilot._coerce_to_json_type": 17,
         "connection.py::Connection._read_frames": 6,
         "connection.py::Connection._message_loop": 6,
         "client.py::Wattpilot._handle_message": 11,
@@ -1349,6 +1348,12 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
             "the register cannot claim an absent protection"
         ),
         "test_no_field_is_registered_as_leaking": "no field knowingly leaks",
+        "test_secrets_nested_or_undeclared_stay_out_of_the_download": (
+            "nested secrets, the SSID and member lists are redacted"
+        ),
+        "test_an_empty_or_zero_value_is_not_given_a_stand_in": (
+            "a stand-in never invents a value for an empty one"
+        ),
     },
     "test_deprecations.py": {
         "test_the_deprecation_check_recognises_home_assistants_reports": (
