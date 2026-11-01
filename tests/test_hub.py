@@ -546,7 +546,7 @@ async def test_a_refused_write_reaches_the_user_as_an_error(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """From the outside: the charger refusing a value must fail
-    the action, not end quietly. The vendored client raises CommandError for
+    the action, not end quietly. The client raises CommandError for
     that now; the hub has to keep translating it rather than let it escape as
     a library exception."""
     hub = make_hub(hass, fake_charger)

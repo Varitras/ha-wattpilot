@@ -43,7 +43,7 @@ class DeviceIdentityError(WattpilotError):
 
 def describe_error(error: BaseException) -> str:
     """
-    wattpilot: an error fit for the log, which users attach to public issues.
+    Return an error fit for the log, which users attach to public issues.
 
     Our own messages are written to carry no identifier. A socket error's
     text quotes the charger's address and port, so anything else is named

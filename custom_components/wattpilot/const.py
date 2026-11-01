@@ -32,10 +32,10 @@ CONF_UPDATE_INTERVAL = "update_interval"
 DEFAULT_UPDATE_INTERVAL = 5
 
 # Set by the fork migration on a local entry, whose unique_id is whatever
-# the fork keyed it on (an address, a name, or nothing), and kept by
-# Reconfigure while the entry awaits its serial; removed when setup adopts
-# the serial. One of the shapes awaits_serial() accepts: without one, a
-# serial that disagrees with the entry means another charger.
+# the fork keyed it on (an address, a name, or nothing), and set again by
+# Reconfigure on any entry that still awaits its serial; removed when setup
+# adopts the serial. One of the shapes awaits_serial() accepts: without one,
+# a serial that disagrees with the entry means another charger.
 CONF_AWAITING_SERIAL = "awaiting_serial"
 
 PLATFORMS: list[Platform] = [

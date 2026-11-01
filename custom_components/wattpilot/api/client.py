@@ -62,7 +62,7 @@ def _plain_json(value: Any) -> Any:  # noqa: ANN401 -- recurses over untyped JSO
 
 
 def _status_object(msg: SimpleNamespace) -> SimpleNamespace:
-    """Return a status frame's status; anything else completed it unread (finding 6)."""
+    """Return a status frame's status; anything else completed it unread."""
     if isinstance(status := getattr(msg, "status", None), SimpleNamespace):
         return status
     msg_text = "Status frame without a status object, skipped as unreadable"
@@ -71,7 +71,7 @@ def _status_object(msg: SimpleNamespace) -> SimpleNamespace:
 
 def _correlation_key(request_id: object) -> str:
     """
-    wattpilot: one spelling for a request id, whatever the wire used.
+    Return one spelling for a request id, whatever the wire used.
 
     Commands are sent with an integer; the protocol's own examples answer
     with a string. Comparing them raw left the caller waiting for an answer
@@ -82,7 +82,7 @@ def _correlation_key(request_id: object) -> str:
 
 def mask_serial(serial: str | None) -> str:
     """
-    wattpilot: a serial fit for the log, which users attach to public issues.
+    Return a serial fit for the log, which users attach to public issues.
 
     Only the last digits stay readable; a serial this short is masked whole.
     """
@@ -95,7 +95,7 @@ def mask_serial(serial: str | None) -> str:
 
 
 def _message_type(raw: str) -> str:
-    """wattpilot: the frame's type, for logging without its payload."""
+    """Return the frame's type, for logging without its payload."""
     try:
         parsed = json.loads(raw)
     except ValueError:
@@ -258,7 +258,7 @@ class Wattpilot:
         await self._connection.close()
 
     def _fail_pending_commands(self, reason: str) -> None:
-        """wattpilot: never leave a caller awaiting an answer that cannot come."""
+        """Never leave a caller awaiting an answer that cannot come."""
         for request_id, future in list(self._pending_commands.items()):
             if not future.done():
                 future.set_exception(
@@ -514,7 +514,7 @@ class Wattpilot:
         """
         Read the API definition into the cache, off the event loop.
 
-        wattpilot: the definition is a large YAML file, and the lazy path
+        The definition is a large YAML file, and the lazy path
         below used to read it during the first write -- blocking the caller's
         event loop at a moment nobody chose. Loading it while connecting
         keeps that read in a thread, and leaves the lazy path as the
@@ -583,7 +583,7 @@ class Wattpilot:
     # function's whole content. The complexity ratchet in tests/ freezes
     # the number so it cannot creep upward unnoticed.
     async def _handle_message(self, raw: str) -> None:
-        # wattpilot: type only, never the payload. Frames
+        # Type only, never the payload. Frames
         # carry Wi-Fi passwords, cloud tokens and OCPP keys, and DEBUG
         # logging for this integration is one toggle away in the UI.
         _LOGGER.debug("Message received: %s (%d bytes)", _message_type(raw), len(raw))
@@ -680,7 +680,7 @@ class Wattpilot:
         self._apply_status(status)
 
     def _apply_status(self, status: object) -> None:
-        # wattpilot: one property at a time. A value this client cannot
+        # One property at a time. A value this client cannot
         # read cost the rest of its frame, and in the last chunk of the
         # first full status the status never completed.
         # A status that is no object (`null`) has nothing to apply.
@@ -691,7 +691,7 @@ class Wattpilot:
                 _LOGGER.warning("Ignoring an unreadable value for %s", key)
 
     def _on_response(self, msg: SimpleNamespace) -> None:
-        # wattpilot: resolve the waiting command. An answer
+        # Resolve the waiting command. An answer
         # without a waiter -- or without an id at all -- is still applied
         # and logged.
         request_id = getattr(msg, "requestId", None)
@@ -720,7 +720,7 @@ class Wattpilot:
         name: str,
         value: Any,  # noqa: ANN401 -- charger values are dynamically typed
     ) -> None:
-        # wattpilot: every status frame arrives here, from the full replay,
+        # Every status frame arrives here, from the full replay,
         # a delta and a command response alike -- so this is the one place
         # that has to turn the wire shape into plain JSON.
         value = _plain_json(value)
@@ -744,7 +744,7 @@ class Wattpilot:
         if not self._password or not self._device.serial:
             return
         inputs = (self._password, self._device.serial, self._auth_hash_type)
-        # wattpilot: the result never changes for the same inputs, and
+        # The result never changes for the same inputs, and
         # recomputing it delayed every reconnect's auth reply by that much.
         if inputs == self._hashed_from:
             return
@@ -755,7 +755,7 @@ class Wattpilot:
         self, message: dict[str, Any], *, secure: bool = False
     ) -> None:
         """
-        wattpilot: send a command and wait for its acknowledgement.
+        Send a command and wait for its acknowledgement.
 
         Added here rather than in the caller so every command path gets it.
         A rejection and a silence are both errors -- reporting success for
@@ -781,7 +781,7 @@ class Wattpilot:
         if secure:
             message = sign_secured_message(message, self._hashed_password)
 
-        # wattpilot: same reason as on receive -- a secured message carries
+        # Same reason as on receive -- a secured message carries
         # its signature, and setValue carries whatever is being written.
         _LOGGER.debug("Sending: %s (key=%s)", message.get("type"), message.get("key"))
         await self._connection.send(json.dumps(message))

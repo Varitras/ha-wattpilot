@@ -62,7 +62,7 @@ class Connection:
         self.socket: websockets.asyncio.client.ClientConnection | None = None
         self.message_loop_task: asyncio.Task[None] | None = None
         self._readiness_guard: asyncio.Task[None] | None = None
-        # wattpilot: one field for every reason this connection cannot be
+        # One field for every reason this connection cannot be
         # used -- rejected credentials or the wrong charger answering. A
         # second flag beside it would be a second place to forget.
         self.fatal_error: WattpilotError | None = None

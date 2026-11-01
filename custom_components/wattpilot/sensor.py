@@ -91,7 +91,7 @@ def _sensor_class(
 
 
 def _expects_number(description: WattpilotSensorEntityDescription) -> bool:
-    """Home Assistant's rule: such a sensor's state must be a number (K-A)."""
+    """Home Assistant's rule: such a sensor's state must be a number."""
     if description.device_class in NON_NUMERIC_DEVICE_CLASSES or description.enum:
         return False
     numeric_marks = (

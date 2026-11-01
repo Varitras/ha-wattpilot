@@ -125,7 +125,7 @@ def test_an_unknown_json_type_passes_the_value_through(client: Wattpilot) -> Non
     assert client._coerce_to_json_type("x", "something-new", "amp") == "x"
 
 
-def test_one_property_is_read_without_copying_them_all(client: Wattpilot) -> None:
+def test_one_property_reads_like_all_properties_does(client: Wattpilot) -> None:
     """all_properties hands out a copy; one value needs none."""
     client._update_property("amp", 10)
     assert client.get_property("amp") == 10

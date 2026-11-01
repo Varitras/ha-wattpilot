@@ -120,8 +120,8 @@ async def test_enable_cloud_api_gives_up_within_the_timeout_it_was_given(
 ) -> None:
     """The wait counted whole one-second sleeps, so a 10 ms timeout still
     slept a full second before giving up."""
-    # The first write loads the API definition from disk; that one-off cost
-    # is not the wait being measured here.
+    # A first write in the process loads the API definition from disk; that
+    # one-off cost is not the wait being measured here.
     await client.set_property("cae", False)  # noqa: FBT003 -- a written value
     started = time.monotonic()
     with pytest.raises(WattpilotConnectionError, match="Timeout"):

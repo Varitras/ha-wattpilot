@@ -371,7 +371,7 @@ async def test_a_restart_does_not_wait_for_an_answer_that_never_comes() -> None:
 
 
 async def test_connect_loads_the_api_definition_off_the_event_loop() -> None:
-    """The definition is an 88 kB YAML file, and it used to be read on the
+    """The definition is a large YAML file, and it used to be read on the
     first write -- blocking the event loop at a moment nobody chose. Loading
     it while connecting, in a thread, removes both the blocking read and the
     warm-up the integration had to do on the client's behalf.

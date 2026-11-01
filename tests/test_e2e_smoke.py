@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
     from .conftest import FakeWattpilot
 
-pytestmark = [pytest.mark.e2e, pytest.mark.timeout(120)]
+pytestmark = pytest.mark.e2e
 
 SERIAL = "123456"
 

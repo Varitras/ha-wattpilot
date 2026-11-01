@@ -43,8 +43,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
 # Charger hardware variants, as the device reports them in "var". The value
-# is compared as a string: the real device sends the integer 11, the
-# documentation a string.
+# is compared as a string: the constraints below are written as text, the
+# device sends the integer 11.
 VARIANT_11 = "11"
 VARIANT_22 = "22"
 
