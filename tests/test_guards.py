@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import re
 import sys
 from importlib import metadata
@@ -758,40 +759,75 @@ DEPRECATED_HA_CALLS = {
 
 # Review finding IDs and the names of private notes: they mean nothing to a
 # reader of a public repository and point at records it does not contain.
-# The reason a line exists belongs in the line, not behind an ID.
+# The reason a line exists belongs in the line, not behind an ID. An ID is
+# letters, an optional digit and sub-letter, then a number; MAC octets and
+# the few standard names of that shape are not.
 INTERNAL_REFERENCE = re.compile(
-    r"\b(?:VA|RF|PC\d?|R\d|A\d{1,2}|F\d{2}|FA|FB|FC|RA|L)(?:-[A-Z])?-\d+\b"
+    r"(?<![0-9A-Fa-f]{2}[-:])\b[A-Z]{1,4}\d?(?:-[A-Z]{1,3})?-\d{1,3}\b"
+    r"(?![-:][0-9A-Fa-f]{2})"
+    r"|\bK-A\b|\bfindings? \d+\b"
     # Split, so that this line does not name what it looks for.
-    r"|\b(?:led"
-    r"ger|erosions"
-    r"schutz)\b",
-    re.IGNORECASE,
+    r"|\b(?:[Ll]ed"
+    r"ger|[Ee]rosions"
+    r"schutz|RUN"
+    r"BOOK)\b"
 )
-# Released notes stay as they were published.
-INTERNAL_REFERENCE_EXEMPT = frozenset({"CHANGELOG.md"})
+STANDARD_NAMES = frozenset({"UTF-8", "SHA-256"})
+NOT_REPOSITORY_TEXT = frozenset(
+    {".git", "mutants", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache"}
+)
+
+
+def _repository_texts() -> list[tuple[Path, str]]:
+    """Every text file of the checkout, release notes and fixtures included."""
+    root = PACKAGE.parent.parent
+    texts = []
+    for directory, subdirectories, names in os.walk(root):
+        subdirectories[:] = [d for d in subdirectories if d not in NOT_REPOSITORY_TEXT]
+        for name in names:
+            path = Path(directory) / name
+            try:
+                texts.append((path, path.read_text(encoding="utf-8")))
+            except UnicodeDecodeError:
+                continue
+    return texts
 
 
 def test_no_internal_review_reference_in_the_repository() -> None:
     root = PACKAGE.parent.parent
-    texts = [
-        *iter_python_files(),
-        *sorted((root / "tests").rglob("*.py")),
-        *sorted((root / "tests").glob("*.md")),
-        *sorted((root / "scripts").glob("*")),
-        *sorted((root / ".github").rglob("*.yml")),
-        *(root / name for name in ("README.md", "NOTICE", "pyproject.toml")),
-        PACKAGE / "quality_scale.yaml",
-    ]
     found = [
         f"{path.relative_to(root)}:{number}: {match[0]}"
-        for path in texts
-        if path.is_file() and path.name not in INTERNAL_REFERENCE_EXEMPT
-        for number, line in enumerate(
-            path.read_text(encoding="utf-8").splitlines(), start=1
-        )
-        if (match := INTERNAL_REFERENCE.search(line))
+        for path, text in _repository_texts()
+        for number, line in enumerate(text.splitlines(), start=1)
+        for match in INTERNAL_REFERENCE.finditer(line)
+        if match[0] not in STANDARD_NAMES
     ]
     assert found == [], found
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "fixed in the last round (VA" + "-11)",
+        "see RA-BF" + "-01",
+        "the K" + "-A matrix",
+        "as finding" + " 6 said",
+        "from the RUN" + "BOOK",
+        "an old led" + "ger entry",
+    ],
+)
+def test_the_review_reference_guard_knows_each_shape(line: str) -> None:
+    """Each sample is joined from parts, so this file does not trip the guard."""
+    assert INTERNAL_REFERENCE.search(line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["mac fa-16-3e-12-34-56", "MAC FA-16-3E-12-34-56", "phase L1", "UTF-8", "a l-1"],
+)
+def test_the_review_reference_guard_lets_addresses_and_names_pass(line: str) -> None:
+    matches = [m[0] for m in INTERNAL_REFERENCE.finditer(line)]
+    assert [m for m in matches if m not in STANDARD_NAMES] == []
 
 
 def test_no_deprecated_home_assistant_call() -> None:
@@ -1294,6 +1330,10 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         ),
         "test_no_internal_review_reference_in_the_repository": (
             "no review finding IDs or private note names in public files"
+        ),
+        "test_the_review_reference_guard_knows_each_shape": "it sees every shape",
+        "test_the_review_reference_guard_lets_addresses_and_names_pass": (
+            "counter-check: MAC octets, phases, standard names"
         ),
         "test_every_user_facing_error_is_translated": (
             "every error a user reads is translated, with matching placeholders"
