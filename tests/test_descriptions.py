@@ -8,8 +8,15 @@ from pathlib import Path
 
 import pytest
 
+from custom_components.wattpilot.api.client import Wattpilot
+from custom_components.wattpilot.api.definition import load_api_definition
+from custom_components.wattpilot.api.exceptions import PropertyError
 from custom_components.wattpilot.descriptions import (
+    BUTTON_DESCRIPTIONS,
+    NUMBER_DESCRIPTIONS,
+    SELECT_DESCRIPTIONS,
     SENSOR_DESCRIPTIONS,
+    SWITCH_DESCRIPTIONS,
     WattpilotDescriptionMixin,
     filter_supported,
     firmware_supported,
@@ -97,3 +104,79 @@ def test_a_companion_role_always_comes_with_its_companion() -> None:
     for description in SENSOR_DESCRIPTIONS:
         if description.companion_role is not None:
             assert description.companion_key, description.key
+
+
+def _written_values() -> list[tuple[str, str, object]]:
+    """(entity, key, value) for every fixed value an entity writes."""
+    written: list[tuple[str, str, object]] = []
+    for description in SWITCH_DESCRIPTIONS:
+        written += [
+            (description.key, description.charger_key, on) for on in (True, False)
+        ]
+    for description in SELECT_DESCRIPTIONS:
+        options = description.select_options or {}
+        written += [(description.key, description.charger_key, key) for key in options]
+    for description in BUTTON_DESCRIPTIONS:
+        written.append(
+            (description.key, description.charger_key, description.press_value)
+        )
+    return written
+
+
+def test_every_written_value_reaches_the_charger_unchanged() -> None:
+    """
+    The client converts each write to the type the API definition declares.
+    A value that conversion would change goes out as something else: the
+    lock option "never locked" (3) was sent as true. A number written to an
+    integer key has to be a whole number before it gets there.
+    """
+    client = Wattpilot("192.0.2.10", "secret")
+    definition = load_api_definition()
+
+    def declared(key: str) -> str:
+        return str(definition.properties.get(key, {}).get("jsonType", ""))
+
+    changed = []
+    for entity, key, value in _written_values():
+        try:
+            sent = client._coerce_to_json_type(value, declared(key), key)
+        except PropertyError:
+            sent = "<refused>"
+        if sent != value or isinstance(sent, bool) != isinstance(value, bool):
+            changed.append(f"{entity}: {key}={value!r} -> {sent!r}")
+    changed += [
+        f"{description.key}: {description.charger_key} is an integer, "
+        "the number is not rounded"
+        for description in NUMBER_DESCRIPTIONS
+        if declared(description.charger_key) == "integer" and not description.set_as_int
+    ]
+    assert changed == []
+
+
+# The device's own values against the type declared for them, for every key
+# the integration writes: the declaration decides what is sent.
+_DECLARED_AS = {
+    "boolean": (bool,),
+    "integer": (int,),
+    "float": (int, float),
+    "string": (str,),
+}
+
+
+def test_every_written_key_is_declared_as_the_charger_reports_it() -> None:
+    definition = load_api_definition()
+    written = {key for _entity, key, _value in _written_values()} | {
+        description.charger_key for description in NUMBER_DESCRIPTIONS
+    }
+    mismatched = []
+    for key in sorted(written):
+        json_type = str(definition.properties.get(key, {}).get("jsonType", ""))
+        reported = DEVICE.get(key)
+        if json_type not in _DECLARED_AS or reported is None:
+            continue
+        matches = isinstance(reported, _DECLARED_AS[json_type])
+        if json_type != "boolean" and isinstance(reported, bool):
+            matches = False
+        if not matches:
+            mismatched.append(f"{key}: declared {json_type}, reported {reported!r}")
+    assert mismatched == []
