@@ -10,7 +10,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import errno
+import itertools
 import json
+import logging
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -21,6 +23,7 @@ from custom_components.wattpilot.api.exceptions import (
     DeviceIdentityError,
     PropertyError,
     WattpilotConnectionError,
+    WattpilotError,
 )
 
 if TYPE_CHECKING:
@@ -1428,3 +1431,127 @@ async def test_a_frame_that_fails_is_skipped_and_the_reader_goes_on(
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+
+
+def _api_records(caplog: pytest.LogCaptureFixture, level: int) -> list[str]:
+    return [
+        f"{record.levelname} {record.getMessage()}"
+        for record in caplog.records
+        if record.name.startswith("custom_components.wattpilot.api")
+        and record.levelno >= level
+    ]
+
+
+def _serve(monkeypatch: pytest.MonkeyPatch, socket: FakeSocket) -> None:
+    async def fake_connect(_url: str) -> FakeSocket:
+        return socket
+
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
+        fake_connect,
+    )
+
+
+async def test_a_connect_says_nothing_above_debug(
+    client: Wattpilot,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Every setup, reload and form probe connects. Availability is the hub's
+    to report, once per outage; an INFO here repeated it on each of them."""
+    status = {"type": "fullStatus", "partial": False, "status": {"amp": 6}}
+    _serve(
+        monkeypatch,
+        FakeSocket([json.dumps({"type": "authSuccess"}), json.dumps(status)]),
+    )
+    await client.connect()
+    await client.disconnect()
+    assert _api_records(caplog, logging.INFO) == []
+
+
+@pytest.mark.parametrize(
+    "frame",
+    [
+        {"type": "authError", "message": "Wrong password"},
+        {"type": "hello", "serial": "222222"},
+    ],
+)
+async def test_a_refusal_is_not_logged_as_an_error(
+    client: Wattpilot,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    frame: dict[str, Any],
+) -> None:
+    """The caller reports a refusal: the form shows it, setup raises it, and
+    at runtime the hub opens reauth or a repair notice. Two ERROR lines of
+    the client's own came on top, for every mistyped password in the form."""
+    client._device.serial = "111111"
+    socket = FakeSocket([json.dumps(frame)])
+    _serve(monkeypatch, socket)
+    client._connection.connect_timeout = 0.5
+    with pytest.raises(WattpilotError):
+        await client.connect()
+    await _settle(lambda: client._connection.message_loop_task is None)
+    assert _api_records(caplog, logging.WARNING) == []
+
+
+async def test_a_frame_that_keeps_failing_is_warned_about_once(
+    client: Wattpilot, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A defect that breaks every frame broke one about every second, and
+    each one logged a WARNING without saying where it failed."""
+    delta = json.dumps({"type": "deltaStatus", "status": {"amp": 6}})
+    client._connection.socket = FakeSocket(["{not json"] * 5 + [delta])  # type: ignore[assignment]
+    task = asyncio.create_task(client._connection._message_loop())
+    try:
+        await _settle(lambda: client.all_properties.get("amp") == 6)
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+    warnings = _api_records(caplog, logging.WARNING)
+    assert len(warnings) == 1, warnings
+    assert "connection.py" in warnings[0], "it has to say where it failed"
+
+
+@pytest.mark.parametrize("peer", ["silent", "closing"])
+async def test_a_charger_that_never_gets_ready_is_retried_ever_more_slowly(
+    client: Wattpilot,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    peer: str,
+) -> None:
+    """A socket that connects but never brings the snapshot -- silent, or
+    closed straight away -- is no sign that the charger is back. Counting it
+    as one put the backoff back to its minimum every cycle, and each silent
+    one logged a WARNING: about one a minute while the charger stayed so."""
+    attempts: list[float] = []
+
+    async def connect(_url: str) -> FakeSocket:
+        await asyncio.sleep(0)
+        attempts.append(time.monotonic())
+        socket = FakeSocket([])
+        if peer == "closing":
+            await socket.close()
+        return socket
+
+    monkeypatch.setattr(
+        "custom_components.wattpilot.api.connection.websockets.asyncio.client.connect",
+        connect,
+    )
+    connection = client._connection
+    connection._reconnect_delay_min = 0.01
+    connection.connect_timeout = connection.init_timeout = 0.01
+    connection.socket = FakeSocket([])
+    connection.message_loop_task = asyncio.create_task(connection._message_loop())
+    await connection.socket.close()
+    for _ in range(300):
+        if len(attempts) >= 6:
+            break
+        await asyncio.sleep(0.01)
+    await connection.close()
+
+    gaps = [later - earlier for earlier, later in itertools.pairwise(attempts)]
+    assert len(gaps) >= 5, gaps
+    assert gaps[4] > 3 * gaps[0], f"the backoff did not grow: {gaps}"
+    assert _api_records(caplog, logging.WARNING) == []
