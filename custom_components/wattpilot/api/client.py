@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import inspect
 import json
 import logging
 from collections.abc import Callable
@@ -42,8 +41,7 @@ _REBOOT_RETRY_PAUSE = 2.0
 _NEVER_ACKNOWLEDGED = frozenset({"rst"})
 CLOUD_API_BASE_URL = "https://app.wattpilot.io/app"
 
-type PropertyCallback = Callable[[str, Any], Any]
-type MessageCallback = Callable[[dict[str, Any]], Any]
+type PropertyCallback = Callable[[str, Any], None]
 
 
 def _plain_json(value: Any) -> Any:  # noqa: ANN401 -- recurses over untyped JSON
@@ -148,6 +146,14 @@ def _as_float(value: Any, name: str) -> float:  # noqa: ANN401 -- a value to wri
     raise PropertyError(msg)
 
 
+def _as_text(value: Any, name: str) -> str:  # noqa: ANN401 -- a value to write
+    """Return *value* if it is text already: str(5) is no text the caller meant."""
+    if isinstance(value, str):
+        return value
+    msg = f"Cannot convert {value!r} to str for property '{name}'"
+    raise PropertyError(msg)
+
+
 def _parse_number(text: str) -> int | float | str:
     """Read a number from text, or give the text back unchanged."""
     for parse in (int, float):
@@ -221,7 +227,6 @@ class Wattpilot:
 
         # Callbacks
         self._property_callbacks: list[PropertyCallback] = []
-        self._message_callbacks: list[MessageCallback] = []
 
     # ---- Context manager ----
 
@@ -292,6 +297,10 @@ class Wattpilot:
     def firmware(self) -> str | None:
         """Return the charger's firmware version, if known."""
         return self._firmware
+
+    def get_property(self, name: str, default: Any = None) -> Any:  # noqa: ANN401 -- a charger value
+        """Return one property, without the copy all_properties makes."""
+        return self._all_props.get(name, default)
 
     @property
     def all_properties(self) -> dict[str, Any]:
@@ -552,7 +561,7 @@ class Wattpilot:
             case "float":
                 return _as_float(value, name)
             case "string":
-                return str(value)
+                return _as_text(value, name)
             case _:
                 return value
 
@@ -568,35 +577,17 @@ class Wattpilot:
 
         return unsubscribe
 
-    def on_message(self, callback: MessageCallback) -> Callable[[], None]:
-        """Register a raw-message callback. Returns an unsubscribe function."""
-        self._message_callbacks.append(callback)
-
-        def unsubscribe() -> None:
-            """Remove the callback registered above."""
-            self._message_callbacks.remove(callback)
-
-        return unsubscribe
-
     # ---- Internal: message loop ----
 
     # One branch per message type the charger sends; the dispatch is the
     # function's whole content. The complexity ratchet in tests/ freezes
     # the number so it cannot creep upward unnoticed.
-    async def _handle_message(self, raw: str) -> None:  # noqa: C901
+    async def _handle_message(self, raw: str) -> None:
         # wattpilot: type only, never the payload. Frames
         # carry Wi-Fi passwords, cloud tokens and OCPP keys, and DEBUG
         # logging for this integration is one toggle away in the UI.
         _LOGGER.debug("Message received: %s (%d bytes)", _message_type(raw), len(raw))
         msg = json.loads(raw)
-
-        # Fire raw message callbacks
-        for cb in self._message_callbacks:
-            if inspect.iscoroutinefunction(cb):
-                await cb(msg)
-            else:
-                cb(msg)
-
         msg_type = msg.get("type", "")
         ns = json.loads(raw, object_hook=lambda d: SimpleNamespace(**d))
 
@@ -741,15 +732,8 @@ class Wattpilot:
             case "fwv":
                 self._firmware = value
 
-        # Fire property callbacks
         for cb in self._property_callbacks:
-            if inspect.iscoroutinefunction(cb):
-                task = asyncio.ensure_future(cb(name, value))
-                task.add_done_callback(
-                    lambda t: t.exception() if not t.cancelled() else None
-                )
-            else:
-                cb(name, value)
+            cb(name, value)
 
     async def _update_hashed_password(self) -> None:
         """

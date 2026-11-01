@@ -1040,11 +1040,10 @@ def test_complexity_ratchet() -> None:
         "auth.py::_bcryptjs_base64_encode": 6,
         "connection.py::Connection._read_frames": 6,
         "connection.py::Connection._message_loop": 6,
-        "client.py::Wattpilot._handle_message": 11,
+        "client.py::Wattpilot._handle_message": 9,
         "client.py::Wattpilot._on_response": 6,
-        "client.py::Wattpilot._update_property": 6,
         "definition.py::validate_api_definition": 12,
-        "definition.py::load_api_definition": 8,
+        "definition.py::load_api_definition": 7,
     }
     actual = _complexities_over(threshold)
     for name, complexity in actual.items():

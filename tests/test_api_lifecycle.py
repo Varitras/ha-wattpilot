@@ -221,19 +221,6 @@ async def test_a_cancelled_connect_leaves_nothing_running(
     assert client._connection.message_loop_task is None
 
 
-async def test_message_subscribers_see_every_frame(client: Wattpilot) -> None:
-    # Subscribers get the decoded frame as a plain dict, before the client
-    # turns it into a namespace for its own handlers.
-    seen: list[Any] = []
-    unsubscribe = client.on_message(lambda message: seen.append(message["type"]))
-
-    await client._handle_message(json.dumps({"type": "deltaStatus", "status": {}}))
-    unsubscribe()
-    await client._handle_message(json.dumps({"type": "deltaStatus", "status": {}}))
-
-    assert seen == ["deltaStatus"]
-
-
 async def test_a_firmware_install_without_a_version_needs_an_offer(
     client: Wattpilot,
 ) -> None:

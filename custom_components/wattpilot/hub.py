@@ -282,7 +282,7 @@ class WattpilotHub:
 
     def get_property(self, key: str, default: Any = None) -> Any:  # noqa: ANN401
         """Return one charger property, or default if not seen yet."""
-        return self.charger.all_properties.get(key, default)
+        return self.charger.get_property(key, default)
 
     # ---- push handling ----
 

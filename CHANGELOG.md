@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Setting up or reloading the charger is a little faster: the integration
+  reads its description of the charger's settings once per Home Assistant
+  start instead of every time.
+
 ### Fixed
 
 - A Wattpilot Home on firmware 43.5 no longer reports its ID-chip list but

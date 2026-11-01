@@ -3,58 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import IntEnum, StrEnum
-
-
-class CarStatus(IntEnum):
-    """Car connection / charging status."""
-
-    NO_CAR = 1
-    CHARGING = 2
-    READY = 3
-    COMPLETE = 4
-
-
-class AccessState(IntEnum):
-    """Access / lock state."""
-
-    OPEN = 0
-    WAIT = 1
-
-
-class ErrorState(IntEnum):
-    """Device error state."""
-
-    UNKNOWN = 0
-    IDLE = 1
-    CHARGING = 2
-    WAIT_CAR = 3
-    COMPLETE = 4
-    ERROR = 5
-
-
-class CableLockMode(IntEnum):
-    """Cable lock behaviour."""
-
-    NORMAL = 0
-    AUTO_UNLOCK = 1
-    ALWAYS_LOCK = 2
-
-
-class ForceState(IntEnum):
-    """Force charging state."""
-
-    NEUTRAL = 0
-    OFF = 1
-    ON = 2
-
-
-class PhaseSwitchMode(IntEnum):
-    """Phase switching mode."""
-
-    AUTO = 0
-    FORCE_1 = 1
-    FORCE_3 = 2
+from enum import StrEnum
 
 
 class AuthHashType(StrEnum):

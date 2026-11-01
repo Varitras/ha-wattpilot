@@ -230,6 +230,9 @@ class FakeWattpilot:
         self.connected = False
         self.disconnect_count += 1
 
+    def get_property(self, name: str, default: Any = None) -> Any:
+        return self._properties.get(name, default)
+
     def on_property_change(
         self, callback: Callable[[str, Any], None]
     ) -> Callable[[], None]:
