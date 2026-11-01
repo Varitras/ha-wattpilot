@@ -696,7 +696,7 @@ class Wattpilot:
         for key, value in getattr(status, "__dict__", {}).items():
             try:
                 self._update_property(key, value)
-            except ValueError, TypeError, LookupError, AttributeError:
+            except ValueError, TypeError, LookupError, AttributeError, RecursionError:
                 _LOGGER.warning("Ignoring an unreadable value for %s", key)
 
     def _on_response(self, msg: SimpleNamespace) -> None:

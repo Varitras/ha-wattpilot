@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Hashable
 from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.components.select import SelectEntity
@@ -18,7 +17,7 @@ from .descriptions import (
     variant_supported,
 )
 from .entity import WattpilotEntity
-from .readings import describe_with_length
+from .readings import describe_with_length, matching_label
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -85,9 +84,8 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
         self._attr_options = list(options.values())
         if value == "" and self.entity_description.empty_string_means is not None:
             value = self.entity_description.empty_string_means
-        known = isinstance(value, Hashable) and value in options
-        self._attr_current_option = options[value] if known else None
-        self._report_unknown(value, known=known)
+        self._attr_current_option = matching_label(options, value)
+        self._report_unknown(value, known=self._attr_current_option is not None)
 
     def _report_unknown(self, value: Any, *, known: bool) -> None:  # noqa: ANN401 -- charger payload
         # Unknown alone told nobody (#25). Once until a known value: a NaN
@@ -124,18 +122,24 @@ class WattpilotSelect(WattpilotEntity, SelectEntity):
         )
 
 
-def _current_range(variant: object, charger_key: str) -> tuple[float, float]:
-    """Return the range the number for *charger_key* has on this variant."""
-    numbers = [d for d in NUMBER_DESCRIPTIONS if d.charger_key == charger_key]
-    number = next(d for d in numbers if variant_supported(variant, d.variant))
-    # The current numbers declare both ends; the type allows None.
-    return cast("float", number.native_min_value), cast(
-        "float", number.native_max_value
-    )
+def _current_range(variant: object, charger_key: str) -> tuple[float, float] | None:
+    """Return the range of *charger_key*'s number on this model, if it has one."""
+    for number in NUMBER_DESCRIPTIONS:
+        if number.charger_key == charger_key and variant_supported(
+            variant, number.variant
+        ):
+            # The current numbers declare both ends; the type allows None.
+            return cast("float", number.native_min_value), cast(
+                "float", number.native_max_value
+            )
+    # Neither 11 nor 22 kW: the lookup raised and took every select along.
+    return None
 
 
-def _is_preset(value: Any, limits: tuple[float, float]) -> bool:  # noqa: ANN401 -- charger payload
+def _is_preset(value: Any, limits: tuple[float, float] | None) -> bool:  # noqa: ANN401 -- charger payload
     """Whether *value* is a whole current within the number's range."""
+    if limits is None:
+        return False
     lowest, highest = limits
     whole = isinstance(value, int) and not isinstance(value, bool)
     return whole and lowest <= value <= highest

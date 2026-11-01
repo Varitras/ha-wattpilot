@@ -929,9 +929,9 @@ def _seconds_setting(key: str, charger_key: str) -> WattpilotNumberEntityDescrip
     )
 
 
-# Bounds/mode/set_as_int verified against the fork's NUMBER_DESCRIPTIONS at
-# pinned commit 1decee7 (AST-level diff, not transcription): its 13 entries
-# match on bounds/step/mode/device_class/unit/variant/firmware/category/
+# Bounds/mode verified against the fork's NUMBER_DESCRIPTIONS at pinned
+# commit 1decee7 (AST-level diff, not transcription): its 13 entries match on
+# bounds/step/mode/device_class/unit/variant/firmware/category/
 # enabled_default, but for the deviations tests/parity.py lists. set_as_int
 # rounds before the write: the client converts each value to the type the API
 # definition declares and refuses one that would change (api/client.py), so

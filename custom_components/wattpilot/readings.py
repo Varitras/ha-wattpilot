@@ -10,12 +10,15 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Any, TypeGuard
+from typing import TYPE_CHECKING, Any, TypeGuard
 
 from homeassistant.const import MAX_LENGTH_STATE_STATE
 from homeassistant.util import dt as dt_util
 
 from .descriptions import MILLISECONDS_PER_MINUTE, NRG_ATTRIBUTES
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,15 +90,39 @@ def _price_entry(entry: Any) -> dict[str, Any] | None:  # noqa: ANN401 -- charge
 
 def fit_for_state(value: Any, key: str) -> Any:  # noqa: ANN401 -- charger payload
     """
-    Return *value*, or None for a text HA refuses as a state (over 255 chars).
+    Return *value*, or None where HA refuses it as a state (over 255 chars).
 
-    HA would log such a text whole, as an error: an inverter label, a place
-    name. Logged here is its length.
+    HA turns any state into text, a list included, and logs one too long
+    whole, as an error: an inverter label, a network name. Logged here is
+    its shape.
     """
-    if not isinstance(value, str) or len(value) <= MAX_LENGTH_STATE_STATE:
+    if value is None or len(str(value)) <= MAX_LENGTH_STATE_STATE:
         return value
     _LOGGER.warning("%s: %s is too long for a state", key, describe_with_length(value))
     return None
+
+
+def at(values: list[Any], index: int) -> Any:  # noqa: ANN401 -- charger payload
+    """Return the reading at *index*, or None for one past the end of the list."""
+    if not isinstance(values, list):
+        raise TypeError  # no reading list at all: the caller logs its shape
+    return values[index] if index < len(values) else None
+
+
+def matching_label(table: Mapping[Any, str], value: Any) -> str | None:  # noqa: ANN401 -- charger payload
+    """Return *value*'s label; a bool matches a bool key only, as true == 1."""
+    for key, label in table.items():
+        if key == value and isinstance(key, bool) == isinstance(value, bool):
+            return label
+    return None
+
+
+def enum_state(table: Mapping[Any, str], value: Any) -> Any:  # noqa: ANN401 -- charger payload
+    """Return *value*'s label, else the raw value; an unmatched bool is unknown."""
+    label = matching_label(table, value)
+    if label is not None:
+        return label
+    return None if isinstance(value, bool) else value
 
 
 def held_positions(values: list[Any], positions: dict[str, int]) -> dict[str, Any]:

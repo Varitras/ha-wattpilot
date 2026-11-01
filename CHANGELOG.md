@@ -28,13 +28,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   as "Locked when car is connected". Each option is now sent as offered.
 - **Next trip energy** set with a fraction is rounded to the nearest Wh. It
   was cut off.
-- A text the charger sends that is too long for a state (over 255
-  characters), such as an inverter label, reads unknown. Home Assistant
-  refused it and logged the whole text as an error.
+- A value the charger sends that is too long for a state (over 255
+  characters as text), such as an inverter label, reads unknown. Home
+  Assistant refused it and logged the whole text as an error.
 - **Charging power** keeps updating when the charger sends a shorter
   reading list than usual. It froze, with a warning on every update.
 - A `true` where the charger should send a number no longer shows as the
-  value 1, "True" or 00:00:01.
+  value 1, "True", 00:00:01 or as the option or state numbered 1.
 - **Charging current preset** offers only currents the charger allows for
   its model, 6 to 16 A or 6 to 32 A.
 - A message from the charger that cannot be read is skipped and the

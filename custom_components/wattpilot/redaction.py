@@ -231,9 +231,9 @@ _COMPANION_STAND_INS = {
 
 
 def _stand_in(value: Any, replacement: Any) -> Any:  # noqa: ANN401 -- untyped JSON
-    """Return *replacement*, unless the value is empty."""
-    if value is None or value == "":
-        # Names nobody, and a stand-in would read as a real value (A18-28).
+    """Return *replacement*, unless the value is empty, false or zero."""
+    if not value:
+        # Names nobody, and a stand-in would read as a real value.
         return value
     return replacement
 

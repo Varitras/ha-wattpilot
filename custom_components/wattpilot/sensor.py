@@ -25,8 +25,10 @@ from .descriptions import (
 )
 from .entity import WattpilotEntity
 from .readings import (
+    at,
     charging_minutes,
     describe_shape,
+    enum_state,
     fit_for_state,
     held_positions,
     is_number,
@@ -135,7 +137,7 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
                 self._attr_native_value = self._parse_timestamp(value)
                 return
             if description.enum is not None:
-                value = description.enum.get(value, value)
+                value = enum_state(description.enum, value)
             elif self._expects_number:
                 value = self._number(description, value)
             self._attr_native_value = fit_for_state(value, description.key)
@@ -198,7 +200,7 @@ class WattpilotSensor(WattpilotEntity, SensorEntity):
         return value
 
     def _unwrap_indexed(self, value: Any, index: int) -> Any:  # noqa: ANN401 -- dynamically shaped charger payload
-        reading = value[index]  # first: a list too short for an attribute froze it
+        reading = at(value, index)  # first: a list short of an attribute froze it
         attributes = self.entity_description.index_attributes
         if attributes:
             self._attr_extra_state_attributes = held_positions(value, attributes)
