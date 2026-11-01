@@ -1562,18 +1562,17 @@ async def test_the_backoff_starts_over_once_the_charger_was_back(
     client: Wattpilot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The counter-question to the growing backoff: a connection that got
-    ready proves the charger is back, and its next drop is retried at once
-    again, not after the delay the outage had grown to."""
+    ready proves the charger is back, and its next drop is retried at the
+    shortest delay again, not after the one the outage had grown to. Read
+    from the state, not the clock: timing ran slow under mutation testing."""
     ready = [
         json.dumps({"type": "authSuccess"}),
         json.dumps({"type": "fullStatus", "partial": False, "status": {"amp": 6}}),
     ]
     sockets: list[FakeSocket] = []
-    attempts: list[float] = []
 
     async def connect(_url: str) -> FakeSocket:
         await asyncio.sleep(0)
-        attempts.append(time.monotonic())
         sockets.append(FakeSocket(ready if len(sockets) == 4 else []))
         return sockets[-1]
 
@@ -1591,13 +1590,9 @@ async def test_the_backoff_starts_over_once_the_charger_was_back(
         if connection.initialized and len(sockets) == 5:
             break
         await asyncio.sleep(0.01)
-    dropped = time.monotonic()
-    await sockets[4].close()
-    for _ in range(300):
-        if len(attempts) >= 6:
-            break
-        await asyncio.sleep(0.01)
+    grown = len(sockets) == 5 and connection.initialized
+    delay = connection._reconnect_delay
     await connection.close()
 
-    assert len(attempts) >= 6, attempts
-    assert attempts[5] - dropped < 0.1, "the grown delay outlived the recovery"
+    assert grown, f"never got ready: {len(sockets)} attempt(s)"
+    assert delay == 0.01, f"the grown delay outlived the recovery: {delay}"

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from ipaddress import IPv4Address, ip_address
 from typing import TYPE_CHECKING, Any
 
@@ -48,8 +47,6 @@ if TYPE_CHECKING:
 
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
-
-_LOGGER = logging.getLogger(__name__)
 
 USER_SCHEMA = probatio.Schema(
     {probatio.Required("host"): str, probatio.Required("password"): str}
@@ -142,7 +139,7 @@ class WattpilotConfigFlow(ConfigFlow, domain=DOMAIN):
             await hub.async_connect()
         except tuple(PROBE_ERRORS) as err:
             return next(
-                e for kind, e in PROBE_ERRORS.items() if isinstance(err, kind)
+                form for kind, form in PROBE_ERRORS.items() if isinstance(err, kind)
             ), ""
         finally:
             # Disposable: a failure closing it never replaces the result.
