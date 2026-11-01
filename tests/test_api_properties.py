@@ -72,7 +72,6 @@ COERCIONS: list[tuple[str, Any, Any]] = [
     ("float", "1.5", 1.5),
     ("float", 2, 2.0),
     ("string", "x", "x"),
-    ("string", 5, "5"),
 ]
 
 
@@ -97,6 +96,7 @@ def test_a_value_is_coerced_to_the_type_the_charger_declares(
         ("integer", 5.7),
         ("integer", "5.7"),
         ("integer", float("inf")),
+        ("string", 5),
     ],
 )
 def test_a_value_that_cannot_be_coerced_is_refused(
@@ -123,3 +123,10 @@ def test_an_unknown_json_type_passes_the_value_through(client: Wattpilot) -> Non
     """The definition file may name a type this client does not know; that is
     not a reason to refuse the write."""
     assert client._coerce_to_json_type("x", "something-new", "amp") == "x"
+
+
+def test_one_property_is_read_without_copying_them_all(client: Wattpilot) -> None:
+    """all_properties hands out a copy; one value needs none."""
+    client._update_property("amp", 10)
+    assert client.get_property("amp") == 10
+    assert client.get_property("zzz", 6) == 6

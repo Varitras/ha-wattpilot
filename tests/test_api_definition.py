@@ -48,3 +48,9 @@ def test_the_shipped_definition_loads() -> None:
     definition = load_api_definition()
     assert definition.properties["nrg"]["jsonType"] == "array"
     assert definition.properties["amp"]["jsonType"] == "integer"
+
+
+def test_the_definition_is_read_once_per_process() -> None:
+    """Every client parsed the large YAML file again, a setup probe included;
+    nothing changes it at runtime, and its readers only read."""
+    assert load_api_definition() is load_api_definition()
