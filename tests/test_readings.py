@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from custom_components.wattpilot.readings import is_number
+from custom_components.wattpilot.readings import fit_for_state, is_number
 
 LARGEST = sys.float_info.max
 
@@ -21,3 +21,17 @@ def test_every_finite_number_is_a_number(value: float) -> None:
 )
 def test_what_home_assistant_refuses_is_no_number(value: object) -> None:
     assert not is_number(value)
+
+
+def test_a_text_up_to_255_characters_is_a_state_and_one_longer_is_not(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """255 is Home Assistant's own limit; one more and it logs the text whole."""
+    assert fit_for_state("x" * 255, "inverter") == "x" * 255
+    assert fit_for_state(12345, "inverter") == 12345
+    assert caplog.records == []
+
+    assert fit_for_state("x" * 256, "inverter") is None
+    assert [record.getMessage() for record in caplog.records] == [
+        "inverter: str of 256 chars is too long for a state"
+    ]

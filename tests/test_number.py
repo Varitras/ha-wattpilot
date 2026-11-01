@@ -278,3 +278,12 @@ async def test_a_value_that_is_no_number_is_not_sent(
         await number.async_set_native_value(value)
     assert fake_charger.set_calls == []
     assert fake_charger.next_trip_energy_calls == []
+
+
+async def test_a_true_from_the_charger_shows_no_number(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """float(True) is 1.0: a true in amp showed as 1 A."""
+    fake_charger._properties["amp"] = True
+    number = await make_number(hass, fake_charger, "amp")
+    assert number.native_value is None

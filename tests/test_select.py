@@ -290,3 +290,27 @@ async def test_a_preset_that_is_no_whole_current_is_not_offered(
     with pytest.raises(ServiceValidationError):
         await select.async_select_option("12.9 A")
     assert fake_charger.set_calls == []
+
+
+@pytest.mark.parametrize(
+    ("variant", "offered"),
+    [(11, ["6 A", "16 A"]), (22, ["6 A", "16 A", "32 A"])],
+)
+async def test_a_preset_no_charger_current_allows_is_not_offered(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    variant: int,
+    offered: list[str],
+) -> None:
+    """
+    0, -5 or 99 A from faulty data were offered and written. The range is
+    the current number's for this charger: 6 to 16 A, or 6 to 32 A.
+    """
+    fake_charger.variant = variant
+    fake_charger._properties.update({"clp": [0, -5, 6, 16, 32, 99], "amp": 6})
+    select = await make_select(hass, fake_charger, "amp_preset")
+
+    assert select.options == offered
+    with pytest.raises(ServiceValidationError):
+        await select.async_select_option("99 A")
+    assert fake_charger.set_calls == []

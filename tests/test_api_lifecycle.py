@@ -1385,3 +1385,64 @@ async def test_an_unload_while_the_firmware_update_waits_for_the_reboot_wins(
         assert [s for s in sockets if not s.closed] == []
     finally:
         await client._connection.close()
+
+
+def _nested_status(depth: int) -> str:
+    """A delta status nested *depth* levels deep, written without json.dumps."""
+    return (
+        '{"type": "deltaStatus", "status": {"amp": '
+        + '{"x": ' * depth
+        + "1"
+        + "}" * depth
+        + "}}"
+    )
+
+
+def _fail_once(client: Wattpilot) -> None:
+    handle = client._connection._handle_frame
+    failed: list[bool] = []
+
+    async def fails_once(raw: str) -> None:
+        if not failed:
+            failed.append(True)
+            raise RuntimeError
+        await handle(raw)
+
+    client._connection._handle_frame = fails_once  # type: ignore[method-assign]
+
+
+@pytest.mark.parametrize(
+    ("first_frame", "breaks"),
+    [
+        (_nested_status(1200), lambda _client: None),
+        ('{"type": "deltaStatus", "status": {"amp": 9}}', _fail_once),
+    ],
+    ids=["status nested past the recursion limit", "an error in a handler"],
+)
+async def test_a_frame_that_fails_is_skipped_and_the_reader_goes_on(
+    client: Wattpilot,
+    first_frame: str,
+    breaks: Callable[[Wattpilot], None],
+) -> None:
+    """
+    A status nested about 1,000 levels deep ended the reader for good: the
+    socket stayed open, nothing reconnected, and the entities stayed
+    unavailable until a reload. Such a frame is skipped now, like an
+    unreadable one, and the next one is read.
+    """
+    socket = FakeSocket(
+        [first_frame, json.dumps({"type": "deltaStatus", "status": {"amp": 14}})]
+    )
+    breaks(client)
+    client._connection.socket = socket  # type: ignore[assignment]
+
+    task = asyncio.create_task(client._connection._message_loop())
+    try:
+        await _settle(lambda: client.all_properties.get("amp") == 14)
+        assert client.all_properties.get("amp") == 14
+        assert not socket.closed
+        assert not task.done()
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task

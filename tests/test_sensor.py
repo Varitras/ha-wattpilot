@@ -1096,3 +1096,52 @@ def test_charging_power_per_source_needs_a_charger_that_reports_it(
         SENSOR_DESCRIPTIONS, firmware="42.5", variant=11, properties=device_properties
     )
     assert {d.uid_suffix for d in kept} & set(SOURCE_POWER_UIDS) == set()
+
+
+async def test_a_text_too_long_for_a_state_shows_unknown_and_stays_out_of_the_log(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """
+    Home Assistant refuses a state over 255 characters and logs the whole
+    text as an error -- an inverter label or a place name included.
+    """
+    label = "PLACE-" + "x" * 300
+    fake_charger._properties["cci"] = {"label": label, "model": "Gen24"}
+    sensor = await make_sensor(hass, fake_charger, "cci")
+
+    assert sensor.native_value is None
+    assert "PLACE-" not in caplog.text
+    assert "inverter: str of 306 chars is too long for a state" in caplog.text
+    fake_charger.push("cci", {"label": "Symo", "model": "Gen24"})
+    await hass.async_block_till_done()
+    assert sensor.native_value == "Symo"
+
+
+async def test_a_short_power_reading_list_still_shows_the_power(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """
+    The power sits at position 11 of nrg; the attributes reach to 15. With
+    12 to 15 entries the attributes were read first, failed, and the power
+    froze at its last value with a warning on every push.
+    """
+    fake_charger._properties["nrg"] = [230, 230, 230, 0, 0, 0, 0, 0, 0, 0, 0, 6900]
+    sensor = await make_sensor(hass, fake_charger, "nrg")
+
+    assert sensor.native_value == 6900
+    assert sensor.extra_state_attributes["L1_Voltage"] == 230
+    assert "nrg" not in caplog.text
+
+
+async def test_a_true_in_a_number_field_is_no_number(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """A bool is an int in Python: a true in nrg showed as the power "True"."""
+    fake_charger._properties["nrg"] = [230, 230, 230, *[0] * 8, True, 0, 0, 0, 0]
+    sensor = await make_sensor(hass, fake_charger, "nrg")
+
+    assert sensor.native_value is None

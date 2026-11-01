@@ -70,3 +70,12 @@ async def test_push_updates_native_value(
     entity = await make_time(hass, fake_charger)
     fake_charger.push("ftt", 3600)  # 01:00
     assert entity.native_value == dt_time(1, 0)
+
+
+async def test_a_true_from_the_charger_shows_no_time(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """int(True) is 1: a true in ftt showed as 00:00:01."""
+    fake_charger._properties["ftt"] = True
+    entity = await make_time(hass, fake_charger)
+    assert entity.native_value is None

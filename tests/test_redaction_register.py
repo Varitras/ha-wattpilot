@@ -136,6 +136,22 @@ REGISTER: dict[str, str] = {
     "ocppfd": REPLACED,
     "ocpptt": REPLACED,
     "otaif": REPLACED,
+    # Declared with no type ("unknown"), empty on every charger seen.
+    "wss": REPLACED,
+    "lri": REPLACED,
+    "cdv": REPLACED,
+    "fntp": REPLACED,
+    "ftls": REPLACED,
+    "lbh": REPLACED,
+    "ledo": REPLACED,
+    "stao": REPLACED,
+    "lrc": "readable (index of the last ID chip read, a small number)",
+    "lrr": "readable (milliseconds since boot of the last ID chip read)",
+    "ocppca": "readable (age of the OCPP connection)",
+    "smd": "readable (smart meter readings; the scrub covers any text in them)",
+    "fbuf_ohmpilotState": "readable (Ohmpilot state)",
+    "fbuf_ohmpilotTemperature": "readable (Ohmpilot temperature)",
+    "fbuf_pAcTotal": "readable (AC power total)",
     "cbm": SCRUBBED,
     "mace": SCRUBBED,
     "macp": SCRUBBED,
@@ -159,7 +175,7 @@ REGISTER: dict[str, str] = {
 
 def _actual_fields() -> set[str]:
     """
-    Every top-level string field the charger can report.
+    Every top-level field the charger can report as text.
 
     Two sources, because neither alone is the surface: the bundled definition
     knows fields this device leaves unpopulated, and the device reports
@@ -167,10 +183,12 @@ def _actual_fields() -> set[str]:
     """
     snapshot = json.loads(FIXTURE.read_text(encoding="utf-8"))
     observed = {key for key, value in snapshot.items() if isinstance(value, str)}
+    # "unknown" too: wss, the Wi-Fi SSID, is declared so, and was never
+    # decided while only "string" fields counted.
     declared = {
         key
         for key, prop in load_api_definition().properties.items()
-        if prop.get("jsonType") == "string"
+        if prop.get("jsonType") in ("string", "unknown")
     }
     return observed | declared | FLEX_STRING_FIELDS
 
@@ -253,3 +271,30 @@ def test_no_field_is_registered_as_leaking() -> None:
         if decision.startswith(LEAKS_PREFIX)
     }
     assert declared == set(), f"field(s) knowingly leaking: {sorted(declared)}"
+
+
+def test_secrets_nested_or_undeclared_stay_out_of_the_download() -> None:
+    """
+    A Wi-Fi key sent as text inside wifis, the SSID in wss and the names and
+    serials of load balancing members passed into the diagnostics download:
+    redaction knew them by name only where someone had seen them.
+    """
+    snapshot = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    snapshot["wss"] = "MyHomeNetwork"
+    snapshot["wifis"][0]["key"] = "hunter2pass"
+    snapshot["wifis"][0]["password"] = "hunter3pass"  # noqa: S105 -- made up, to be removed
+    snapshot["lom"] = [{"name": "Neighbour's garage", "sse": "987654"}]
+
+    download = json.dumps(sanitize_snapshot(snapshot))
+
+    for secret in (
+        "MyHomeNetwork",
+        "hunter2pass",
+        "hunter3pass",
+        "Neighbour",
+        "987654",
+    ):
+        assert secret not in download, secret
+    # A key flag is no secret and stays readable.
+    snapshot["wifis"][0]["key"] = True
+    assert sanitize_snapshot(snapshot)["wifis"][0]["key"] is True
