@@ -229,7 +229,7 @@ def _traceback_leaks(source: str) -> list[str]:
     Tracebacks of an error that can quote the address.
 
     Home Assistant logs a failed setup's traceback, causes included, and a
-    message mask never reaches it (R1-01).
+    message mask never reaches it.
     """
     return [
         f"{inner.lineno} traceback of {handler.name or 'the error'}"
@@ -526,7 +526,7 @@ def test_manifest_is_consistent() -> None:
 def test_the_two_declared_versions_agree() -> None:
     """One release, one number. The release gate compares the tag to the
     manifest and never looked at pyproject.toml, so the two drifted to 0.1.0
-    and 0.0.0 with nothing to notice (audit VA-17)."""
+    and 0.0.0 with nothing to notice."""
     import tomllib  # noqa: PLC0415 -- scoped on purpose, only this test needs it
 
     manifest = json.loads((PACKAGE / "manifest.json").read_text(encoding="utf-8"))
@@ -655,30 +655,30 @@ SIZE_BUDGET = {  # frozen ceilings; only shrink. Files under the default
     # dispatch, property table and the typed write paths. Adopted at 1220
     # lines; splitting it is a separate decision, not a side effect of taking
     # it over. Three raises in the 2026-09-05 audit round triggered the
-    # ratchet's own clustering criterion, and the owner decided to split
-    # (ledger L-016): the connection lifecycle moved to connection.py and
+    # ratchet's own clustering criterion, and the owner decided to split:
+    # the connection lifecycle moved to connection.py and
     # this budget came back down with it (measured: 1192). Nudged to 1230 on
     # 2026-09-06 for the audit round's connect cleanup and firmware deadline
-    # (measured: 1221). Down on 2026-10-11 with the 45 accessors nothing read
-    # (audit A18-37), keeping room for the refusal in the firmware wait. Down
+    # (measured: 1221). Down on 2026-10-11 with the 45 accessors nothing read,
+    # keeping room for the refusal in the firmware wait. Down
     # again the same day with the seven getters only tests read, then with
     # `version` (measured: 793). Up to 803 the same day, owner-approved, for
     # status frames without a status object and the close count of the
-    # firmware wait (findings 6 and RF-L-01).
+    # firmware wait.
     "client.py": 803,
-    # Past the default on 2026-09-25 by the open/close coordination (audits
-    # A15-01, A16-01): shared attempts, a close that cancels instead of
+    # Past the default on 2026-09-25 by the open/close coordination: shared
+    # attempts, a close that cancels instead of
     # waiting, and one visible transition at a time (measured: 406). Raised
     # on 2026-10-10, owner-approved: to 424 for recovery after a failed
-    # reconnect action (A18-05/06), to 440 for a deliberate close winning
-    # over recovery (R1-11/12) (measured on 2026-10-11: 437).
+    # reconnect action, to 440 for a deliberate close winning
+    # over recovery (measured on 2026-10-11: 437).
     "connection.py": 440,
     # Past the default on 2026-09-26 by the repair notice for a different
-    # charger answering at runtime (audit A15-04): the hub is where the
+    # charger answering at runtime: the hub is where the
     # connection's state turns into what the user is told (measured: 424).
     # Owner-approved raises: 444 on 2026-10-10 for announcing a recovery with
-    # the current values (A18-20), 446 on 2026-10-11 for refusal notices
-    # that go once the charger is back (reaudit RF-L-03).
+    # the current values, 446 on 2026-10-11 for refusal notices
+    # that go once the charger is back.
     "hub.py": 446,
 }
 SHRINK_SLACK = 0.85  # an entry >=15% below budget must be ratcheted down
@@ -688,17 +688,17 @@ SHRINK_SLACK = 0.85  # an entry >=15% below budget must be ratcheted down
 # partials and reached ~15,500 lines past a per-file budget. So a unit that was
 # split stays measured as one cluster.
 CLUSTER_BUDGET = {
-    # The adopted charger client. Split on 2026-09-05 (ledger L-016) into the
+    # The adopted charger client. Split on 2026-09-05 into the
     # protocol and the connection lifecycle; the pair is the unit that must
     # not grow. Raised once for the whole 2026-09-06 audit round: connection
-    # ownership and readiness deadlines (A12-01/04), fail-stop on refusal
-    # (A12-02), the cleanup that spans the definition load (A12-03) and the
-    # firmware deadline with the disconnect event it waits on (A12-08), at a
+    # ownership and readiness deadlines, fail-stop on refusal,
+    # the cleanup that spans the definition load and the
+    # firmware deadline with the disconnect event it waits on, at a
     # measured 1567 lines. Raised a second time on 2026-09-25, after about
     # forty lines of comment had already been condensed to make room: the
-    # open/close coordination (A13-01, A14-01, A15-01) and the refused-
-    # password flag (A14-02), at a measured 1607 lines. Down with client.py
-    # on 2026-10-11 (A18-37), and again with the last unread getters (1233); up
+    # open/close coordination and the refused-
+    # password flag, at a measured 1607 lines. Down with client.py
+    # on 2026-10-11, and again with the last unread getters (1233); up
     # to 1240 with client.py (owner-approved).
     "api client": (("client.py", "connection.py"), 1240),
 }
@@ -731,7 +731,7 @@ def test_expensive_hashing_never_runs_on_the_event_loop() -> None:
     A key-derivation call must be handed to a thread, never called directly.
 
     It was called directly once, and the handshake stalled Home Assistant's
-    event loop for 110-116 ms on every connection (audit A11-08). Moving the
+    event loop for 110-116 ms on every connection. Moving the
     one call site fixes the day; this stops the next one being written.
 
     Fix: `await asyncio.to_thread(hash_password, ...)` -- pass the function,
@@ -755,6 +755,44 @@ DEPRECATED_HA_CALLS = {
     # 2026.9: identifiers are no longer unique across config entries.
     "async_get_device": "async_get_device_by_identifier / _by_connection",
 }
+
+
+# Review finding IDs and the names of private notes: they mean nothing to a
+# reader of a public repository and point at records it does not contain.
+# The reason a line exists belongs in the line, not behind an ID.
+INTERNAL_REFERENCE = re.compile(
+    r"\b(?:VA|RF|PC\d?|R\d|A\d{1,2}|F\d{2}|FA|FB|FC|RA|L)(?:-[A-Z])?-\d+\b"
+    # Split, so that this line does not name what it looks for.
+    r"|\b(?:led"
+    r"ger|erosions"
+    r"schutz)\b",
+    re.IGNORECASE,
+)
+# Released notes stay as they were published.
+INTERNAL_REFERENCE_EXEMPT = frozenset({"CHANGELOG.md"})
+
+
+def test_no_internal_review_reference_in_the_repository() -> None:
+    root = PACKAGE.parent.parent
+    texts = [
+        *iter_python_files(),
+        *sorted((root / "tests").rglob("*.py")),
+        *sorted((root / "tests").glob("*.md")),
+        *sorted((root / "scripts").glob("*")),
+        *sorted((root / ".github").rglob("*.yml")),
+        *(root / name for name in ("README.md", "NOTICE", "pyproject.toml")),
+        PACKAGE / "quality_scale.yaml",
+    ]
+    found = [
+        f"{path.relative_to(root)}:{number}: {match[0]}"
+        for path in texts
+        if path.is_file() and path.name not in INTERNAL_REFERENCE_EXEMPT
+        for number, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        )
+        if (match := INTERNAL_REFERENCE.search(line))
+    ]
+    assert found == [], found
 
 
 def test_no_deprecated_home_assistant_call() -> None:
@@ -974,7 +1012,7 @@ def _complexities_over(threshold: int) -> dict[str, int]:
 
 def test_the_snapshot_helper_sees_what_the_ratchet_sees() -> None:
     """The helper read only the top-level package; regenerating the table
-    with it dropped every api/ entry (audit A19-12)."""
+    with it dropped every api/ entry."""
     assert complexity_snapshot.snapshot() == _complexities_over(
         complexity_snapshot.THRESHOLD
     )
@@ -990,7 +1028,7 @@ def test_complexity_ratchet() -> None:
     complexity_table: dict[str, int] = {
         "descriptions.py::firmware_supported": 7,
         "redaction.py::scrub": 8,
-        # 7 since the `ts` rule (audit VA-07): one more branch in what is
+        # 7 since the `ts` rule: one more branch in what is
         # a dispatch table written as code, not added logic.
         "redaction.py::sanitize_property": 6,
         "sensor.py::WattpilotSensor._apply_value": 8,
@@ -1030,7 +1068,7 @@ RELEASE_WORKFLOW = CI_WORKFLOW.parent / "release.yml"
 
 
 # Word for word: a substring check stayed green with the arguments reversed,
-# with `|| true` and with `echo` in front (reaudit RF-D-05).
+# with `|| true` and with `echo` in front.
 ANCESTRY_CHECK = 'git merge-base --is-ancestor "$GITHUB_SHA" origin/main'
 
 
@@ -1070,7 +1108,7 @@ def test_a_release_is_only_cut_from_main() -> None:
     Tags come from main only -- a project rule the workflow did not check.
 
     A tag pushed from a branch before its merge published code main does
-    not contain, and HACS offers that to everyone (audit A18-31). Fix: keep
+    not contain, and HACS offers that to everyone. Fix: keep
     the ancestry check in the release job, with the full history checked out.
     """
     assert _release_problems(RELEASE_WORKFLOW.read_text(encoding="utf-8")) == []
@@ -1112,7 +1150,7 @@ def _jobs_pinning_and_testing(jobs: dict[str, Any], pin: str) -> list[str]:
     # have to sit in the SAME job's run steps. A commented-out pin cannot
     # satisfy this -- the YAML parser drops comments before we look. And
     # "pytest" alone was found in pytest-homeassistant-custom-component on
-    # the install line, so a job without its test step passed (A18-30).
+    # the install line, so a job without its test step passed.
     return [
         name
         for name, job in jobs.items()
@@ -1163,7 +1201,7 @@ def test_ci_actually_runs_the_declared_minimum_home_assistant() -> None:
 def _enum_signature(enum: object) -> object:
     """Compare enums by what they map, not by which object they are.
 
-    Audit VA-11: comparing `id(enum)` let a behaviourally identical copy of
+    Comparing `id(enum)` let a behaviourally identical copy of
     CAR_STATE_ENUM pass as a different sensor -- the guard would have missed
     the very duplicate it exists to catch.
     """
@@ -1231,7 +1269,7 @@ def test_the_duplicate_sensor_guard_can_actually_fail() -> None:
     regressed = replace(car_connected, enum=car_state.enum)
     assert _rendering_signature(regressed) == _rendering_signature(car_state)
 
-    # A copy of that enum, which audit VA-11 slipped past the first version:
+    # A copy of that enum, which slipped past the first version:
     # same mapping, different object.
     copied = replace(car_connected, enum=dict(car_state.enum))
     assert _rendering_signature(copied) == _rendering_signature(car_state)
@@ -1243,7 +1281,7 @@ def test_the_duplicate_sensor_guard_can_actually_fail() -> None:
     )
 
 
-# The guards, and what each one holds. Adapted from the erosionsschutz kit's
+# The guards, and what each one holds. Adapted from a template's
 # meta-guard: deleting a guard is otherwise a green diff, and nothing answers
 # "what stops the old problems coming back" six months later. Indexed per
 # function rather than per file, because this project keeps its guards in two
@@ -1255,6 +1293,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         "test_manifest_is_consistent": "manifest metadata stays as declared",
         "test_no_deprecated_home_assistant_call": (
             "no Home Assistant call that reports as deprecated"
+        ),
+        "test_no_internal_review_reference_in_the_repository": (
+            "no review finding IDs or private note names in public files"
         ),
         "test_every_user_facing_error_is_translated": (
             "every error a user reads is translated, with matching placeholders"
@@ -1419,8 +1460,7 @@ def test_every_guard_is_listed_in_the_index() -> None:
         )
 
 
-# The log check in conftest.py is itself a guard; these keep it honest
-# (post-check PC6-04).
+# The log check in conftest.py is itself a guard; these keep it honest.
 @pytest.mark.parametrize(
     "text",
     [
@@ -1449,7 +1489,7 @@ def test_the_log_check_lets_ordinary_output_pass(text: str) -> None:
 def test_the_log_check_outlasts_home_assistant() -> None:
     """hass comes in through auto_enable_custom_integrations, and autouse
     fixtures start in name order: only requesting the log fixtures first sets
-    them up before hass and tears them down after its stop (PC6-04). The
+    them up before hass and tears them down after its stop. The
     deprecation check likewise: Home Assistant reports while it stops, too."""
     tree = ast.parse(
         (Path(__file__).parent / "conftest.py").read_text(encoding="utf-8")
@@ -1469,7 +1509,7 @@ def test_the_log_check_outlasts_home_assistant() -> None:
 
 
 # The modules whose logic the mutation run measures. Code moved out of one
-# of them left the run unless the config followed by hand (post-check PC7-05).
+# of them left the run unless the config followed by hand.
 MUTATED_MODULES = {"__init__.py", "hub.py", "sensor.py", "readings.py"}
 
 
