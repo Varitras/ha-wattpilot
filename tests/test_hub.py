@@ -521,7 +521,7 @@ async def test_an_unannounced_drop_is_reported_at_info(
 async def test_a_failed_disconnect_still_reports_unavailable(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
-    """`available` used to read the vendor client's `connected`
+    """`available` used to read the client's `connected`
     flag, which that client clears only after a successful ws.close(). A
     close that raises left the flag True while its message loop was already
     gone -- entities kept claiming a live charger that could never update

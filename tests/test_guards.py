@@ -312,7 +312,7 @@ def test_no_device_identifier_reaches_the_log() -> None:
 def _strip_vendor_spellings(text: str) -> str:
     """Remove the vendor package spellings before the domain-literal test.
 
-    Naming the library we wrap in prose (e.g. a module docstring) has
+    Naming the library the client was adopted from (a module docstring) has
     nothing to do with make_dev_copy's replace and shouldn't force code to
     dodge the guard with a capitalization trick.
     """
@@ -721,8 +721,7 @@ def _imports_of(path: Path) -> set[str]:
     return modules
 
 
-# Password hashing is deliberately expensive; the number below is the
-# measured cost of one PBKDF2 handshake on the development machine.
+# Password hashing is deliberately expensive.
 EXPENSIVE_HASHES = frozenset({"hash_password", "_hash_pbkdf2", "_hash_bcrypt"})
 
 

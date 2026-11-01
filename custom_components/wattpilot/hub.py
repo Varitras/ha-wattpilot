@@ -70,7 +70,7 @@ class WattpilotHub:
         self._cancel_timer: CALLBACK_TYPE | None = None
         self._pending: dict[str, Any] = {}
         self._cancel_flush: CALLBACK_TYPE | None = None
-        # Set by async_shutdown, cleared by async_connect: see `available`.
+        # Set by async_disconnect, cleared by async_connect: see `available`.
         self._torn_down = False
         # Set once by async_shutdown: an unloaded hub never comes back.
         self._retired = False

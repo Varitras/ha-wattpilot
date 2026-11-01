@@ -31,11 +31,11 @@ CONNECTION_CLOUD = "cloud"
 CONF_UPDATE_INTERVAL = "update_interval"
 DEFAULT_UPDATE_INTERVAL = 5
 
-# Set by the fork migration, cleared the first time setup reads the serial.
-# Its presence is the only thing that makes adopting a *different* unique_id
-# legitimate: a fork entry is keyed on the IP and has yet to learn its
-# serial. Without it, a serial that disagrees with the entry means the
-# address now belongs to another charger.
+# Set by the fork migration on a local entry, whose unique_id is whatever
+# the fork keyed it on (an address, a name, or nothing), and kept by
+# Reconfigure while the entry awaits its serial; removed when setup adopts
+# the serial. One of the shapes awaits_serial() accepts: without one, a
+# serial that disagrees with the entry means another charger.
 CONF_AWAITING_SERIAL = "awaiting_serial"
 
 PLATFORMS: list[Platform] = [

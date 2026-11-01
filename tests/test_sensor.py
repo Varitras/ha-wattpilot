@@ -382,7 +382,7 @@ async def test_inverter_namespace_unescapes_label(
 async def test_inverter_namespace_reads_object_payloads(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
-    """The vendor client hands nested payloads over as objects, not dicts.
+    """The client hands nested payloads over as objects, not dicts.
     Fields the object does not carry must read as None instead of raising."""
     fake_charger._properties["cci"] = SimpleNamespace(label="Symo", model="Gen24")
     sensor = await make_sensor(hass, fake_charger, "cci")

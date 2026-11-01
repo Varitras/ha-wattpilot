@@ -306,8 +306,8 @@ class Wattpilot:
     # Device info
 
     @property
-    def variant(self) -> str | None:
-        """Device variant (e.g. ``'11kW'``, ``'22kW'``)."""
+    def variant(self) -> object:
+        """Maximum-current variant as the charger sends it: the integer 11 or 22."""
         return self._all_props.get("var")
 
     @property
@@ -505,7 +505,7 @@ class Wattpilot:
         """
         Read the API definition into the cache, off the event loop.
 
-        wattpilot: the definition is an 88 kB YAML file, and the lazy path
+        wattpilot: the definition is a large YAML file, and the lazy path
         below used to read it during the first write -- blocking the caller's
         event loop at a moment nobody chose. Loading it while connecting
         keeps that read in a thread, and leaves the lazy path as the

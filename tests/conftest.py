@@ -1,4 +1,4 @@
-"""Shared fixtures. FakeWattpilot mimics the wattpilot-api surface we use."""
+"""Shared fixtures. FakeWattpilot mimics the API client's surface we use."""
 
 from __future__ import annotations
 
@@ -166,7 +166,7 @@ def device_properties_fixture() -> dict[str, Any]:
 
 
 class FakeWattpilot:
-    """Duck-typed stand-in for wattpilot_api.Wattpilot."""
+    """Duck-typed stand-in for custom_components.wattpilot.api.client.Wattpilot."""
 
     def __init__(self, properties: dict[str, Any] | None = None) -> None:
         self._properties: dict[str, Any] = dict(properties or {})
@@ -180,8 +180,7 @@ class FakeWattpilot:
         self.manufacturer = "fronius"
         self.firmware = "42.5"
         self.model = "Wattpilot Home 11 J 2.0"
-        # Deliberately an int: the real device reports "var" as a number,
-        # contrary to the vendor client's `-> str | None` annotation.
+        # Deliberately an int: the real device reports "var" as a number.
         self.variant = 11
         self.connect_error: Exception | None = None
         self.set_error: Exception | None = None

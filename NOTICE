@@ -9,9 +9,8 @@ Protocol knowledge and property semantics build on prior work:
   1.4.0 was adopted into this project under custom_components/wattpilot/api/,
   which carries its MIT licence text, and is maintained here since. Only the
   modules this integration uses came along (client, auth, definition, models,
-  exceptions, utils and the API definition resource); mqtt, shell and
-  discovery did not. Changes against 1.4.0 are marked in the source with a
-  `wattpilot:` comment.
+  exceptions and the API definition resource); mqtt, shell and discovery did
+  not. It has been changed throughout since.
 - ruaan-deysel/ha-wattpilot (Apache-2.0) — the integration this project
   replaces. No source code was copied from the Apache-2.0 project; only
   interoperability facts (property keys, enum values, unique-id suffixes)

@@ -1,4 +1,4 @@
-"""Full-setup smoke test against the real-device fixture (slow).
+"""Full-setup smoke test against the real-device fixture.
 
 Every other test builds its entities by hand, so nothing else checks the
 inventory a real install actually ends up with. This one runs the whole

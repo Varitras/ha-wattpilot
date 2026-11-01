@@ -7,9 +7,10 @@ dns each had to be discovered separately before redaction.py unified them.
 A register turns "nobody thought of that field" into a red test at the moment
 the surface grows, instead of a finding two audits later.
 
-The surface is every top-level string field the charger *can* report: the
-string properties of the bundled API definition, plus anything the reference
-device reports as a string that the definition does not list. Reading it off
+The surface is every top-level field the charger *can* report as text: the
+properties the bundled API definition declares as string or with no type,
+plus anything the reference device reports as a string that the definition
+does not list. Reading it off
 the snapshot alone was the same gap one level up -- `host`, `hsta` and `hsts`
 are documented as "Wattpilot_<serial>" but are unpopulated on firmware 42.5,
 so they never reached a decision until someone read the definition.

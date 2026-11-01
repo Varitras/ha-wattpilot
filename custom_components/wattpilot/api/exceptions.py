@@ -1,4 +1,4 @@
-"""Exception hierarchy for the wattpilot-api library."""
+"""Exceptions of the Wattpilot API client."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import socket
 
 
 class WattpilotError(Exception):
-    """Base exception for all wattpilot-api errors."""
+    """Base exception of the Wattpilot API client."""
 
 
 class WattpilotConnectionError(WattpilotError):
@@ -25,7 +25,7 @@ class AuthenticationError(WattpilotError):
 
 
 class PropertyError(WattpilotError):
-    """Raised when a property operation fails (unknown key, read-only, etc.)."""
+    """Raised when a value would change on conversion, or no update is offered."""
 
 
 class CommandError(WattpilotError):
