@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import errno
-import itertools
 import json
 import logging
 import re
@@ -1525,13 +1524,15 @@ async def test_a_charger_that_never_gets_ready_is_retried_ever_more_slowly(
     """A socket that connects but never brings the snapshot -- silent, or
     closed straight away -- is no sign that the charger is back. Counting it
     as one put the backoff back to its minimum every cycle, and each silent
-    one logged a WARNING: about one a minute while the charger stayed so."""
-    attempts: list[float] = []
+    one logged a WARNING: about one a minute while the charger stayed so.
+    Read from the state, not the clock: timing ran slow under mutation
+    testing."""
+    attempts: list[FakeSocket] = []
 
     async def connect(_url: str) -> FakeSocket:
         await asyncio.sleep(0)
-        attempts.append(time.monotonic())
         socket = FakeSocket([])
+        attempts.append(socket)
         if peer == "closing":
             await socket.close()
         return socket
@@ -1550,11 +1551,12 @@ async def test_a_charger_that_never_gets_ready_is_retried_ever_more_slowly(
         if len(attempts) >= 6:
             break
         await asyncio.sleep(0.01)
+    delay = connection._reconnect_delay
     await connection.close()
 
-    gaps = [later - earlier for earlier, later in itertools.pairwise(attempts)]
-    assert len(gaps) >= 5, gaps
-    assert gaps[4] > 3 * gaps[0], f"the backoff did not grow: {gaps}"
+    assert len(attempts) >= 6, f"{len(attempts)} attempt(s)"
+    # Doubled before each of the six attempts, never put back.
+    assert delay >= 0.01 * 2**6, f"the backoff did not grow: {delay}"
     assert _api_records(caplog, logging.WARNING) == []
 
 
