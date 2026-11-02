@@ -184,7 +184,8 @@ class FakeWattpilot:
         self.properties_initialized = True
         # Why the real client stopped reconnecting for good, if it did.
         self.refusal: Exception | None = None
-        self.serial = "123456"
+        # The charger's own serial; `serial` reports what the client knows.
+        self.device_serial = "123456"
         self.name = "Wattpilot"
         self.manufacturer = "fronius"
         self.firmware = "42.5"
@@ -220,6 +221,15 @@ class FakeWattpilot:
         """Mirror the real client: a fresh copy per access, not a live view."""
         return dict(self._properties)
 
+    @property
+    def serial(self) -> str:
+        """Like the client: the serial it was built with, else the charger's."""
+        return self.expected_serial or self.device_serial
+
+    @serial.setter
+    def serial(self, value: str) -> None:
+        self.device_serial = value
+
     def built_with(
         self, *_args: Any, serial: str | None = None, **_kwargs: Any
     ) -> Self:
@@ -234,11 +244,9 @@ class FakeWattpilot:
         return self
 
     async def connect(self) -> None:
-        if self.expected_serial not in (None, self.serial):
-            # The client keeps reporting the serial it was built with.
-            found, self.serial = self.serial, self.expected_serial
+        if self.expected_serial not in (None, self.device_serial):
             msg = "Another charger answered"
-            raise DeviceIdentityError(msg, found=found)
+            raise DeviceIdentityError(msg, found=self.device_serial)
         if self.connect_error is not None:
             raise self.connect_error
         self.connected = True
