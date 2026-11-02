@@ -1495,23 +1495,96 @@ async def test_a_refusal_is_not_logged_as_an_error(
     assert _api_records(caplog, logging.WARNING) == []
 
 
-async def test_a_frame_that_keeps_failing_is_warned_about_once(
-    client: Wattpilot, caplog: pytest.LogCaptureFixture
+def _nested(depth: int) -> object:
+    value: object = 6
+    for _ in range(depth):
+        value = [value]
+    return value
+
+
+def _failing_callback(error: type[Exception]) -> Callable[[str, Any], None]:
+    def callback(key: str, _value: Any) -> None:
+        if key == "amp":
+            raise error(key)
+
+    return callback
+
+
+# Each way a defect can break every frame: the frame itself, a property
+# callback, and a value nested too deep to apply.
+REPEATED_FAILURES = {
+    "frame": (["{not json"], None),
+    "callback TypeError": ([{"amp": 6}], TypeError),
+    "callback KeyError": ([{"amp": 6}], KeyError),
+    "nested value": ([{"amp": _nested(1200)}], None),
+}
+
+
+def _repeating(statuses: list[Any], times: int) -> list[str]:
+    return [
+        status
+        if isinstance(status, str)
+        else json.dumps({"type": "deltaStatus", "status": status})
+        for _ in range(times)
+        for status in statuses
+    ]
+
+
+@pytest.mark.parametrize("failure", list(REPEATED_FAILURES))
+async def test_a_defect_in_every_frame_is_warned_about_once(
+    client: Wattpilot, caplog: pytest.LogCaptureFixture, failure: str
 ) -> None:
     """A defect that breaks every frame broke one about every second, and
-    each one logged a WARNING without saying where it failed."""
-    delta = json.dumps({"type": "deltaStatus", "status": {"amp": 6}})
-    client._connection.socket = FakeSocket(["{not json"] * 5 + [delta])  # type: ignore[assignment]
+    each one logged a WARNING without saying where it failed. A defect in
+    applying a value blamed the charger for it: "an unreadable value"."""
+    statuses, callback_error = REPEATED_FAILURES[failure]
+    if callback_error is not None:
+        client.on_property_change(_failing_callback(callback_error))
+    done = json.dumps({"type": "deltaStatus", "status": {"nrg": [1]}})
+    client._connection.socket = FakeSocket([*_repeating(statuses, 5), done])  # type: ignore[assignment]
     task = asyncio.create_task(client._connection._message_loop())
     try:
-        await _settle(lambda: client.all_properties.get("amp") == 6)
+        await _settle(lambda: client.all_properties.get("nrg") == [1])
     finally:
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
     warnings = _api_records(caplog, logging.WARNING)
     assert len(warnings) == 1, warnings
-    assert re.search(r"\w+\.py:\d+", warnings[0]), "it has to say where it failed"
+    # The innermost line of the integration's own, by file name only: a
+    # full path names the user's machine.
+    assert re.fullmatch(r"WARNING Skipping .+: \w+ at [a-z_]+\.py:\d+", warnings[0]), (
+        warnings[0]
+    )
+
+
+async def test_a_repeated_defect_is_warned_about_again_on_a_new_connection(
+    client: Wattpilot, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Once per connection, not once for good: a defect still there after
+    a reconnect would otherwise never be seen again."""
+    for _ in range(2):
+        client._connection.begin()
+        socket = BufferedSocket(["{not json"] * 3)
+        await socket.close()  # hands over what it holds, then ends
+        client._connection.socket = socket  # type: ignore[assignment]
+        await client._connection._read_frames()
+    assert len(_api_records(caplog, logging.WARNING)) == 2
+
+
+async def test_the_reported_line_is_the_innermost_one_of_the_integration(
+    client: Wattpilot, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The outermost own frame is always the reader itself, which says
+    nothing about where the defect is."""
+    client.on_property_change(_failing_callback(TypeError))
+    frame = json.dumps({"type": "deltaStatus", "status": {"amp": 6}})
+    socket = BufferedSocket([frame])
+    await socket.close()  # hands over what it holds, then ends
+    client._connection.socket = socket  # type: ignore[assignment]
+    await client._connection._read_frames()
+    (warning,) = _api_records(caplog, logging.WARNING)
+    assert "connection.py" not in warning, warning
 
 
 @pytest.mark.parametrize("peer", ["silent", "closing"])
