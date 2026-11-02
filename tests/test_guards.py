@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ast
 import json
-import os
 import re
 import subprocess
 import sys
@@ -764,54 +763,58 @@ DEPRECATED_HA_CALLS = {
 # letters, an optional digit and sub-letter, then a number; MAC octets and
 # the few standard names of that shape are not.
 INTERNAL_REFERENCE = re.compile(
-    r"(?<![0-9A-Fa-f]{2}[-:])\b[A-Z]{1,4}\d?(?:-[A-Z]{1,3})?-\d{1,3}\b"
+    # A MAC octet is excluded only where it starts a word: "ref:RW" is none.
+    r"(?<!\b[0-9A-Fa-f]{2}[-:])\b[A-Z]{1,4}\d{0,2}(?:-[A-Z]{1,3})?-\d{1,3}\b"
     r"(?![-:][0-9A-Fa-f]{2})"
-    r"|\bK-A\b|\bfindings? \d+\b"
+    r"|\b[A-Z]{2,4}-[A-Z]\d\b|\bK-[A-Z]\b|\bfindings? \d+\b"
     # Split, so that this line does not name what it looks for.
     r"|\b(?:[Ll]ed"
     r"ger|[Ee]rosions"
     r"schutz|RUN"
-    r"BOOK)\b"
+    r"BOOK|[Rr]un"
+    r"book|STATUS\.md|BEF"
+    r"UND)\b"
 )
-STANDARD_NAMES = frozenset({"UTF-8", "SHA-256"})
-NOT_REPOSITORY_TEXT = frozenset(
-    {".git", "mutants", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache"}
-)
+# Standards and ranges that have the same shape as an ID.
+STANDARD_NAME = re.compile(r"(?:UTF|SHA|AES|HTTP|TLS|IP)-\d+|L1-3")
 
 
-def _repository_texts() -> list[tuple[Path, str]]:
-    """Every text file of the checkout, release notes and fixtures included."""
-    root = PACKAGE.parent.parent
+def _repository_texts(root: Path) -> list[tuple[Path, str]]:
+    """Every text file git does not ignore, release notes and fixtures included."""
+    command = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
+    listed = subprocess.run(  # noqa: S603 -- git from PATH, fixed arguments
+        command,
+        cwd=root,
+        capture_output=True,
+        check=True,
+    ).stdout.decode()
     texts = []
-    for directory, subdirectories, names in os.walk(root):
-        subdirectories[:] = [d for d in subdirectories if d not in NOT_REPOSITORY_TEXT]
-        for name in names:
-            path = Path(directory) / name
-            try:
-                texts.append((path, path.read_text(encoding="utf-8")))
-            except UnicodeDecodeError:
-                continue
+    for name in filter(None, listed.split("\0")):
+        path = root / name
+        try:
+            texts.append((path, path.read_text(encoding="utf-8")))
+        except UnicodeDecodeError, FileNotFoundError:
+            continue
     return texts
-
-
-def test_no_internal_review_reference_in_the_repository() -> None:
-    root = PACKAGE.parent.parent
-    found = [
-        f"{path.relative_to(root)}:{number}: {match[0]}"
-        for path, text in _repository_texts()
-        for number, line in enumerate(text.splitlines(), start=1)
-        for match in INTERNAL_REFERENCE.finditer(line)
-        if match[0] not in STANDARD_NAMES
-    ]
-    assert found == [], found
 
 
 def _internal_references(line: str) -> list[str]:
     return [
         match[0]
         for match in INTERNAL_REFERENCE.finditer(line)
-        if match[0] not in STANDARD_NAMES
+        if not STANDARD_NAME.fullmatch(match[0])
     ]
+
+
+def test_no_internal_review_reference_in_the_repository() -> None:
+    root = PACKAGE.parent.parent
+    found = [
+        f"{path.relative_to(root)}:{number}: {reference}"
+        for path, text in _repository_texts(root)
+        for number, line in enumerate(text.splitlines(), start=1)
+        for reference in _internal_references(line)
+    ]
+    assert found == [], found
 
 
 # Each sample is joined from parts, so this file does not trip the guard.
