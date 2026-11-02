@@ -6,6 +6,7 @@ import ast
 import json
 import os
 import re
+import subprocess
 import sys
 from importlib import metadata
 from pathlib import Path
@@ -805,29 +806,83 @@ def test_no_internal_review_reference_in_the_repository() -> None:
     assert found == [], found
 
 
+def _internal_references(line: str) -> list[str]:
+    return [
+        match[0]
+        for match in INTERNAL_REFERENCE.finditer(line)
+        if match[0] not in STANDARD_NAMES
+    ]
+
+
+# Each sample is joined from parts, so this file does not trip the guard.
+# The first group are the samples of the guard this one replaced: a rebuilt
+# guard that drops one has lost what it used to catch.
 @pytest.mark.parametrize(
     "line",
     [
         "fixed in the last round (VA" + "-11)",
         "see RA-BF" + "-01",
+        "see A18" + "-31",
+        "A11" + "-03 said so",
+        "PC4" + "-02",
+        "R1" + "-14",
+        "F12" + "-3",
+        "FC" + "-01",
+        "an old led" + "ger entry",
+        "erosions" + "schutz",
         "the K" + "-A matrix",
+        "the K" + "-B matrix",
         "as finding" + " 6 said",
         "from the RUN" + "BOOK",
-        "an old led" + "ger entry",
+        "see the run" + "book",
+        "as STATUS" + ".md says",
+        "BEF" + "UND",
+        "LIFE" + "-M1",
+        "DIAG" + "-M2",
+        "(ref:RW" + "-05)",
     ],
 )
 def test_the_review_reference_guard_knows_each_shape(line: str) -> None:
-    """Each sample is joined from parts, so this file does not trip the guard."""
-    assert INTERNAL_REFERENCE.search(line)
+    assert _internal_references(line), line
 
 
 @pytest.mark.parametrize(
     "line",
-    ["mac fa-16-3e-12-34-56", "MAC FA-16-3E-12-34-56", "phase L1", "UTF-8", "a l-1"],
+    [
+        "mac fa-16-3e-12-34-56",
+        "MAC FA-16-3E-12-34-56",
+        "aa:bb:cc:dd:ee:ff",
+        "phase L1",
+        "phases L1-3",
+        "a l-1",
+        "UTF-8",
+        "UTF-16",
+        "SHA-1",
+        "SHA-256",
+        "SHA-512",
+        "AES-128",
+        "HTTP-2",
+        "TLS-1",
+        "IP-65",
+    ],
 )
 def test_the_review_reference_guard_lets_addresses_and_names_pass(line: str) -> None:
-    matches = [m[0] for m in INTERNAL_REFERENCE.finditer(line)]
-    assert [m for m in matches if m not in STANDARD_NAMES] == []
+    assert _internal_references(line) == []
+
+
+def test_the_review_reference_guard_skips_what_git_ignores(tmp_path: Path) -> None:
+    """A stale development copy of the integration, which git ignores, made
+    the suite and with it every push fail on that one machine."""
+    subprocess.run(  # noqa: S603 -- git from PATH, fixed arguments
+        ["git", "init", "-q", str(tmp_path)],  # noqa: S607
+        check=True,
+    )
+    (tmp_path / ".gitignore").write_text("ignored/\n", encoding="utf-8")
+    (tmp_path / "ignored").mkdir()
+    (tmp_path / "ignored" / "stale.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "kept.py").write_text("x = 1\n", encoding="utf-8")
+    names = {path.name for path, _text in _repository_texts(tmp_path)}
+    assert names == {".gitignore", "kept.py"}
 
 
 def test_no_deprecated_home_assistant_call() -> None:
@@ -1334,6 +1389,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         "test_the_review_reference_guard_knows_each_shape": "it sees every shape",
         "test_the_review_reference_guard_lets_addresses_and_names_pass": (
             "counter-check: MAC octets, phases, standard names"
+        ),
+        "test_the_review_reference_guard_skips_what_git_ignores": (
+            "a local ignored copy does not fail the suite"
         ),
         "test_every_user_facing_error_is_translated": (
             "every error a user reads is translated, with matching placeholders"
