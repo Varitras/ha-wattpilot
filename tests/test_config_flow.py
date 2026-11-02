@@ -17,7 +17,7 @@ from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.wattpilot.api import AuthenticationError, DeviceIdentityError
+from custom_components.wattpilot.api import AuthenticationError
 from custom_components.wattpilot.const import (
     CONF_AWAITING_SERIAL,
     CONF_CONNECTION_TYPE,
@@ -27,7 +27,7 @@ from custom_components.wattpilot.const import (
     DOMAIN,
 )
 
-from .conftest import FakeWattpilot
+from .conftest import FakeWattpilot, patch_charger
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -36,10 +36,6 @@ USER_INPUT = {"host": "192.168.1.50", "password": "secret"}
 MANIFEST = (
     Path(__file__).parent.parent / "custom_components" / "wattpilot" / "manifest.json"
 )
-
-
-def patch_charger(charger: FakeWattpilot) -> Any:
-    return patch("custom_components.wattpilot.hub.Wattpilot", return_value=charger)
 
 
 async def start_user_flow(hass: HomeAssistant) -> Any:
@@ -254,16 +250,10 @@ async def test_another_charger_with_another_password_is_the_wrong_device(
     )
     entry.add_to_hass(hass)
     charger = FakeWattpilot(device_properties)
-
-    def build(**kwargs: Any) -> FakeWattpilot:
-        if kwargs["serial"] not in (None, charger.serial):
-            charger.connect_error = DeviceIdentityError("other", found=charger.serial)
-        else:
-            charger.connect_error = AuthenticationError("Wrong password")
-        return charger
+    charger.connect_error = AuthenticationError("Wrong password")
 
     result = await getattr(entry, start)(hass)
-    with patch("custom_components.wattpilot.hub.Wattpilot", side_effect=build):
+    with patch_charger(charger):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], user_input
         )

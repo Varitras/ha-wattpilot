@@ -54,7 +54,7 @@ from custom_components.wattpilot.descriptions import (
     TIME_DESCRIPTIONS,
 )
 
-from .conftest import FakeWattpilot
+from .conftest import FakeWattpilot, patch_charger
 from .test_config_flow import DISCOVERY, start_discovery_flow
 from .test_sensor import nrg_reading
 
@@ -85,10 +85,6 @@ V1_CLOUD_DATA = {
     "timeout": 15,
     "connection": "cloud",
 }
-
-
-def patch_charger(charger: FakeWattpilot) -> Any:
-    return patch("custom_components.wattpilot.hub.Wattpilot", return_value=charger)
 
 
 async def setup_entry(
@@ -487,7 +483,10 @@ async def test_a_refused_charger_is_reported_even_if_disconnecting_fails(
     """The identity check shut the hub down before raising wrong_charger,
     and the outer setup guard shut it down a second time. With a
     disconnect that also fails, that cleanup error replaced the refusal:
-    the user saw "Failed to disconnect" instead of why setup was refused."""
+    the user saw "Failed to disconnect" instead of why setup was refused.
+
+    The client refuses another charger itself before it connects; this is
+    setup's own check behind it, so the client here does not check."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )
@@ -498,7 +497,7 @@ async def test_a_refused_charger_is_reported_even_if_disconnecting_fails(
 
     with (
         caplog.at_level(logging.DEBUG),
-        patch_charger(swapped),
+        patch("custom_components.wattpilot.hub.Wattpilot", return_value=swapped),
         pytest.raises(ConfigEntryError) as raised,
     ):
         await async_setup_entry(hass, entry)
@@ -577,6 +576,9 @@ async def test_a_different_charger_at_the_same_address_is_refused(
     same recorder history, another charger's readings, and not one error
     anywhere. Silent, plausible, wrong data is the worst failure this
     integration can produce, so setup has to refuse.
+
+    The client refuses another charger itself before it connects; this is
+    setup's own check behind it, so the client here does not check.
     """
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
@@ -589,7 +591,10 @@ async def test_a_different_charger_at_the_same_address_is_refused(
 
     swapped = FakeWattpilot(device_properties)
     swapped.serial = "999999"
-    with patch_charger(swapped), pytest.raises(ConfigEntryError) as raised:
+    with (
+        patch("custom_components.wattpilot.hub.Wattpilot", return_value=swapped),
+        pytest.raises(ConfigEntryError) as raised,
+    ):
         await async_setup_entry(hass, entry)
 
     assert raised.value.translation_domain == DOMAIN

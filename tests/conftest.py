@@ -7,11 +7,13 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
+from unittest.mock import patch
 
 import pytest
 
 from custom_components.wattpilot import _SerialMask
+from custom_components.wattpilot.api import DeviceIdentityError
 
 from .deprecations import REPORTS, assert_listening, import_every_module
 
@@ -165,6 +167,13 @@ def device_properties_fixture() -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def patch_charger(charger: FakeWattpilot) -> Any:
+    """Patch the client's constructor to hand out this fake."""
+    return patch(
+        "custom_components.wattpilot.hub.Wattpilot", side_effect=charger.built_with
+    )
+
+
 class FakeWattpilot:
     """Duck-typed stand-in for custom_components.wattpilot.api.client.Wattpilot."""
 
@@ -183,6 +192,8 @@ class FakeWattpilot:
         # Deliberately an int: the real device reports "var" as a number.
         self.variant = 11
         self.connect_error: Exception | None = None
+        # The serial the integration built the client with, if any.
+        self.expected_serial: str | None = None
         self.set_error: Exception | None = None
         self.disconnect_error: Exception | None = None
         self.disconnect_attempts = 0
@@ -209,7 +220,25 @@ class FakeWattpilot:
         """Mirror the real client: a fresh copy per access, not a live view."""
         return dict(self._properties)
 
+    def built_with(
+        self, *_args: Any, serial: str | None = None, **_kwargs: Any
+    ) -> Self:
+        """
+        Stand in for the client's constructor, keeping its contract.
+
+        A serial it is given is checked against the charger before anything
+        else, the password included. A fake that ignored it let a flow pass
+        that built its client with the wrong serial.
+        """
+        self.expected_serial = serial
+        return self
+
     async def connect(self) -> None:
+        if self.expected_serial not in (None, self.serial):
+            # The client keeps reporting the serial it was built with.
+            found, self.serial = self.serial, self.expected_serial
+            msg = "Another charger answered"
+            raise DeviceIdentityError(msg, found=found)
         if self.connect_error is not None:
             raise self.connect_error
         self.connected = True
