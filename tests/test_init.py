@@ -1682,3 +1682,20 @@ async def test_a_failed_entry_is_not_reloaded_by_every_announcement(
         await hass.async_block_till_done()
 
     reload.assert_not_called()
+
+
+async def test_the_fake_client_refuses_another_charger_every_time(
+    device_properties: dict[str, Any],
+) -> None:
+    """The contract the setup and flow tests lean on: the real client
+    refuses another charger on each connect and keeps reporting the serial
+    it was built with. The fake took that serial over for good, so a second
+    attempt against the same other charger passed."""
+    charger = FakeWattpilot(device_properties)
+    charger.serial = "999999"
+    for _ in range(2):
+        charger.built_with(serial="123456")
+        with pytest.raises(DeviceIdentityError) as raised:
+            await charger.connect()
+        assert raised.value.found == "999999"
+        assert charger.serial == "123456"
