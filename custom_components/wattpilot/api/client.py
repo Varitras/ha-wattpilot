@@ -687,8 +687,14 @@ class Wattpilot:
         for key, value in getattr(status, "__dict__", {}).items():
             try:
                 self._update_property(key, value)
-            except ValueError, TypeError, LookupError, AttributeError, RecursionError:
-                _LOGGER.warning("Ignoring an unreadable value for %s", key)
+            except (
+                ValueError,
+                TypeError,
+                LookupError,
+                AttributeError,
+                RecursionError,
+            ) as exc:
+                self._connection.skip(f"the value of {key}", exc)
 
     def _on_response(self, msg: SimpleNamespace) -> None:
         # Resolve the waiting command. An answer

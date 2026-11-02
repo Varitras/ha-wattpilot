@@ -14,10 +14,12 @@ import json
 import logging
 import re
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from custom_components.wattpilot.api import client as client_module
 from custom_components.wattpilot.api.client import Wattpilot
 from custom_components.wattpilot.api.exceptions import (
     DeviceIdentityError,
@@ -1575,8 +1577,8 @@ async def test_a_repeated_defect_is_warned_about_again_on_a_new_connection(
 async def test_the_reported_line_is_the_innermost_one_of_the_integration(
     client: Wattpilot, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The outermost own frame is always the reader itself, which says
-    nothing about where the defect is."""
+    """Not the line that caught the error, which is the same for every
+    defect, but the one closest to it: here the call into the callback."""
     client.on_property_change(_failing_callback(TypeError))
     frame = json.dumps({"type": "deltaStatus", "status": {"amp": 6}})
     socket = BufferedSocket([frame])
@@ -1584,7 +1586,11 @@ async def test_the_reported_line_is_the_innermost_one_of_the_integration(
     client._connection.socket = socket  # type: ignore[assignment]
     await client._connection._read_frames()
     (warning,) = _api_records(caplog, logging.WARNING)
-    assert "connection.py" not in warning, warning
+    found = re.search(r"(\w+\.py):(\d+)$", warning)
+    assert found, warning
+    source = Path(client_module.__file__).with_name(found[1]).read_text("utf-8")
+    line = source.splitlines()[int(found[2]) - 1]
+    assert "(name, value)" in line, f"{warning}: {line.strip()}"
 
 
 @pytest.mark.parametrize("peer", ["silent", "closing"])

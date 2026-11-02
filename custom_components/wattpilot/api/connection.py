@@ -71,7 +71,7 @@ class Connection:
         self._authenticated = False
         self._initialized = False
         self._streaming_full_status = False
-        self._skipped_frames: set[str] = set()
+        self._skipped: set[str] = set()
         self._authenticated_event = asyncio.Event()
         self._initialized_event = asyncio.Event()
         self._disconnected_event = asyncio.Event()
@@ -250,7 +250,7 @@ class Connection:
         self._cancel_readiness_guard()
         self._initialized = False
         self._streaming_full_status = False
-        self._skipped_frames.clear()
+        self._skipped.clear()
         self._initialized_event.clear()
         self._authenticated_event.clear()
         self.fatal_error = None
@@ -393,14 +393,14 @@ class Connection:
             except Exception as exc:  # noqa: BLE001 -- one frame, not the connection
                 # A failing frame (bad JSON, not UTF-8, nested past the recursion
                 # limit) ended the reader; connection errors end the loop itself.
-                self._skip_frame(len(frame), exc)
+                self.skip(f"a frame ({len(frame)} bytes)", exc)
 
-    def _skip_frame(self, size: int, error: Exception) -> None:
+    def skip(self, subject: str, error: Exception) -> None:
         """Warn once per connection and cause: a defect can break every frame."""
         cause = f"{type(error).__name__} at {where_raised(error)}"
-        level = logging.DEBUG if cause in self._skipped_frames else logging.WARNING
-        self._skipped_frames.add(cause)
-        _LOGGER.log(level, "Skipping a frame (%d bytes): %s", size, cause)
+        level = logging.DEBUG if cause in self._skipped else logging.WARNING
+        self._skipped.add(cause)
+        _LOGGER.log(level, "Skipping %s: %s", subject, cause)
 
     async def _message_loop(self) -> None:
         # Started without a socket (resume_reconnecting), it begins in its backoff.
