@@ -60,10 +60,11 @@ def awaits_serial(entry: ConfigEntry) -> bool:
     one has never verified against a live local connection.
 
     This is the single condition under which a serial that disagrees with
-    the entry is an upgrade rather than a different charger. Both callers
-    that decide identity -- setup adopting a serial, and the reconfigure
-    flow deciding whether to reject one -- have to agree on it, or one of
-    them locks the user out of a state the other happily creates.
+    the entry is an upgrade rather than a different charger. Every place
+    that decides identity -- the serial setup and the reauth and reconfigure
+    probes build the client with, setup adopting a serial, and those flows
+    deciding whether to reject one -- has to agree on it, or one of them
+    locks the user out of a state another happily creates.
     """
     return (
         entry.unique_id is None

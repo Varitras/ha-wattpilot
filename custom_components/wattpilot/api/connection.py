@@ -140,7 +140,7 @@ class Connection:
             self.mark_initialized()
 
     def mark_initialized(self) -> None:
-        """Record the complete snapshot; only that ends the reconnect backoff."""
+        """Record the full snapshot; a stalled socket keeps the backoff growing."""
         self._initialized = True
         self._reconnect_delay = self._reconnect_delay_min
         self._initialized_event.set()
