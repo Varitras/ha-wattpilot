@@ -184,8 +184,10 @@ class FakeWattpilot:
         self.properties_initialized = True
         # Why the real client stopped reconnecting for good, if it did.
         self.refusal: Exception | None = None
-        # The charger's own serial; `serial` reports what the client knows.
+        # The charger's own serial. `serial` is what the client knows of it:
+        # what it was built with, else what it heard, else nothing yet.
         self.device_serial = "123456"
+        self._learned_serial = ""
         self.name = "Wattpilot"
         self.manufacturer = "fronius"
         self.firmware = "42.5"
@@ -223,8 +225,8 @@ class FakeWattpilot:
 
     @property
     def serial(self) -> str:
-        """Like the client: the serial it was built with, else the charger's."""
-        return self.expected_serial or self.device_serial
+        """Return what the client knows, like the client."""
+        return self.expected_serial or self._learned_serial
 
     @serial.setter
     def serial(self, value: str) -> None:
@@ -241,15 +243,18 @@ class FakeWattpilot:
         client with the wrong serial.
         """
         self.expected_serial = serial
+        self._learned_serial = ""
         return self
 
     async def connect(self) -> None:
-        if self.expected_serial not in (None, self.device_serial):
+        if self.serial not in ("", self.device_serial):
             msg = "Another charger answered"
-            raise DeviceIdentityError(msg, found=self.device_serial)
+            self.refusal = DeviceIdentityError(msg, found=self.device_serial)
+            raise self.refusal
         if self.connect_error is not None:
             raise self.connect_error
         self.connected = True
+        self._learned_serial = self.device_serial
         # The real client replays the whole property snapshot to its
         # subscribers as soon as the connection is up (_on_full_status ->
         # _update_property -> callbacks). Without that here, a reconnect

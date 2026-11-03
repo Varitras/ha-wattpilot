@@ -760,41 +760,48 @@ DEPRECATED_HA_CALLS = {
 
 # Review finding IDs and the names of private notes: they mean nothing to a
 # reader of a public repository and point at records it does not contain.
-# The reason a line exists belongs in the line, not behind an ID. An ID is
-# letters, an optional digit and sub-letter, then a number; MAC octets and
-# the few standard names of that shape are not.
+# The reason a line exists belongs in the line, not behind an ID. A number of
+# one digit is too common outside reviews (WPA-2, UTC-5) to count, except in
+# the one shape that used it. MAC addresses leave the line before the search,
+# as their octets have the same shape.
 INTERNAL_REFERENCE = re.compile(
-    # A MAC octet is excluded only where it starts a word: "ref:RW" is none.
-    r"(?<!\b[0-9A-Fa-f]{2}[-:])\b[A-Z]{1,4}\d{0,2}(?:-[A-Z]{1,3})?-\d{1,3}\b"
-    r"(?![-:][0-9A-Fa-f]{2})"
-    r"|\b[A-Z]{2,4}-[A-Z]\d\b|\bK-[A-Z]\b|\bfindings? \d+\b"
+    r"\b[A-Z]{1,5}\d{0,2}(?:-[A-Z]{1,3})?-\d{2,3}\b"
+    r"|\bH-\d\b|\b[A-Z]{2,4}-[A-Z]\d\b|\bK-[A-Z]\b|\b[Ff]indings? \d+\b"
     # Split, so that this line does not name what it looks for.
     r"|\b(?:[Ll]ed"
-    r"ger|[Ee]rosions"
-    r"schutz|RUN"
+    r"gers?|LED"
+    r"GER|[Ee]rosions"
+    r"schutz|EROSIONS"
+    r"SCHUTZ|RUN"
     r"BOOK|[Rr]un"
-    r"book|STATUS\.md|BEF"
-    r"UND)\b"
+    r"books?|STATUS\.md|BEF"
+    r"UND|Bef"
+    r"unde?)\b"
 )
-# Standards and ranges that have the same shape as an ID.
-STANDARD_NAME = re.compile(r"(?:UTF|SHA|AES|HTTP|TLS|IP)-\d+|L1-3")
+# Standards and terminals that have the same shape as an ID.
+STANDARD_NAME = re.compile(r"(?:UTF|SHA|AES|CRC|IP)-\d+|(?:AC|PE)-L\d")
+ANY_MAC = re.compile(
+    r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}[-:]){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f])"
+)
 
 
 def _repository_texts(root: Path) -> list[tuple[Path, str]]:
-    """Every text file git does not ignore, release notes and fixtures included."""
+    """Every UTF-8 text file git tracks or would, release notes and fixtures too."""
     command = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
-    listed = subprocess.run(  # noqa: S603 -- git from PATH, fixed arguments
-        command,
-        cwd=root,
-        capture_output=True,
-        check=True,
-    ).stdout.decode()
+    try:
+        listed = subprocess.run(  # noqa: S603 -- git from PATH, fixed arguments
+            command, cwd=root, capture_output=True, check=True
+        ).stdout
+    except (OSError, subprocess.CalledProcessError) as error:
+        pytest.fail(f"This guard needs a git checkout: {error}")
     texts = []
-    for name in filter(None, listed.split("\0")):
-        path = root / name
+    for name in filter(None, listed.split(b"\0")):
+        path = root / os.fsdecode(name)
+        if not path.is_file():
+            continue
         try:
             texts.append((path, path.read_text(encoding="utf-8")))
-        except UnicodeDecodeError, FileNotFoundError:
+        except UnicodeDecodeError:
             continue
     return texts
 
@@ -810,7 +817,7 @@ COMMIT_IDENTITY = {
 def _internal_references(line: str) -> list[str]:
     return [
         match[0]
-        for match in INTERNAL_REFERENCE.finditer(line)
+        for match in INTERNAL_REFERENCE.finditer(ANY_MAC.sub("", line))
         if not STANDARD_NAME.fullmatch(match[0])
     ]
 
