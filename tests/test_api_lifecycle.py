@@ -1733,3 +1733,11 @@ async def test_the_client_says_while_a_firmware_install_runs(
         await client.install_firmware_update(timeout=0.01)
     assert seen == [True]
     assert not client.installing_firmware
+
+
+async def test_an_unusable_handshake_closes_the_socket(client: Wattpilot) -> None:
+    """The connection cannot go on, and the reader only retries once it ends."""
+    socket = FakeSocket([])
+    client._connection.socket = socket  # type: ignore[assignment]
+    await client._handle_message(json.dumps({"type": "hello"}))
+    assert socket.closed

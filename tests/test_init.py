@@ -900,19 +900,44 @@ async def test_a_firmware_reload_waits_until_the_connection_has_settled(
         patch.object(hass.config_entries, "async_schedule_reload") as reload,
     ):
         fake_charger.properties_initialized = False
-        fake_charger.installing_firmware = True
         fake_charger.push("fwv", "43.1")
         assert not reload.called, "not from inside the push"
         await _settle_firmware_wait(hass)
         assert not reload.called, "the replay has not finished"
 
         fake_charger.properties_initialized = True
+        fake_charger.installing_firmware = True
         await _settle_firmware_wait(hass)
         assert not reload.called, "the install is still waiting on this connection"
 
         fake_charger.installing_firmware = False
         await _settle_firmware_wait(hass)
         assert reload.call_count == 1
+
+
+async def test_an_unload_ends_the_wait_for_a_firmware_reload(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """Left running, the wait outlived the entry and reloaded it afterwards."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        options={CONF_UPDATE_INTERVAL: 0},
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    with (
+        patch("custom_components.wattpilot._SETTLED_POLL", 0),
+        patch.object(hass.config_entries, "async_schedule_reload") as reload,
+    ):
+        fake_charger.properties_initialized = False
+        fake_charger.push("fwv", "43.1")
+        await _settle_firmware_wait(hass)
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        fake_charger.properties_initialized = True
+        await _settle_firmware_wait(hass)
+    assert not reload.called
 
 
 async def test_two_firmware_pushes_reload_once_and_name_the_last(
