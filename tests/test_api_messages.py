@@ -19,7 +19,9 @@ import pytest
 from custom_components.wattpilot.api.client import Wattpilot
 from custom_components.wattpilot.api.exceptions import (
     AuthenticationError,
+    CommandError,
     DeviceIdentityError,
+    WattpilotConnectionError,
 )
 
 
@@ -259,3 +261,67 @@ def test_a_value_nested_too_deep_costs_only_itself() -> None:
     client._apply_status(SimpleNamespace(amp=nested, lmo=3))
 
     assert client.all_properties.get("lmo") == 3
+
+
+HELLO = {"type": "hello", "serial": "123456"}
+AUTH_REQUIRED = {"type": "authRequired", "token1": "a" * 32, "token2": "b" * 32}
+
+
+@pytest.mark.parametrize("unusable", [None, "", 123, ["x"]], ids=repr)
+@pytest.mark.parametrize(
+    ("frame", "field"),
+    [(HELLO, "serial"), (AUTH_REQUIRED, "token1"), (AUTH_REQUIRED, "token2")],
+)
+async def test_a_handshake_without_a_usable_field_is_refused_by_name(
+    client: Wattpilot,
+    monkeypatch: pytest.MonkeyPatch,
+    frame: dict[str, Any],
+    field: str,
+    unusable: object,
+) -> None:
+    """A field another firmware leaves out or types differently ended in a
+    timeout with no cause, or in an answer built from an empty secret."""
+    sent: list[Any] = []
+
+    async def record(message: Any) -> None:
+        sent.append(message)
+
+    monkeypatch.setattr(client, "_send", record)
+    if frame is AUTH_REQUIRED:
+        await send(client, HELLO)
+    await send(client, {**frame, field: unusable})
+    assert isinstance(client.refusal, WattpilotConnectionError)
+    assert field in str(client.refusal)
+    assert sent == [], "nothing may be answered"
+
+
+@pytest.mark.parametrize("field", ["serial", "token1"])
+async def test_a_missing_handshake_field_is_refused_by_name(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    monkeypatch.setattr(client, "_send", None)
+    frame = HELLO if field == "serial" else AUTH_REQUIRED
+    if frame is AUTH_REQUIRED:
+        await send(client, HELLO)
+    await send(client, {key: value for key, value in frame.items() if key != field})
+    assert field in str(client.refusal)
+
+
+async def test_an_auth_request_before_hello_is_refused(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without a serial there is nothing to derive the secret from, and the
+    answer went out built from an empty one."""
+    monkeypatch.setattr(client, "_send", None)
+    await send(client, AUTH_REQUIRED)
+    assert isinstance(client.refusal, WattpilotConnectionError)
+
+
+async def test_a_response_without_success_fails_its_command_at_once(
+    client: Wattpilot,
+) -> None:
+    """It waited for the command timeout instead, as the frame was dropped."""
+    future = asyncio.get_running_loop().create_future()
+    client._pending_commands["7"] = future
+    await send(client, {"type": "response", "requestId": 7})
+    assert isinstance(future.exception(), CommandError)
