@@ -61,10 +61,10 @@ def awaits_serial(entry: ConfigEntry) -> bool:
 
     This is the single condition under which a serial that disagrees with
     the entry is an upgrade rather than a different charger. Every place
-    that decides identity -- the serial setup and the reauth and reconfigure
-    probes build the client with, setup adopting a serial, and those flows
-    deciding whether to reject one -- has to agree on it, or one of them
-    locks the user out of a state another happily creates.
+    that decides identity has to agree on it, or one of them locks the user
+    out of a state another happily creates: which serial setup and the
+    reauth and reconfigure probes check, setup adopting a serial, and those
+    flows rejecting one.
     """
     return (
         entry.unique_id is None

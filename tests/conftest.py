@@ -236,9 +236,9 @@ class FakeWattpilot:
         """
         Stand in for the client's constructor, keeping its contract.
 
-        A serial it is given is checked against the charger before anything
-        else, the password included. A fake that ignored it let a flow pass
-        that built its client with the wrong serial.
+        A serial it is given is checked against the charger before the
+        password is. A fake that ignored it let a flow pass that built its
+        client with the wrong serial.
         """
         self.expected_serial = serial
         return self

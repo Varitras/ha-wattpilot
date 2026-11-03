@@ -485,8 +485,9 @@ async def test_a_refused_charger_is_reported_even_if_disconnecting_fails(
     disconnect that also fails, that cleanup error replaced the refusal:
     the user saw "Failed to disconnect" instead of why setup was refused.
 
-    The client refuses another charger itself before it connects; this is
-    setup's own check behind it, so the client here does not check."""
+    The client refuses another charger itself, at hello, before it
+    authenticates; this is setup's own check behind it, so the client here
+    does not check."""
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"
     )
@@ -577,8 +578,9 @@ async def test_a_different_charger_at_the_same_address_is_refused(
     anywhere. Silent, plausible, wrong data is the worst failure this
     integration can produce, so setup has to refuse.
 
-    The client refuses another charger itself before it connects; this is
-    setup's own check behind it, so the client here does not check.
+    The client refuses another charger itself, at hello, before it
+    authenticates; this is setup's own check behind it, so the client here
+    does not check.
     """
     entry = MockConfigEntry(
         domain=DOMAIN, data=V2_LOCAL_DATA, version=2, unique_id="123456"

@@ -1560,6 +1560,27 @@ async def test_a_defect_in_every_frame_is_warned_about_once(
     )
 
 
+@pytest.mark.parametrize(
+    "error",
+    [ValueError, TypeError, KeyError, AttributeError, RecursionError],
+)
+async def test_a_failing_value_costs_only_itself(
+    client: Wattpilot, caplog: pytest.LogCaptureFixture, error: type[Exception]
+) -> None:
+    """A failure in one value cost the rest of its frame, and in the last
+    chunk of the first full status every entity stayed unavailable. The
+    frame's own catch would hide that: it warns just the same."""
+    client.on_property_change(_failing_callback(error))
+    frame = json.dumps({"type": "deltaStatus", "status": {"amp": 6, "lmo": 3}})
+    socket = BufferedSocket([frame])
+    await socket.close()  # hands over what it holds, then ends
+    client._connection.socket = socket  # type: ignore[assignment]
+    await client._connection._read_frames()
+    assert client.all_properties.get("lmo") == 3, "the neighbour was lost"
+    (warning,) = _api_records(caplog, logging.WARNING)
+    assert "Skipping the value of amp:" in warning, warning
+
+
 async def test_a_repeated_defect_is_warned_about_again_on_a_new_connection(
     client: Wattpilot, caplog: pytest.LogCaptureFixture
 ) -> None:
