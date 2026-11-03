@@ -16,6 +16,8 @@ _LONG_NUMBER = re.compile(r"\d{5,}")
 class WattpilotError(Exception):
     """Base exception of the Wattpilot API client."""
 
+    final = True  # as the reason a connection ends: retrying would repeat it
+
 
 class WattpilotConnectionError(WattpilotError):
     """
@@ -25,6 +27,12 @@ class WattpilotConnectionError(WattpilotError):
     ConnectionError, so `except ConnectionError` in a caller silently caught
     a different class than it looked like.
     """
+
+
+class HandshakeError(WattpilotConnectionError):
+    """Raised when a handshake frame is unusable; the next one may be fine."""
+
+    final = False
 
 
 class AuthenticationError(WattpilotError):

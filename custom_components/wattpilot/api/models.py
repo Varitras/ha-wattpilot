@@ -34,8 +34,7 @@ class CloudInfo:
     url: str = ""
 
 
-# What a handshake cannot go on without, per message type. Everything else a
-# charger sends is optional or read with a fallback.
+# What a handshake cannot go on without, per message type.
 _REQUIRED_TEXT = {"hello": ("serial",), "authRequired": ("token1", "token2")}
 
 

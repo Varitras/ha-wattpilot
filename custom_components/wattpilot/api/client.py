@@ -23,6 +23,7 @@ from .exceptions import (
     AuthenticationError,
     CommandError,
     DeviceIdentityError,
+    HandshakeError,
     PropertyError,
     WattpilotConnectionError,
     WattpilotError,
@@ -228,7 +229,7 @@ class Wattpilot:
 
         # Callbacks
         self._property_callbacks: list[PropertyCallback] = []
-        self.installing_firmware = False
+        self.installing_firmware = False  # read by the entry, not a callback
 
     # ---- Context manager ----
 
@@ -273,7 +274,8 @@ class Wattpilot:
     @property
     def refusal(self) -> WattpilotError | None:
         """Return why the client stopped reconnecting for good, if it did."""
-        return self._connection.fatal_error
+        error = self._connection.fatal_error
+        return error if getattr(error, "final", False) else None
 
     @property
     def connected(self) -> bool:
@@ -455,7 +457,7 @@ class Wattpilot:
         finally:
             self.installing_firmware = False
 
-    async def _install_and_reconnect(self, version: str, timeout: float) -> None:  # noqa: ASYNC109 -- part of this client's API
+    async def _install_and_reconnect(self, version: str, timeout: float) -> None:  # noqa: ASYNC109 -- the public method's budget
         # Counted from here: a close in the wait for the reboot ended that
         # wait as if the charger had gone, and the update reconnected.
         closes = self._connection.close_count
@@ -618,7 +620,7 @@ class Wattpilot:
         field = missing_field(msg_type, vars(ns), self._device.serial)
         if field is not None:
             text = f"Charger sent {msg_type} without a usable {field}"
-            await self._connection.reject(WattpilotConnectionError(text))
+            await self._connection.reject(HandshakeError(text))
         elif msg_type == "hello":
             await self._on_hello(ns)
         else:
@@ -656,7 +658,6 @@ class Wattpilot:
     async def _on_auth_required(self, msg: SimpleNamespace) -> None:
         if hasattr(msg, "hash"):
             if msg.hash not in AuthHashType:
-                # Unanswered, this was a timeout with no cause.
                 msg_text = f"Unsupported password hash: {device_text(msg.hash)}"
                 await self._connection.reject(WattpilotConnectionError(msg_text))
                 return
@@ -756,7 +757,7 @@ class Wattpilot:
 
         PBKDF2 measured 110-116 ms per handshake on the event loop.
         """
-        if not self._password or not self._device.serial:
+        if not self._password:
             return
         inputs = (self._password, self._device.serial, self._auth_hash_type)
         # The result never changes for the same inputs, and

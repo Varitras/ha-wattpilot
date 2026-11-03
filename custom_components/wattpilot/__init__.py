@@ -187,7 +187,7 @@ def _reload_when_firmware_changes(
     waiting = False
 
     async def _reload_once_settled() -> None:
-        await asyncio.sleep(0)
+        await asyncio.sleep(0)  # a task starts eagerly, inside the push
         charger = hub.charger
         # Polled: two conditions on the client, and a firmware change is rare.
         while charger.installing_firmware or not charger.properties_initialized:  # noqa: ASYNC110

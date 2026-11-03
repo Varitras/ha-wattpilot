@@ -21,7 +21,7 @@ from custom_components.wattpilot.api.exceptions import (
     AuthenticationError,
     CommandError,
     DeviceIdentityError,
-    WattpilotConnectionError,
+    HandshakeError,
 )
 
 HELLO = {"type": "hello", "serial": "123456"}
@@ -287,8 +287,9 @@ async def test_a_handshake_without_a_usable_field_is_refused_by_name(
     if frame is AUTH_REQUIRED:
         await send(client, HELLO)
     await send(client, {**frame, field: unusable})
-    assert isinstance(client.refusal, WattpilotConnectionError)
-    assert field in str(client.refusal)
+    assert isinstance(client._connection.fatal_error, HandshakeError)
+    assert field in str(client._connection.fatal_error)
+    assert client.refusal is None, "not final: the next frame may be fine"
     assert sent == [], "nothing may be answered"
 
 
@@ -301,7 +302,7 @@ async def test_a_missing_handshake_field_is_refused_by_name(
     if frame is AUTH_REQUIRED:
         await send(client, HELLO)
     await send(client, {key: value for key, value in frame.items() if key != field})
-    assert field in str(client.refusal)
+    assert field in str(client._connection.fatal_error)
 
 
 async def test_an_auth_request_before_hello_is_refused(
@@ -311,7 +312,7 @@ async def test_an_auth_request_before_hello_is_refused(
     answer went out built from an empty one."""
     monkeypatch.setattr(client, "_send", None)
     await send(client, AUTH_REQUIRED)
-    assert isinstance(client.refusal, WattpilotConnectionError)
+    assert isinstance(client._connection.fatal_error, HandshakeError)
 
 
 async def test_a_response_without_success_fails_its_command_at_once(
