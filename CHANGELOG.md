@@ -69,6 +69,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Unloading or reloading no longer fails when closing the connection
   fails. The entry then refused every reload until Home Assistant
   restarted.
+- A firmware update installed through Home Assistant could be reported as
+  failed although it worked, as the reload for the new firmware started
+  while the update was still reconnecting. The reload now waits for the
+  connection, and no longer logs the charger as unavailable.
 
 ## [0.3.0] - 2026-10-21
 

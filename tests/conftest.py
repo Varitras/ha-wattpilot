@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -268,6 +269,8 @@ class FakeWattpilot:
                 callback(key, value)
 
     async def disconnect(self) -> None:
+        # A real close suspends, and whatever called it runs on meanwhile.
+        await asyncio.sleep(0)
         self.disconnect_attempts += 1
         if self.disconnect_error is not None:
             raise self.disconnect_error

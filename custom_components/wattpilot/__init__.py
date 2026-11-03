@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import timedelta
 from ipaddress import ip_address
@@ -38,6 +39,7 @@ if TYPE_CHECKING:
     from homeassistant.helpers.typing import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
+_SETTLED_POLL = 1  # seconds between looks at a connection coming up
 # Where Home Assistant logs an entry's setup failures, title included.
 _ENTRY_LOGGERS = (logging.getLogger(config_entries.__name__), _LOGGER)
 
@@ -176,17 +178,34 @@ def _reload_when_firmware_changes(
     sw_version when it is built. So a firmware jump leaves the newly
     supported entities missing and the device page showing the old version
     until someone reloads by hand. A reload redoes both.
+
+    Not from inside the push: that is part of the replay after the reboot,
+    and the unload would close the connection a firmware install is waiting
+    on, and tear the hub down under the running dispatch.
     """
     known = hub.firmware
+    waiting = False
+
+    async def _reload_once_settled() -> None:
+        await asyncio.sleep(0)
+        charger = hub.charger
+        # Polled: two conditions on the client, and a firmware change is rare.
+        while charger.installing_firmware or not charger.properties_initialized:  # noqa: ASYNC110
+            await asyncio.sleep(_SETTLED_POLL)
+        _LOGGER.info("Charger firmware changed to %s, reloading", known)
+        hass.config_entries.async_schedule_reload(entry.entry_id)
 
     @callback
     def _on_firmware(value: object) -> None:
-        nonlocal known
+        nonlocal known, waiting
         if not isinstance(value, str) or value == known:
             return
         known = value
-        _LOGGER.info("Charger firmware changed to %s, reloading", value)
-        hass.config_entries.async_schedule_reload(entry.entry_id)
+        if not waiting:
+            waiting = True
+            entry.async_create_background_task(
+                hass, _reload_once_settled(), f"{DOMAIN} firmware reload"
+            )
 
     entry.async_on_unload(
         async_dispatcher_connect(
