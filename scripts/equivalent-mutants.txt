@@ -51,3 +51,7 @@ custom_components.wattpilot.hub.xǁWattpilotHubǁasync_connect__mutmut_1
 # async_shutdown sets it (to True, which is killed by
 # test_a_reconnect_during_shutdown_does_not_revive_the_hub).
 custom_components.wattpilot.hub.xǁWattpilotHubǁ__init____mutmut_13
+
+# waiting = False -> None: the flag is only read as `not waiting` and only
+# ever set to True, and None is as false as False.
+custom_components.wattpilot.x__reload_when_firmware_changes__mutmut_2

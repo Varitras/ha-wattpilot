@@ -915,6 +915,34 @@ async def test_a_firmware_reload_waits_until_the_connection_has_settled(
         assert reload.call_count == 1
 
 
+async def test_two_firmware_pushes_reload_once_and_name_the_last(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A reload already waiting covers a newer version as well."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        options={CONF_UPDATE_INTERVAL: 0},
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    with (
+        caplog.at_level(logging.INFO),
+        patch("custom_components.wattpilot._SETTLED_POLL", 0),
+        patch.object(hass.config_entries, "async_schedule_reload") as reload,
+    ):
+        fake_charger.properties_initialized = False
+        fake_charger.push("fwv", "43.1")
+        fake_charger.push("fwv", "43.2")
+        fake_charger.properties_initialized = True
+        await _settle_firmware_wait(hass)
+    assert reload.call_count == 1
+    assert "Charger firmware changed to 43.2, reloading" in caplog.messages
+
+
 async def test_a_firmware_reload_does_not_report_the_charger_unavailable(
     hass: HomeAssistant,
     fake_charger: FakeWattpilot,
