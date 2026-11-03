@@ -322,3 +322,53 @@ async def test_a_response_without_success_fails_its_command_at_once(
     client._pending_commands["7"] = future
     await send(client, {"type": "response", "requestId": 7})
     assert isinstance(future.exception(), CommandError)
+
+
+UNSAFE_TEXTS = {
+    "a serial": "refused for charger 91234567",
+    "a line break": "line one\nERROR faked line two",
+    "no end": "x" * 5000,
+    "no text": {"code": 91234567},
+}
+
+
+def _assert_fit_for_a_public_log(text: str) -> None:
+    assert "91234567" not in text
+    assert "\n" not in text
+    assert len(text) < 200
+
+
+@pytest.mark.parametrize("unsafe", list(UNSAFE_TEXTS))
+async def test_the_chargers_auth_error_text_is_made_fit_for_a_log(
+    client: Wattpilot, caplog: pytest.LogCaptureFixture, unsafe: str
+) -> None:
+    """Text from the charger is the one thing in an error this integration
+    did not write, and logs and repair notices end up in public issues."""
+    caplog.set_level(logging.DEBUG)
+    await send(client, {"type": "authError", "message": UNSAFE_TEXTS[unsafe]})
+    _assert_fit_for_a_public_log(str(client.refusal))
+    _assert_fit_for_a_public_log(
+        "".join(r.getMessage() for r in caplog.records if "Authentication" in r.msg)
+    )
+
+
+@pytest.mark.parametrize("unsafe", list(UNSAFE_TEXTS))
+async def test_the_chargers_hash_name_is_made_fit_for_a_log(
+    client: Wattpilot, unsafe: str
+) -> None:
+    await send(client, HELLO)
+    await send(client, {**AUTH_REQUIRED, "hash": str(UNSAFE_TEXTS[unsafe])})
+    _assert_fit_for_a_public_log(str(client.refusal))
+
+
+@pytest.mark.parametrize("unsafe", list(UNSAFE_TEXTS))
+async def test_the_chargers_refusal_of_a_command_is_made_fit_for_a_log(
+    client: Wattpilot, caplog: pytest.LogCaptureFixture, unsafe: str
+) -> None:
+    future = asyncio.get_running_loop().create_future()
+    client._pending_commands["7"] = future
+    frame = {"type": "response", "requestId": 7, "success": False}
+    await send(client, {**frame, "message": UNSAFE_TEXTS[unsafe]})
+    _assert_fit_for_a_public_log(str(future.exception()))
+    await send(client, {**frame, "requestId": 8, "message": UNSAFE_TEXTS[unsafe]})
+    _assert_fit_for_a_public_log(caplog.records[-1].getMessage())
