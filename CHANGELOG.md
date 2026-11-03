@@ -73,6 +73,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   failed although it worked, as the reload for the new firmware started
   while the update was still reconnecting. The reload now waits for the
   connection, and no longer logs the charger as unavailable.
+- A charger whose handshake lacks a field the integration needs is refused
+  with an error naming the field. It ran into a timeout without a cause.
+  A command answer that does not say whether it succeeded counts as refused
+  at once instead of after the timeout.
 
 ## [0.3.0] - 2026-10-21
 

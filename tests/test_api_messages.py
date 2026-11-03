@@ -24,6 +24,9 @@ from custom_components.wattpilot.api.exceptions import (
     WattpilotConnectionError,
 )
 
+HELLO = {"type": "hello", "serial": "123456"}
+AUTH_REQUIRED = {"type": "authRequired", "token1": "a" * 32, "token2": "b" * 32}
+
 
 @pytest.fixture
 def client() -> Wattpilot:
@@ -200,9 +203,8 @@ async def test_an_acceptance_with_a_null_status_answers_the_command(
 async def test_an_unknown_password_hash_is_a_named_refusal(client: Wattpilot) -> None:
     """An algorithm this client does not know made the frame unreadable: no
     answer was sent and setup timed out without naming the cause."""
-    await send(
-        client, {"type": "authRequired", "token1": "a", "token2": "b", "hash": "argon2"}
-    )
+    await send(client, HELLO)
+    await send(client, {**AUTH_REQUIRED, "hash": "argon2"})
     assert client._connection.fatal_error is not None
     assert "argon2" in str(client._connection.fatal_error)
 
@@ -218,9 +220,8 @@ async def test_an_unknown_password_hash_drops_the_socket(client: Wattpilot) -> N
             self.closed = True
 
     socket = client._connection.socket = Socket()  # type: ignore[assignment]
-    await send(
-        client, {"type": "authRequired", "token1": "a", "token2": "b", "hash": "argon2"}
-    )
+    await send(client, HELLO)
+    await send(client, {**AUTH_REQUIRED, "hash": "argon2"})
     assert socket.closed
 
 
@@ -261,10 +262,6 @@ def test_a_value_nested_too_deep_costs_only_itself() -> None:
     client._apply_status(SimpleNamespace(amp=nested, lmo=3))
 
     assert client.all_properties.get("lmo") == 3
-
-
-HELLO = {"type": "hello", "serial": "123456"}
-AUTH_REQUIRED = {"type": "authRequired", "token1": "a" * 32, "token2": "b" * 32}
 
 
 @pytest.mark.parametrize("unusable", [None, "", 123, ["x"]], ids=repr)

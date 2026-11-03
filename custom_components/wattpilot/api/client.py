@@ -27,7 +27,7 @@ from .exceptions import (
     WattpilotConnectionError,
     WattpilotError,
 )
-from .models import AuthHashType, CloudInfo, DeviceInfo
+from .models import AuthHashType, CloudInfo, DeviceInfo, missing_field
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -438,8 +438,7 @@ class Wattpilot:
         """
         Install a firmware update and wait for the charger to reboot.
 
-        If *version* is not specified, the first available version is used.
-        Raises :class:`PropertyError` if no updates are available.
+        Without *version*, the first one offered; :class:`PropertyError` if none.
         Raises :class:`WattpilotConnectionError` on timeout.
         """
         if version is None:
@@ -481,9 +480,8 @@ class Wattpilot:
         Keep trying to reach the rebooted charger until the deadline passes.
 
         Every attempt is bounded by what is left of the budget, and so is the
-        pause between them. Both used to be free: the caller's timeout was a
-        sum of sleeps, and a single attempt could sit in a full
-        authentication wait without spending any of it.
+        pause between them: the caller's timeout used to be a sum of sleeps,
+        and an attempt could sit in a full authentication wait for free.
         """
         loop = asyncio.get_running_loop()
         # Another close (an unload) ends the wait; reconnecting outlived it.
@@ -591,19 +589,16 @@ class Wattpilot:
     # function's whole content. The complexity ratchet in tests/ freezes
     # the number so it cannot creep upward unnoticed.
     async def _handle_message(self, raw: str) -> None:
-        # Type only, never the payload. Frames
-        # carry Wi-Fi passwords, cloud tokens and OCPP keys, and DEBUG
-        # logging for this integration is one toggle away in the UI.
+        # Type only, never the payload. Frames carry Wi-Fi passwords, cloud
+        # tokens and OCPP keys, and DEBUG logging is one toggle away in the UI.
         _LOGGER.debug("Message received: %s (%d bytes)", _message_type(raw), len(raw))
         msg = json.loads(raw)
         msg_type = msg.get("type", "")
         ns = json.loads(raw, object_hook=lambda d: SimpleNamespace(**d))
 
         match msg_type:
-            case "hello":
-                await self._on_hello(ns)
-            case "authRequired":
-                await self._on_auth_required(ns)
+            case "hello" | "authRequired":
+                await self._on_handshake(msg_type, ns)
             case "authSuccess":
                 self._on_auth_success(ns)
             case "authError":
@@ -618,6 +613,16 @@ class Wattpilot:
                 pass
             case _:
                 _LOGGER.debug("Unhandled message type: %s", msg_type)
+
+    async def _on_handshake(self, msg_type: str, ns: SimpleNamespace) -> None:
+        field = missing_field(msg_type, vars(ns), self._device.serial)
+        if field is not None:
+            text = f"Charger sent {msg_type} without a usable {field}"
+            await self._connection.reject(WattpilotConnectionError(text))
+        elif msg_type == "hello":
+            await self._on_hello(ns)
+        else:
+            await self._on_auth_required(ns)
 
     async def _on_hello(self, msg: SimpleNamespace) -> None:
         if not await self._identity_accepted(msg.serial):
@@ -688,10 +693,9 @@ class Wattpilot:
         self._apply_status(status)
 
     def _apply_status(self, status: object) -> None:
-        # One property at a time. A value this client cannot
-        # read cost the rest of its frame, and in the last chunk of the
-        # first full status the status never completed.
-        # A status that is no object (`null`) has nothing to apply.
+        # One property at a time. A value this client cannot read cost the
+        # rest of its frame, and in the last chunk of the first full status
+        # the status never completed. No object (`null`): nothing to apply.
         for key, value in getattr(status, "__dict__", {}).items():
             try:
                 self._update_property(key, value)
@@ -705,14 +709,12 @@ class Wattpilot:
                 self._connection.skip(f"the value of {key}", exc)
 
     def _on_response(self, msg: SimpleNamespace) -> None:
-        # Resolve the waiting command. An answer
-        # without a waiter -- or without an id at all -- is still applied
-        # and logged.
+        # Without a waiter or an id, an answer is still applied and logged.
         request_id = getattr(msg, "requestId", None)
         future = self._pending_commands.get(_correlation_key(request_id))
         # Truthy, not only a JSON true: the Home sends true, the Flex
         # was never measured, and refusing a real acceptance fails every write.
-        if msg.success:
+        if getattr(msg, "success", None):
             # Nothing in the protocol promises a status on every acceptance.
             self._apply_status(getattr(msg, "status", None))
             if future is not None and not future.done():
@@ -726,9 +728,8 @@ class Wattpilot:
             return
         _LOGGER.error("Command failed (requestId=%s): %s", request_id, reason)
 
-    # The charger's key-to-attribute table, written as a match. Every arm is
-    # two lines and independent of the others -- splitting it would turn one
-    # readable table into several partial ones.
+    # The charger's key-to-attribute table, written as a match: splitting it
+    # would turn one readable table into several partial ones.
     def _update_property(
         self,
         name: str,
