@@ -8,8 +8,8 @@ credentials -- could only be fixed inside it. Only the modules this
 integration uses were taken over; mqtt, shell and discovery were not, and
 with them neither aiomqtt, prompt-toolkit nor pydantic.
 
-Changes against 1.4.0 carry a `wattpilot:` comment naming the finding, so
-the adopted parts stay distinguishable from ours.
+It has been changed throughout since, so the changes are no longer marked
+one by one.
 """
 
 from .client import Wattpilot, mask_serial

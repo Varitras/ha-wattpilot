@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME, EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import callback
-from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
+from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
@@ -86,7 +86,7 @@ class _SerialMask(logging.Filter):
 
 def _serial_masks(entries: list[ConfigEntry]) -> list[tuple[str, str]]:
     # A serial is all digits; an entry awaiting it is keyed on a name or
-    # address, which got masked in every other title as well (R1-17).
+    # address, which got masked in every other title as well.
     return [
         (entry.unique_id, mask_serial(entry.unique_id))
         for entry in entries
@@ -95,8 +95,8 @@ def _serial_masks(entries: list[ConfigEntry]) -> list[tuple[str, str]]:
 
 
 def _address_title_masks(entries: list[ConfigEntry]) -> list[tuple[str, str]]:
-    # A fork entry titled by its address put it into every setup message
-    # (RF-P-02). An address literal, unlike a name, means nothing else.
+    # A fork entry titled by its address put it into every setup message.
+    # An address literal, unlike a name, means nothing else.
     return [(entry.title, "<address>") for entry in entries if _is_address(entry.title)]
 
 
@@ -112,7 +112,7 @@ async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
     """Register integration services and mask serials in setup messages."""
     async_setup_services(hass)
     # Never removed: the setups the stop cancels log their title after the
-    # stop event, and lost the mask with it (R1-05).
+    # stop event, and lost the mask with it.
     serial_mask = _SerialMask(hass)
     for logger in _ENTRY_LOGGERS:
         logger.addFilter(serial_mask)
@@ -149,23 +149,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: WattpilotConfigEntry) ->
     # Home Assistant calls async_unload_entry only for an entry that finished
     # setup, so every failure below has to hand them back itself -- otherwise
     # the entry sits in SETUP_ERROR with the connection still open, and the
-    # next retry puts a second hub on the same dispatcher signals (audit
-    # VA-02, measured through the config entry manager).
+    # next retry puts a second hub on the same dispatcher signals (measured
+    # through the config entry manager).
     #
     # BaseException, not Exception: Home Assistant cancels a setup that runs
     # too long, and CancelledError is not an Exception -- the narrower catch
-    # handed nothing back on that path (audit A11-05).
+    # handed nothing back on that path.
     try:
         await _finish_setup(hass, entry, hub)
     except BaseException:
         # A failed disconnect must not replace the error that ended setup --
-        # that one says what the user has to fix (audit A14-03).
-        try:
-            await hub.async_shutdown()
-        except HomeAssistantError:
-            _LOGGER.debug(
-                "Ignoring error while closing after failed setup", exc_info=True
-            )
+        # that one says what the user has to fix; async_shutdown keeps it out.
+        await hub.async_shutdown()
         raise
     return True
 
@@ -180,7 +175,7 @@ def _reload_when_firmware_changes(
     their description tables at setup, and an entity freezes the device's
     sw_version when it is built. So a firmware jump leaves the newly
     supported entities missing and the device page showing the old version
-    until someone reloads by hand (audit VA-05). A reload redoes both.
+    until someone reloads by hand. A reload redoes both.
     """
     known = hub.firmware
 
@@ -209,7 +204,9 @@ async def _finish_setup(
     Split out so its caller can put a single cleanup guard around all of it.
     """
     serial = hub.serial
-    if entry.unique_id != serial:
+    # Also when the serial already matches: confirming it is what ends the
+    # permission, or the client keeps being built without an identity check.
+    if entry.unique_id != serial or awaits_serial(entry):
         await _adopt_serial(hass, entry, serial)
     await async_migrate_legacy_unique_ids(
         hass, entry, serial, hub.variant, hub.properties
@@ -283,7 +280,7 @@ async def _remove_ignored_card(hass: HomeAssistant, serial: str) -> None:
     Drop an ignored card for the charger this entry is about to own.
 
     It only kept the card from coming back, which the entry does now; left
-    in place it would share this entry's unique_id (audit A18-07).
+    in place it would share this entry's unique_id.
     """
     for ignored in hass.config_entries.async_entries(DOMAIN):
         if (
@@ -299,7 +296,7 @@ def _close_open_cards(hass: HomeAssistant, serial: str) -> None:
     Close the discovery cards still offering the charger just adopted.
 
     One opened before the entry knew its serial stays up otherwise, and
-    ignoring it makes Home Assistant replace the entry (audit A18-01).
+    ignoring it makes Home Assistant replace the entry.
     """
     flows = hass.config_entries.flow
     for card in flows.async_progress_by_handler(
@@ -353,8 +350,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 CONF_AWAITING_SERIAL: True,
             }
         # Without a name the device took the host name, and every entity the
-        # fork lacked got the serial in its ID (RF-P-04); a cloud entry too,
-        # once Reconfigure made it local (PC5-R-04).
+        # fork lacked got the serial in its ID; a cloud entry too,
+        # once Reconfigure made it local.
         new_data[CONF_NAME] = new_device_name(
             hass, preferred=old.get("friendly_name"), exclude=entry.entry_id
         )

@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 import websockets
 import websockets.asyncio.client
 
-from .exceptions import WattpilotConnectionError, describe_error
+from .exceptions import WattpilotConnectionError, describe_error, where_raised
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
@@ -58,11 +58,12 @@ class Connection:
         self._auto_reconnect = auto_reconnect
         self._reconnect_delay_min = reconnect_delay_min
         self._reconnect_delay_max = reconnect_delay_max
+        self._reconnect_delay = reconnect_delay_min
 
         self.socket: websockets.asyncio.client.ClientConnection | None = None
         self.message_loop_task: asyncio.Task[None] | None = None
         self._readiness_guard: asyncio.Task[None] | None = None
-        # wattpilot: one field for every reason this connection cannot be
+        # One field for every reason this connection cannot be
         # used -- rejected credentials or the wrong charger answering. A
         # second flag beside it would be a second place to forget.
         self.fatal_error: WattpilotError | None = None
@@ -70,11 +71,12 @@ class Connection:
         self._authenticated = False
         self._initialized = False
         self._streaming_full_status = False
+        self._skipped: set[str] = set()
         self._authenticated_event = asyncio.Event()
         self._initialized_event = asyncio.Event()
         self._disconnected_event = asyncio.Event()
         self._disconnected_event.set()
-        # One transition at a time (audits A13-01, A14-01, A15-01): opens
+        # One transition at a time: opens
         # share one attempt, close() cancels it rather than waiting it out,
         # and an open() during a close() waits for a fresh connection.
         self._opening: asyncio.Task[None] | None = None
@@ -138,12 +140,13 @@ class Connection:
             self.mark_initialized()
 
     def mark_initialized(self) -> None:
-        """Record that the complete property snapshot has arrived."""
+        """Record the full snapshot; a stalled socket keeps the backoff growing."""
         self._initialized = True
+        self._reconnect_delay = self._reconnect_delay_min
         self._initialized_event.set()
 
     def fail(self, error: WattpilotError) -> None:
-        """Record the refusal, sign out at once and wake open()'s waits (PC3-01/02)."""
+        """Record the refusal, sign out at once and wake open()'s waits."""
         self.fatal_error = error
         self._set_authenticated(value=False)
         self._authenticated_event.set()
@@ -162,11 +165,11 @@ class Connection:
         # Every close in progress, not just the first: one can start as another ends.
         while self._closing is not None and not self._closing.done():
             await asyncio.wait({self._closing})
-        self._stopped = False  # not in the attempt, which undid a close (PC-01)
+        self._stopped = False  # not in the attempt, which undid a close
         attempt = self._opening = self._ongoing(self._opening, self._open)
         try:
             # Not shielded: a caller Home Assistant gives up on takes the
-            # attempt down with it, socket and reader included (A11-05).
+            # attempt down with it, socket and reader included.
             await attempt
         except asyncio.CancelledError:
             if _cancelled_by_caller(attempt):
@@ -181,13 +184,13 @@ class Connection:
                 await self._finish_initialization()
                 return
             # A reader still sitting out its retry backoff owns a socket;
-            # replacing it without stopping it left two readers racing (A12-01).
+            # replacing it without stopping it left two readers racing.
             if had_reader:
                 await self._close()
             await self._open_socket()
         except BaseException:
             # That reader was the one retrying; failed, timed out or cancelled,
-            # nothing reached the charger again (A18-05, R1-12).
+            # nothing reached the charger again.
             if had_reader:
                 self.resume_reconnecting()
             raise
@@ -218,7 +221,7 @@ class Connection:
 
     def resume_reconnecting(self) -> None:
         """Restart the reconnect loop after a failed attempt -- not after a refusal."""
-        # Nor after a close: an unload in a firmware wait was overridden (R1-11).
+        # Nor after a close: an unload in a firmware wait was overridden.
         if self._stopped or self.fatal_error is not None or self._reader_owned():
             return
         if self._auto_reconnect:
@@ -240,13 +243,14 @@ class Connection:
         Reset everything that belongs to a single connection.
 
         Every path that opens a socket comes through here; carrying the
-        initialized flag over let open() return before the new snapshot
-        (audit A11-07). The property cache is deliberately kept: clearing it
-        would blank every entity for the length of the outage.
+        initialized flag over let open() return before the new snapshot.
+        The property cache is deliberately kept: clearing it would blank
+        every entity for the length of the outage.
         """
         self._cancel_readiness_guard()
         self._initialized = False
         self._streaming_full_status = False
+        self._skipped.clear()
         self._initialized_event.clear()
         self._authenticated_event.clear()
         self.fatal_error = None
@@ -258,7 +262,7 @@ class Connection:
     async def close(self) -> None:
         """Stop the reader and close the socket, however either of them ended."""
         # Visible before anything is awaited: while it cancelled the pending
-        # attempt unannounced, a new open() started and was torn down (A16-01).
+        # attempt unannounced, a new open() started and was torn down.
         self._stopped = True
         self.close_count += 1
         self._closing = self._ongoing(self._closing, self._cancel_and_close)
@@ -297,15 +301,15 @@ class Connection:
             if task is not None:
                 task.cancel()
                 # wait(), not await: catching the reader's cancellation also
-                # swallowed a close aimed at the caller (RF-L-02).
+                # swallowed a close aimed at the caller.
                 await asyncio.wait({task})
                 if not task.cancelled() and (err := task.exception()) is not None:
-                    # A failed loop re-raised here, before the socket closed
-                    # (A11-06). No traceback: it can quote the address (PC-02).
+                    # A failed loop re-raised here, before the socket closed.
+                    # No traceback: it can quote the address.
                     _LOGGER.debug("Message loop ended: %s", describe_error(err))
         finally:
             # Reset even when close() raises, or `connected` stays True with
-            # the reader already cancelled (audit VA-04).
+            # the reader already cancelled.
             try:
                 if self.socket is not None:
                     await self.socket.close()
@@ -342,13 +346,9 @@ class Connection:
         """
         Give up on a reconnected socket that never finishes the handshake.
 
-        open() can wait for readiness inline because a separate task does the
-        reading. After an automatic reconnect the reader is this very loop, so
-        the same wait would deadlock -- nothing would read the frames it waits
-        for. Watching from the side instead: a peer whose socket stays up
-        while its application handshake stalls used to hold the integration
-        unavailable for good, with no further retry (audit A12-04). Closing
-        the socket ends the frame iteration, and the loop tries again.
+        After an automatic reconnect the reader is this very loop, so waiting
+        inline as open() does would deadlock. Watching from the side, closing
+        the socket ends the frame iteration and the loop tries again.
         """
         try:
             await asyncio.wait_for(
@@ -356,7 +356,7 @@ class Connection:
                 self.connect_timeout + self.init_timeout,
             )
         except TimeoutError:
-            _LOGGER.warning("Reconnected socket never became ready; closing it")
+            _LOGGER.debug("Reconnected socket never became ready; closing it")
             if self.socket is not None:
                 await self.socket.close()
 
@@ -367,7 +367,7 @@ class Connection:
 
         BaseException, not Exception: Home Assistant cancels a setup that
         takes too long, and CancelledError is not an Exception -- the
-        narrower catch left both running behind it (audit A11-05).
+        narrower catch left both running behind it.
         """
         try:
             yield
@@ -384,7 +384,7 @@ class Connection:
         async for frame in self.socket:
             if self.fatal_error is not None:
                 # Frames buffered before a refusal were still applied: the
-                # wrong device's amp reached the cache (audit A12-02).
+                # wrong device's amp reached the cache.
                 _LOGGER.debug("Dropping a frame that arrived after the refusal")
                 break
             try:
@@ -393,12 +393,18 @@ class Connection:
             except Exception as exc:  # noqa: BLE001 -- one frame, not the connection
                 # A failing frame (bad JSON, not UTF-8, nested past the recursion
                 # limit) ended the reader; connection errors end the loop itself.
-                cause = type(exc).__name__
-                _LOGGER.warning("Skipping a frame (%d bytes): %s", len(frame), cause)
+                self.skip(f"a frame ({len(frame)} bytes)", exc)
+
+    def skip(self, subject: str, error: Exception) -> None:
+        """Warn once per connection and cause: a defect can break every frame."""
+        cause = f"{type(error).__name__} at {where_raised(error)}"
+        level = logging.DEBUG if cause in self._skipped else logging.WARNING
+        self._skipped.add(cause)
+        _LOGGER.log(level, "Skipping %s: %s", subject, cause)
 
     async def _message_loop(self) -> None:
         # Started without a socket (resume_reconnecting), it begins in its backoff.
-        reconnect_delay = self._reconnect_delay_min
+        self._reconnect_delay = self._reconnect_delay_min
         try:
             while True:
                 try:
@@ -414,24 +420,19 @@ class Connection:
                 # Retrying cannot help against rejected credentials or a
                 # charger that is not ours; both would loop forever.
                 if self.fatal_error is not None:
-                    _LOGGER.error("Not reconnecting: %s", self.fatal_error)
+                    _LOGGER.debug("Not reconnecting: %s", self.fatal_error)
                     break
 
-                _LOGGER.debug("Reconnecting in %.0fs...", reconnect_delay)
-                await asyncio.sleep(reconnect_delay)
+                delay = self._reconnect_delay
+                _LOGGER.debug("Reconnecting in %.0fs...", delay)
+                await asyncio.sleep(delay)
+                self._reconnect_delay = min(delay * 2, self._reconnect_delay_max)
                 try:
                     self.begin()
                     self.socket = await websockets.asyncio.client.connect(self._url)
                     self._readiness_guard = asyncio.create_task(self._guard_readiness())
-                    reconnect_delay = self._reconnect_delay_min
                 except (OSError, websockets.exceptions.WebSocketException) as exc:
-                    reconnect_delay = min(
-                        reconnect_delay * 2, self._reconnect_delay_max
-                    )
-                    cause = describe_error(exc)
                     # Once per cycle while the charger is away: DEBUG, not WARNING.
-                    _LOGGER.debug(
-                        "Reconnect failed: %s, retry in %.0fs", cause, reconnect_delay
-                    )
+                    _LOGGER.debug("Reconnect failed: %s", describe_error(exc))
         finally:
             self._set_authenticated(value=False)

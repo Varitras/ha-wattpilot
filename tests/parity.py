@@ -73,7 +73,7 @@ _ENABLED_BY_DEFAULT_EXCEPTIONS: dict[str, bool] = {
 # Same entity, same reason: the fork declares NumberDeviceClass.MONETARY,
 # which Home Assistant documents as requiring an ISO 4217 currency code. "ct"
 # is not one, and the currency is not fixed anyway (awc selects the market),
-# so the class is dropped rather than declared falsely (audit VA-15).
+# so the class is dropped rather than declared falsely.
 _DEVICE_CLASS_EXCEPTIONS: dict[str, str | None] = {"awp": None}
 
 

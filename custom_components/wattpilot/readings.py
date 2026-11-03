@@ -77,7 +77,7 @@ def price_list(value: Any) -> list[dict[str, Any]]:  # noqa: ANN401 -- dynamical
 
 
 def _price_entry(entry: Any) -> dict[str, Any] | None:  # noqa: ANN401 -- charger payload
-    """One price; None for an entry without usable unix times (RF-D-03)."""
+    """One price; None for an entry without usable unix times."""
     try:
         return {
             "start": dt_util.utc_from_timestamp(namespace_get(entry, "start")),

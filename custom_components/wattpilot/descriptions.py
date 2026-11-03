@@ -43,8 +43,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
 # Charger hardware variants, as the device reports them in "var". The value
-# is compared as a string because the real device sends the integer 11 while
-# the vendor client annotates the property as str.
+# is compared as a string: the constraints below are written as text, the
+# device sends the integer 11.
 VARIANT_11 = "11"
 VARIANT_22 = "22"
 
@@ -996,7 +996,7 @@ NUMBER_DESCRIPTIONS: tuple[WattpilotNumberEntityDescription, ...] = (
         entity_category=EntityCategory.CONFIG,
         # No MONETARY device class: it requires an ISO 4217 currency code and
         # "ct" is not one, so Home Assistant would be told a currency that
-        # does not exist (audit VA-15). Converting instead is not available
+        # does not exist. Converting instead is not available
         # either -- "awc" selects the market, so the currency is not fixed at
         # description time. The device stores this in cent (vendor schema:
         # "awattarMaxPrice in ct") and we pass it through unscaled; labelling
@@ -1448,7 +1448,7 @@ BUTTON_DESCRIPTIONS: tuple[WattpilotButtonEntityDescription, ...] = (
 # datetime.time conversion mirrors the fork's runtime ChargerTime exactly.
 # Writes go through hub.async_set_next_trip rather than a plain property
 # write, and send the time unchanged: the charger applies no daylight-saving
-# correction of its own (measured, audit A12-06).
+# correction of its own.
 @dataclass(frozen=True, kw_only=True)
 class WattpilotTimeEntityDescription(WattpilotDescriptionMixin, TimeEntityDescription):
     """Time description."""

@@ -31,11 +31,11 @@ CONNECTION_CLOUD = "cloud"
 CONF_UPDATE_INTERVAL = "update_interval"
 DEFAULT_UPDATE_INTERVAL = 5
 
-# Set by the fork migration, cleared the first time setup reads the serial.
-# Its presence is the only thing that makes adopting a *different* unique_id
-# legitimate: a fork entry is keyed on the IP and has yet to learn its
-# serial. Without it, a serial that disagrees with the entry means the
-# address now belongs to another charger.
+# Set by the fork migration on a local entry, whose unique_id is whatever
+# the fork keyed it on (an address, a name, or nothing), and set again by
+# Reconfigure on any entry that still awaits its serial; removed when setup
+# adopts the serial. One of the shapes awaits_serial() accepts: without one,
+# a serial that disagrees with the entry means another charger.
 CONF_AWAITING_SERIAL = "awaiting_serial"
 
 PLATFORMS: list[Platform] = [
@@ -60,10 +60,11 @@ def awaits_serial(entry: ConfigEntry) -> bool:
     one has never verified against a live local connection.
 
     This is the single condition under which a serial that disagrees with
-    the entry is an upgrade rather than a different charger. Both callers
-    that decide identity -- setup adopting a serial, and the reconfigure
-    flow deciding whether to reject one -- have to agree on it, or one of
-    them locks the user out of a state the other happily creates.
+    the entry is an upgrade rather than a different charger. Every place
+    that decides identity has to agree on it, or one of them locks the user
+    out of a state another happily creates: which serial setup and the
+    reauth and reconfigure probes check, setup adopting a serial, and those
+    flows rejecting one.
     """
     return (
         entry.unique_id is None
@@ -103,7 +104,7 @@ def serial_taken_by_other_entry(
     A second entry for the same charger would fight over the device. An
     ignored card is not one: it holds the serial only to keep the card from
     coming back, and counting it locked the fork entry out of its own
-    charger for good (audit A18-07). Setup and the reconfigure and reauth
+    charger for good. Setup and the reconfigure and reauth
     flows decide on this together, like on awaits_serial.
     """
     return any(
@@ -152,7 +153,7 @@ def reload_failed_entry(
 
     Home Assistant reloads only a loaded or retrying entry after a discovery
     update: one that met another charger at its old address and failed stayed
-    failed with the right address stored (reaudit RF-E-01). Only a change
+    failed with the right address stored. Only a change
     reloads, or every announcement would.
     """
     if entry is None or not updates or entry.state is not ConfigEntryState.SETUP_ERROR:

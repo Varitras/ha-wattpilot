@@ -3,9 +3,8 @@
 The policy used to live in a sed expression inside check.sh that pulled out
 the survivors and nothing else. A mutant reported as "no tests" therefore
 disappeared from the comparison, the accepted survivors still matched, and
-the gate passed while a module inside it was measurably uncovered
-(audit A11-10). A gate nobody can run against a known input is a gate nobody
-has checked.
+the gate passed while a module inside it was measurably uncovered. A
+gate nobody can run against a known input is a gate nobody has checked.
 """
 
 from __future__ import annotations

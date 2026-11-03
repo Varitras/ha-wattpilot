@@ -61,7 +61,7 @@ class WattpilotNumber(WattpilotEntity, NumberEntity):
             return
         try:
             self._attr_native_value = float(value) / self.entity_description.wire_scale
-        # OverflowError: an int past the float range (PC6-02).
+        # OverflowError: an int past the float range.
         except TypeError, ValueError, OverflowError:
             self._attr_native_value = None
 

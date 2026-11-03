@@ -64,7 +64,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
             # Neither the key nor the URL belongs here: even a prefix and
             # suffix narrow the key, and the vendor URL embeds the full
             # serial. Both are readable from the charger for anyone who
-            # needs them (audit VA-14).
+            # needs them.
             _LOGGER.info("go-e cloud API enabled")
         else:
             await hub.async_disable_cloud_api()

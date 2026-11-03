@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import importlib.resources as import_resources
 import logging
 import pkgutil
@@ -19,8 +20,6 @@ _LOGGER = logging.getLogger(__name__)
 class ApiDefinition:
     """Parsed representation of ``wattpilot.yaml``."""
 
-    config: dict[str, Any] = field(default_factory=dict)
-    messages: dict[str, dict[str, Any]] = field(default_factory=dict)
     properties: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
@@ -57,6 +56,14 @@ def _add_unique(d: dict[str, Any], k: str, v: Any) -> dict[str, Any]:  # noqa: A
     return d
 
 
+# The C loader parses the file eight times faster where PyYAML was built with
+# it; both are safe loaders.
+_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
+
+# Once per process: every client parsed it again, a setup probe included, and
+# nothing changes it at runtime. Its readers only read.
+@functools.cache
 def load_api_definition() -> ApiDefinition:
     """
     Load and parse ``wattpilot.yaml`` from package resources.
@@ -90,10 +97,8 @@ def load_api_definition() -> ApiDefinition:
     api_def = ApiDefinition()
 
     try:
-        api_def.config = validate_api_definition(yaml.safe_load(raw_text or "{}"))
-        api_def.messages = {m["key"]: m for m in api_def.config["messages"]}
-
-        for p in api_def.config["properties"]:
+        config = validate_api_definition(yaml.load(raw_text or "{}", Loader=_LOADER))  # noqa: S506 -- a safe loader
+        for p in config["properties"]:
             api_def.properties = _add_unique(api_def.properties, p["key"], p)
 
     except yaml.YAMLError as exc:

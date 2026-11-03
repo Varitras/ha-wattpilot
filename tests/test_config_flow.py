@@ -27,7 +27,7 @@ from custom_components.wattpilot.const import (
     DOMAIN,
 )
 
-from .conftest import FakeWattpilot
+from .conftest import FakeWattpilot, patch_charger
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -36,10 +36,6 @@ USER_INPUT = {"host": "192.168.1.50", "password": "secret"}
 MANIFEST = (
     Path(__file__).parent.parent / "custom_components" / "wattpilot" / "manifest.json"
 )
-
-
-def patch_charger(charger: FakeWattpilot) -> Any:
-    return patch("custom_components.wattpilot.hub.Wattpilot", return_value=charger)
 
 
 async def start_user_flow(hass: HomeAssistant) -> Any:
@@ -123,7 +119,7 @@ async def test_a_malformed_host_is_a_form_error(
 ) -> None:
     """An unbracketed IPv6 address, a mistyped port or an empty label made
     building the address raise outside the connection errors: the form said
-    "Unknown error" and the log held a traceback (audit A18-21)."""
+    "Unknown error" and the log held a traceback."""
     result = await start_user_flow(hass)
     fake_charger.connect_error = error
     with patch_charger(fake_charger):
@@ -176,7 +172,7 @@ async def test_reauth_rejects_a_different_charger(
     accepted by whatever now answers at the address were written into the
     entry and the flow reported success -- while the setup that followed
     refused the device, leaving the entry broken with its password already
-    replaced (audit A12-07). Sibling of the setup and reconnect checks.
+    replaced. Sibling of the setup and reconnect checks.
     """
     entry = MockConfigEntry(
         domain=DOMAIN,
@@ -223,6 +219,45 @@ async def test_reconfigure_rejects_wrong_device(
     # Entry must remain unchanged when rejecting a different charger.
     assert entry.data == original_data
     assert entry.unique_id == original_unique_id
+
+
+@pytest.mark.parametrize(
+    ("start", "user_input"),
+    [
+        ("start_reauth_flow", {"password": "other"}),
+        ("start_reconfigure_flow", {**USER_INPUT, "password": "other"}),
+    ],
+)
+async def test_another_charger_with_another_password_is_the_wrong_device(
+    hass: HomeAssistant,
+    device_properties: dict[str, Any],
+    start: str,
+    user_input: dict[str, str],
+) -> None:
+    """
+    The charger answering is another one, and its password differs too.
+
+    The client checks a serial it is given before it answers the password
+    challenge, the way setup builds it. The flows built theirs without one,
+    so this reached the password check first and told the user their
+    password was wrong.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="999999",  # a different charger than the fake (123456)
+        version=2,
+        data={CONF_CONNECTION_TYPE: CONNECTION_LOCAL, **USER_INPUT},
+    )
+    entry.add_to_hass(hass)
+    charger = FakeWattpilot(device_properties)
+    charger.connect_error = AuthenticationError("Wrong password")
+
+    result = await getattr(entry, start)(hass)
+    with patch_charger(charger):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], user_input
+        )
+    assert result["errors"] == {"base": "wrong_device"}
 
 
 async def test_reconfigure_rescues_a_fork_entry_whose_address_changed(
@@ -519,7 +554,7 @@ async def test_a_known_charger_announcing_a_new_address_updates_the_entry(
     hass: HomeAssistant,
 ) -> None:
     """DHCP moved the charger: the entry follows instead of trying the old
-    address -- where another device may answer by now (audit A15-04)."""
+    address -- where another device may answer by now."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="123456",
@@ -692,8 +727,8 @@ async def test_a_card_for_a_fork_entry_awaiting_its_serial_is_not_offered(
 ) -> None:
     """A fork entry is keyed on its address until it connects. The card for
     the charger at that address was offered anyway, and confirming it made a
-    second entry with the serial that locked the fork entry out (reaudit
-    R1-14). The charger just announced itself, so the entry tries again."""
+    second entry with the serial that locked the fork entry out. The
+    charger just announced itself, so the entry tries again."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="192.168.1.60",
@@ -720,7 +755,7 @@ async def test_adding_by_hand_a_charger_whose_entry_awaits_its_serial_is_refused
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """The same as the card, through the form: a second entry with the serial
-    locked the carried-over entry out (post-check PC-04)."""
+    locked the carried-over entry out."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id=USER_INPUT["host"],

@@ -20,7 +20,7 @@ with the fork is checked in each platform's own test file):
 
 | Guard | Holds |
 |---|---|
-| mutation run (check.sh --release) | tests are real: every mutant in hub/sensor/init must die, except the equivalent ones in scripts/equivalent-mutants.txt, which must survive exactly |
+| mutation run (check.sh --release) | tests are real: every mutant in the modules `[tool.mutmut] source_paths` lists must die, except the equivalent ones in scripts/equivalent-mutants.txt, which must survive exactly |
 | next Home Assistant (.github/workflows/ha-next.yml) | weekly, against the newest release on PyPI, beta included: what it reports or removes shows up before the release; the tests run once a harness for it exists, the import check always. A warning, not a merge gate |
 
 ## Recorded frame sequences
@@ -48,7 +48,7 @@ WSL — the suite only runs there, and the `gitleaks` on the Windows PATH is an
 older build without the `git` subcommand — and the blocklist itself lives
 outside the repository, because several of its entries are exactly the words
 it keeps out. **A fresh clone therefore has no hook.** The template it was
-adapted from is in the erosionsschutz kit.
+adapted from lives outside the repository as well.
 
 Why a blocklist next to `gitleaks`: on 2026-09-05 `gitleaks` reported zero
 findings over the full history while a test fixture carried the repository

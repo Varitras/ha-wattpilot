@@ -60,7 +60,7 @@ class WattpilotEntity(Entity):
             # A sentinel, not None: "the charger has not sent this" and "the
             # charger sent null" are different answers, and for `trx` null is
             # the enum's own "No Transaction". Skipping it left the entity at
-            # unknown until the charger repeated the field (audit VA-13).
+            # unknown until the charger repeated the field.
             initial = self._hub.get_property(description.charger_key, _NOT_SENT)
             if initial is not _NOT_SENT:
                 self._apply_value(initial)

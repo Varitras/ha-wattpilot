@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 ENTRY_ID = "entry1"
 ENERGY_SPLIT_UIDS = {"whs", "whb", "whg", "who"}
 SOURCE_POWER_UIDS = ("ws", "wb", "wg", "wo")
-# Which source each one is named after, so a swap cannot pass (F31-05).
+# Which source each one is named after, so a swap cannot pass.
 SOURCE_POWER_NAMES = dict(
     zip(SOURCE_POWER_UIDS, ("solar", "battery", "grid", "other_sources"), strict=True)
 )
@@ -382,7 +382,7 @@ async def test_inverter_namespace_unescapes_label(
 async def test_inverter_namespace_reads_object_payloads(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
-    """The vendor client hands nested payloads over as objects, not dicts.
+    """The client hands nested payloads over as objects, not dicts.
     Fields the object does not carry must read as None instead of raising."""
     fake_charger._properties["cci"] = SimpleNamespace(label="Symo", model="Gen24")
     sensor = await make_sensor(hass, fake_charger, "cci")
@@ -455,7 +455,7 @@ async def test_a_missing_card_slot_leaks_no_names_into_the_log(
     """Ten card sensors exist, and a charger may report fewer cards. Indexing
     past the end raised, and the generic handler logged the whole payload
     with %r -- card holder names included, in a log the diagnostics redaction
-    never touches (audit A12-05). The absent slot is a normal state, not a
+    never touches. The absent slot is a normal state, not a
     fault worth a warning.
     """
     fake_charger._properties["cards"] = [
@@ -482,7 +482,7 @@ async def test_the_first_card_slot_the_charger_lacks_is_already_empty(
     """The boundary itself: two cards means slot 2 is the first missing one.
 
     Off by one here and the sensor indexes past the end again, which is the
-    exact path that put holder names into the log (audit A12-05).
+    exact path that put holder names into the log.
     """
     fake_charger._properties["cards"] = [
         {"name": "Alex Example", "cardId": True, "energy": 1.0},
@@ -519,10 +519,10 @@ async def test_malformed_value_keeps_previous_state(
     assert sensor.native_value == 1
     # The warning is the only trace a dropped push leaves; it has to name
     # which sensor, what shape arrived, which charger key and what went wrong.
-    # The sensor by its key: the entity ID carries the serial (R1-02).
+    # The sensor by its key: the entity ID carries the serial.
     # It deliberately does NOT carry the value, nor the exception's message,
     # which can quote the value too: nothing redacts this sink, and a card
-    # list logged that way put holder names into it (audit A12-05).
+    # list logged that way put holder names into it.
     # Compared whole rather than as a substring: a substring check passes just
     # as happily when the message has grown extra text around it.
     assert any(
@@ -566,7 +566,7 @@ async def test_a_flex_temperature_with_empty_slots_shows_the_hottest(
 async def test_a_temperature_that_is_no_number_is_skipped(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
-    """max() over a NaN is NaN (post-check PC6-06)."""
+    """max() over a NaN is NaN."""
     fake_charger._properties["tma"] = [float("nan"), 40.0]
     sensor = await make_sensor(hass, fake_charger, "tma")
     assert sensor.native_value == 40.0
@@ -707,7 +707,7 @@ async def test_allowed_current_is_unknown_while_no_car_charges(
 async def test_a_null_start_value_is_applied_when_the_property_exists(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
-    """Audit VA-13: the initial read skipped None, treating "no value" and
+    """The initial read skipped None, treating "no value" and
     "the value None" as the same thing. For `trx` they are not -- None is the
     enum's own "No Transaction" -- so the entity sat at unknown until the
     charger happened to push the field again.
@@ -794,7 +794,7 @@ async def test_one_bad_price_costs_only_itself(
     hass: HomeAssistant, fake_charger: FakeWattpilot, bad: dict[str, Any]
 ) -> None:
     """A bad entry in the price list took the current price with it, and an
-    out-of-range start escaped the bounded catch (reaudit RF-D-03)."""
+    out-of-range start escaped the bounded catch."""
     fake_charger._properties.update({"awcp": PRICE_HOUR, "awpl": [bad, PRICE_HOUR]})
     sensor = await make_sensor(hass, fake_charger, "awcp")
 
@@ -869,7 +869,7 @@ def test_per_phase_readings_stay_out_of_the_recorder() -> None:
         # json.loads makes NaN and infinity of what the charger could send.
         ({"type": 0, "value": 2217901}, float("inf"), None),
         ({"type": 1, "value": float("nan")}, 14857, None),
-        # Each finite, their difference not (post-check PC6-01).
+        # Each finite, their difference not.
         ({"type": 0, "value": -1.7e308}, 1.7e308, None),
     ],
 )
@@ -936,8 +936,8 @@ async def test_average_power_is_zero_while_nothing_flows(
 ) -> None:
     """tpa keeps the last session's average after charging -- recorded on
     firmware 42.5 with the car plugged in and every power slot at 0, and
-    reported on a Flex -- so threshold automations kept firing for hours
-    (audit A18-13). Nothing flowing when the entry starts is already idle."""
+    reported on a Flex -- so threshold automations kept firing for hours.
+    Nothing flowing when the entry starts is already idle."""
     fake_charger._properties.update({"tpa": 4121.5, "nrg": nrg_reading(0)})
     sensor = await make_sensor(hass, fake_charger, "tpa")
 
@@ -989,7 +989,7 @@ async def test_each_phase_reading_has_a_sensor_of_its_own(
 )
 def test_the_numeric_rule_is_home_assistants(description: Any) -> None:
     """The conversion checks for a number exactly where Home Assistant
-    will insist on one when it writes the state (reaudit K-A)."""
+    will insist on one when it writes the state."""
     entity = SensorEntity()
     entity.entity_description = description
 
@@ -1038,8 +1038,7 @@ async def test_the_current_limit_is_the_hardware_ceiling_not_the_request(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """Measured: currentLimitMax stayed 16 A while PV surplus charging
-    requested 6; the fixture has all limits at 16 and cannot tell them apart
-    (post-check F31-05)."""
+    requested 6; the fixture has all limits at 16 and cannot tell them apart."""
     fake_charger._properties["cll"] = {
         "adapterCurrentLimit": 20,
         "cableCurrentLimit": 32,

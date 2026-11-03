@@ -1,18 +1,19 @@
 """Every field the device reports as a string carries a redaction decision.
 
-Adapted from the erosionsschutz kit's completeness register. The class it
+Adapted from a completeness-register template. The class it
 exists for is documented in this project: the diagnostics blocklist matched
 by field name, so every new data shape leaked exactly once -- wifis, scan and
 dns each had to be discovered separately before redaction.py unified them.
 A register turns "nobody thought of that field" into a red test at the moment
 the surface grows, instead of a finding two audits later.
 
-The surface is every top-level string field the charger *can* report: the
-string properties of the bundled API definition, plus anything the reference
-device reports as a string that the definition does not list. Reading it off
+The surface is every top-level field the charger *can* report as text: the
+properties the bundled API definition declares as string or with no type,
+plus anything the reference device reports as a string that the definition
+does not list. Reading it off
 the snapshot alone was the same gap one level up -- `host`, `hsta` and `hsts`
 are documented as "Wattpilot_<serial>" but are unpopulated on firmware 42.5,
-so they never reached a decision until an audit read the definition (A11-03).
+so they never reached a decision until someone read the definition.
 
 Deliberate boundary: nested containers (cards, cci, wifis, scan, dns) carry
 their own assertions in test_guards.py::test_device_fixture_is_anonymized and
@@ -39,7 +40,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "device_properties.json"
 # String fields a Wattpilot Flex reports that neither the reference device nor
 # the definition knows: names only, from a Flex diagnostics download
 # (2026-10-09). Without them a new Flex text field reached no decision, as
-# the chip holder names once did (audit A18-15).
+# the chip holder names once did.
 FLEX_STRING_FIELDS = frozenset(
     {
         *(f"c{i}n" for i in range(10)),
@@ -128,7 +129,7 @@ REGISTER: dict[str, str] = {
     "ims": "readable (mDNS service type of the paired inverter)",
     "los": "readable (load balancing status word, no address in it)",
     "wsm": REPLACED,
-    # Was the one known gap (audit VA-07); replaced since e6aec24's follow-up.
+    # Was the one known gap; replaced since e6aec24's follow-up.
     "ts": REPLACED,
     # Wattpilot Flex only (FLEX_STRING_FIELDS).
     **{f"c{i}n": REPLACED for i in range(10)},  # ID chip holder names
@@ -170,7 +171,7 @@ REGISTER: dict[str, str] = {
 # `log` (load group id) and `wsm` (WiFi error text) are free text whose
 # contents nobody controls. Both are empty or absent on the reference device,
 # which proves nothing about the next one: unknown free text is replaced until
-# shown harmless, not the other way round (audit A17-02).
+# shown harmless, not the other way round.
 
 
 def _actual_fields() -> set[str]:

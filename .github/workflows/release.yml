@@ -10,13 +10,14 @@ permissions:
 
 jobs:
   # The tag alone would publish whatever check.sh --release passes; hassfest,
-  # HACS and the minimum-HA run only ever saw the branch (audit A13-02).
+  # HACS and the minimum-HA run only ever saw the branch.
   compatibility:
     uses: ./.github/workflows/ci.yml
 
   release:
     needs: compatibility
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     permissions:
       contents: write
     steps:
@@ -24,20 +25,24 @@ jobs:
         with:
           fetch-depth: 0  # the history main has, for the check below
       # Tags come from main only. One pushed from a branch before its merge
-      # published code main does not contain, to every HACS user (A18-31).
+      # published code main does not contain, to every HACS user.
       - name: Release only what main contains
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
-      - name: Install dependencies
-        run: pip install --group dev
-      - name: Full gates including mutation run
-        run: bash scripts/check.sh --release
+      # Before the long gate: a wrong tag or a missing changelog section
+      # fails in seconds instead of after the mutation run.
       - name: Verify tag matches manifest version
         run: |
           VERSION=$(python3 -c "import json;print(json.load(open('custom_components/wattpilot/manifest.json'))['version'])")
           [ "v$VERSION" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME != manifest v$VERSION"; exit 1; }
+      - name: Take the release notes from the changelog
+        run: python3 scripts/release_notes.py "${GITHUB_REF_NAME#v}" >release-notes.md
+      - name: Install dependencies
+        run: pip install --group dev
+      - name: Full gates including mutation run
+        run: bash scripts/check.sh --release
       - name: Say whether this tag is a pre-release
         id: kind
         # Anything that is not exactly vX.Y.Z is a candidate (v0.1.2b1), and
@@ -50,8 +55,6 @@ jobs:
             echo "prerelease=true" >>"$GITHUB_OUTPUT"
           fi
 
-      - name: Take the release notes from the changelog
-        run: python3 scripts/release_notes.py "${GITHUB_REF_NAME#v}" >release-notes.md
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         env:

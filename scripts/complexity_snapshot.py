@@ -13,7 +13,7 @@ THRESHOLD = 5
 def snapshot() -> dict[str, int]:
     """Every function over the threshold, keyed as the ratchet keys it."""
     # rglob, as the ratchet does: glob missed api/, and a table regenerated
-    # from it lost all of that package's entries (audit A19-12).
+    # from it lost all of that package's entries.
     return {
         f"{path.name}::{block.fullname}": block.complexity
         for path in sorted(PACKAGE.rglob("*.py"))

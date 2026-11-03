@@ -152,7 +152,7 @@ async def test_longest_suffix_wins_over_shorter_shadow(
 async def test_a_skipped_collision_raises_a_repair_issue(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
-    """Audit VA-06: skipping the legacy entity leaves exactly the one that
+    """Skipping the legacy entity leaves exactly the one that
     carries the history, entity id and customisations orphaned, while the
     integration binds the entity that was already there. Nothing destroys
     data here, and nothing should -- which of the two is worth keeping is
@@ -177,7 +177,7 @@ async def test_the_migration_log_names_no_entity_id(
     fake_charger: FakeWattpilot,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A legacy entity ID can carry the serial, as the new ones do (R1-02)."""
+    """A legacy entity ID can carry the serial, as the new ones do."""
     caplog.set_level(logging.INFO)
     entry = MockConfigEntry(domain=DOMAIN, data=V2_LOCAL_DATA, version=2)
     entry.add_to_hass(hass)
@@ -211,7 +211,7 @@ async def test_the_collision_notice_follows_the_entities_deleted_from_it(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """The notice says to delete the entities it lists. Doing so left it up,
-    naming them, until the next reload (reaudit R1-19)."""
+    naming them, until the next reload."""
     entry = MockConfigEntry(domain=DOMAIN, data=V2_LOCAL_DATA, version=2)
     entry.add_to_hass(hass)
     seed(hass, entry, "number", "123456-amp")
@@ -237,8 +237,7 @@ async def test_the_collision_notice_follows_a_renamed_entity(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """The notice watched entity IDs: renamed, a listed entity was still
-    named by its old ID, and deleting it then left the notice up (reaudit
-    RF-E-02)."""
+    named by its old ID, and deleting it then left the notice up."""
     entry = MockConfigEntry(domain=DOMAIN, data=V2_LOCAL_DATA, version=2)
     entry.add_to_hass(hass)
     seed(hass, entry, "number", "123456-amp")
@@ -279,7 +278,7 @@ async def test_the_collision_notice_goes_with_its_entry(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:
     """Deleting the entry to start over left the notice about its entities
-    standing until Home Assistant restarted (audit A18-23)."""
+    standing until Home Assistant restarted."""
     entry = MockConfigEntry(domain=DOMAIN, data=V2_LOCAL_DATA, version=2)
     entry.add_to_hass(hass)
     seed(hass, entry, "number", "123456-amp")

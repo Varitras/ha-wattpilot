@@ -48,13 +48,13 @@ rules:
     comment: |
       The options flow's one parameter (update interval) is documented in the
       README's Configuration section. It was exempt while there was no options
-      flow -- adding one made the exemption wrong (audit VA-09).
+      flow -- adding one made the exemption wrong.
   docs-installation-parameters: done
   docs-triggers:
     status: exempt
     comment: |
       The integration provides no triggers. The rule was missing from this
-      file while it claimed to list every rule (audit VA-09).
+      file while it claimed to list every rule.
   docs-conditions:
     status: exempt
     comment: The integration provides no conditions. Added with docs-triggers.

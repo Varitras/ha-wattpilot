@@ -81,7 +81,7 @@ async def test_set_goe_cloud_enable_logs_no_part_of_the_key(
     fake_charger: FakeWattpilot,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Audit VA-14: this used to log the key's first and last four characters
+    """This used to log the key's first and last four characters
     plus the vendor URL, which embeds the full serial -- and the old test
     pinned those eight characters as intended behaviour. Neither earns its
     place: "enabled" is what an operator needs, and the key and URL are

@@ -113,7 +113,7 @@ def test_the_next_release_notes_carry_no_quality_figures() -> None:
 def test_every_version_heading_has_its_comparison_link() -> None:
     """Keep a Changelog ends with one link per version, and "Unreleased" has
     to compare against the newest one. 0.1.2b1 got its section and no link,
-    and Unreleased still diffed against 0.1.1 (audit A13-03)."""
+    and Unreleased still diffed against 0.1.1."""
     changelog = CHANGELOG.read_text(encoding="utf-8")
     versions = re.findall(r"^## \[([^\]]+)\]", changelog, flags=re.MULTILINE)
     links = dict(re.findall(r"^\[([^\]]+)\]: (\S+)$", changelog, flags=re.MULTILINE))

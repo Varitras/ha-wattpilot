@@ -168,7 +168,7 @@ async def test_a_malformed_property_costs_neither_its_siblings_nor_the_status(
 ) -> None:
     """One value the client cannot read ended the whole frame: the keys after
     it were lost, and in the last chunk of the first full status the status
-    never completed, so connecting ran into its timeout (audit A18-16)."""
+    never completed, so connecting ran into its timeout."""
     await send(
         client,
         {
@@ -185,7 +185,7 @@ async def test_an_acceptance_with_a_null_status_answers_the_command(
     client: Wattpilot,
 ) -> None:
     """`status: null` raised before the waiting command was answered, so a
-    write the charger had accepted was reported as unanswered (A18-19)."""
+    write the charger had accepted was reported as unanswered."""
     waiter = asyncio.get_running_loop().create_future()
     client._pending_commands["7"] = waiter
     await send(
@@ -197,7 +197,7 @@ async def test_an_acceptance_with_a_null_status_answers_the_command(
 
 async def test_an_unknown_password_hash_is_a_named_refusal(client: Wattpilot) -> None:
     """An algorithm this client does not know made the frame unreadable: no
-    answer was sent and setup timed out without naming the cause (A18-18)."""
+    answer was sent and setup timed out without naming the cause."""
     await send(
         client, {"type": "authRequired", "token1": "a", "token2": "b", "hash": "argon2"}
     )
@@ -207,7 +207,7 @@ async def test_an_unknown_password_hash_is_a_named_refusal(client: Wattpilot) ->
 
 async def test_an_unknown_password_hash_drops_the_socket(client: Wattpilot) -> None:
     """Left open, the refused socket counted as connected until the readiness
-    guard gave up on it, as a wrong charger's does not (reaudit R1-13)."""
+    guard gave up on it, as a wrong charger's does not."""
 
     class Socket:
         closed = False
@@ -228,7 +228,7 @@ async def test_an_unreadable_full_status_does_not_complete_the_snapshot(
 ) -> None:
     """A last chunk whose status is no object completed the snapshot: setup
     then built its entities without the properties, and later deltas never
-    added them (branch audit 2026-10-11, finding 6; new in 44fa329)."""
+    added them."""
     await send(client, {"type": "fullStatus", "partial": True, "status": {"fwv": "1"}})
     with contextlib.suppress(TypeError):
         await send(client, {"type": "fullStatus", "partial": False, "status": status})

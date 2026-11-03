@@ -73,6 +73,9 @@
     "entry_unloaded": {
       "message": "The charger's entry was unloaded. Reload it to reconnect."
     },
+    "firmware_not_offered": {
+      "message": "The charger does not offer firmware {version}"
+    },
     "firmware_update_failed": {
       "message": "Firmware update failed: {error}"
     },

@@ -1,4 +1,4 @@
-"""Full-setup smoke test against the real-device fixture (slow).
+"""Full-setup smoke test against the real-device fixture.
 
 Every other test builds its entities by hand, so nothing else checks the
 inventory a real install actually ends up with. This one runs the whole
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
     from .conftest import FakeWattpilot
 
-pytestmark = [pytest.mark.e2e, pytest.mark.timeout(120)]
+pytestmark = pytest.mark.e2e
 
 SERIAL = "123456"
 
