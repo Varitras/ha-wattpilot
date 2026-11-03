@@ -23,13 +23,13 @@ dev = [
     "pytest-homeassistant-custom-component",
     # Exact as well: a new ruff brings new rules, and a floor let 0.17 fail
     # lint in a fresh environment with no change to the code.
-    "ruff==0.17.0",
+    "ruff==0.17.3",
     "mypy>=1.16.0",
     "radon>=6.0.0",
     # Exact, unlike the rest: a new mutmut makes new mutants, so a floor let
     # CI judge with 3.8.0 while the local gate ran 3.7.0, and a release run
     # failed on a mutant no local run had made. Dependabot proposes updates.
-    "mutmut==3.8.0",
+    "mutmut==3.8.1",
     # The shell scripts are checked like the Python: a malformed directive
     # once made shellcheck skip the rest of check.sh without a word.
     "shellcheck-py>=0.11.0",
