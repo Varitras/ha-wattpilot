@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import errno
 import logging
 from dataclasses import replace
@@ -867,6 +868,78 @@ async def test_a_firmware_change_reloads_the_entry(
         fake_charger.push("fwv", "43.1")
         await hass.async_block_till_done()
         assert reload.called, "a firmware jump must rebuild the entity set"
+
+
+async def _settle_firmware_wait(hass: HomeAssistant) -> None:
+    for _ in range(5):
+        await asyncio.sleep(0)
+    await hass.async_block_till_done()
+
+
+async def test_a_firmware_reload_waits_until_the_connection_has_settled(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """
+    The reload used to start inside the push that reported the new version.
+
+    That push is part of the replay after the reboot: the unload closed the
+    connection the firmware install was still waiting on, and the install
+    was reported as failed although it had worked.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        options={CONF_UPDATE_INTERVAL: 0},
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+
+    with (
+        patch("custom_components.wattpilot._SETTLED_POLL", 0),
+        patch.object(hass.config_entries, "async_schedule_reload") as reload,
+    ):
+        fake_charger.properties_initialized = False
+        fake_charger.installing_firmware = True
+        fake_charger.push("fwv", "43.1")
+        assert not reload.called, "not from inside the push"
+        await _settle_firmware_wait(hass)
+        assert not reload.called, "the replay has not finished"
+
+        fake_charger.properties_initialized = True
+        await _settle_firmware_wait(hass)
+        assert not reload.called, "the install is still waiting on this connection"
+
+        fake_charger.installing_firmware = False
+        await _settle_firmware_wait(hass)
+        assert reload.call_count == 1
+
+
+async def test_a_firmware_reload_does_not_report_the_charger_unavailable(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A reload from inside the push tore the hub down under the running
+    dispatch, which then found it gone and logged an outage nobody had."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        options={CONF_UPDATE_INTERVAL: 0},
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    with (
+        caplog.at_level(logging.INFO),
+        patch_charger(fake_charger),
+        patch("custom_components.wattpilot._SETTLED_POLL", 0),
+    ):
+        fake_charger.push("fwv", "43.1")
+        await _settle_firmware_wait(hass)
+        await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert "is unavailable" not in caplog.text
 
 
 @pytest.mark.parametrize(

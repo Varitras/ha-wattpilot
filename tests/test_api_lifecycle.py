@@ -1712,3 +1712,24 @@ async def test_the_backoff_starts_over_once_the_charger_was_back(
 
     assert grown, f"never got ready: {len(sockets)} attempt(s)"
     assert delay == 0.01, f"the grown delay outlived the recovery: {delay}"
+
+
+async def test_the_client_says_while_a_firmware_install_runs(
+    client: Wattpilot,
+) -> None:
+    """The entry holds its reload back on this, also when the install fails."""
+    client._all_props["onv"] = "43.0"
+    client._connection.socket = FakeSocket([])  # type: ignore[assignment]
+    seen: list[bool] = []
+
+    async def write(_name: str, _value: Any) -> None:
+        seen.append(client.installing_firmware)
+        msg = "refused"
+        raise PropertyError(msg)
+
+    client.set_property = write  # type: ignore[method-assign]
+    assert not client.installing_firmware
+    with pytest.raises(PropertyError):
+        await client.install_firmware_update(timeout=0.01)
+    assert seen == [True]
+    assert not client.installing_firmware

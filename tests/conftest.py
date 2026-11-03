@@ -182,6 +182,8 @@ class FakeWattpilot:
         self.connected = False
         # The real client's full-status flag; tests of a replay clear it.
         self.properties_initialized = True
+        # The real client's flag while an install waits for the reboot.
+        self.installing_firmware = False
         # Why the real client stopped reconnecting for good, if it did.
         self.refusal: Exception | None = None
         # The charger's own serial. `serial` is what the client knows of it:
