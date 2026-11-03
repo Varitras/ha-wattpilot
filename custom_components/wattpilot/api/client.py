@@ -229,7 +229,6 @@ class Wattpilot:
 
         # Callbacks
         self._property_callbacks: list[PropertyCallback] = []
-        self.installing_firmware = False  # read by the entry, not a callback
 
     # ---- Context manager ----
 
@@ -451,13 +450,6 @@ class Wattpilot:
                 raise PropertyError(msg)
             version = versions[0]
 
-        self.installing_firmware = True
-        try:
-            await self._install_and_reconnect(version, timeout)
-        finally:
-            self.installing_firmware = False
-
-    async def _install_and_reconnect(self, version: str, timeout: float) -> None:  # noqa: ASYNC109 -- the public method's budget
         # Counted from here: a close in the wait for the reboot ended that
         # wait as if the charger had gone, and the update reconnected.
         closes = self._connection.close_count

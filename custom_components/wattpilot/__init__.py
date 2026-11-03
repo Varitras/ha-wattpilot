@@ -179,18 +179,18 @@ def _reload_when_firmware_changes(
     supported entities missing and the device page showing the old version
     until someone reloads by hand. A reload redoes both.
 
-    Not from inside the push: that is part of the replay after the reboot,
-    and the unload would close the connection a firmware install is waiting
-    on, and tear the hub down under the running dispatch.
+    Not from inside the push, and not before the status is complete: that
+    push is part of the replay after the reboot, and the unload would close
+    the connection a firmware install is waiting on, and tear the hub down
+    under the running dispatch.
     """
     known = hub.firmware
     waiting = False
 
     async def _reload_once_settled() -> None:
         await asyncio.sleep(0)  # a task starts eagerly, inside the push
-        charger = hub.charger
-        # Polled: two conditions on the client, and a firmware change is rare.
-        while charger.installing_firmware or not charger.properties_initialized:  # noqa: ASYNC110
+        # Polled: a firmware change is rare, and the client has no such signal.
+        while not hub.charger.properties_initialized:  # noqa: ASYNC110
             await asyncio.sleep(_SETTLED_POLL)
         _LOGGER.info("Charger firmware changed to %s, reloading", known)
         hass.config_entries.async_schedule_reload(entry.entry_id)

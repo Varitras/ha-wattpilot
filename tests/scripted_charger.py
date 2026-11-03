@@ -90,6 +90,8 @@ class ScriptedCharger:
         self.sockets: list[ScriptedSocket] = []
         # The pause in the status stream after a reboot, between its chunks.
         self.status_pause = 0.0
+        # The version in the last chunk completes the status in the same frame.
+        self.firmware_in_last_chunk = False
         # The handshake of the next connections, one frame pair each.
         self.next_handshakes: list[tuple[dict[str, Any], dict[str, Any]]] = []
         self._tasks: list[asyncio.Task[None]] = []
@@ -124,10 +126,10 @@ class ScriptedCharger:
 
     async def _stream(self, socket: ScriptedSocket) -> None:
         status = {**PROPERTIES, "fwv": self.firmware}
-        keys = list(status)
+        keys = [key for key in status if key != "fwv"]
         first = {key: status[key] for key in keys[: len(keys) // 2]}
         rest = {key: status[key] for key in keys[len(keys) // 2 :]}
-        (first if "fwv" in first else rest)["fwv"] = self.firmware
+        (rest if self.firmware_in_last_chunk else first)["fwv"] = self.firmware
         socket.put({"type": "fullStatus", "partial": True, "status": first})
         await asyncio.sleep(self.status_pause)
         socket.put({"type": "fullStatus", "partial": False, "status": rest})

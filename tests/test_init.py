@@ -906,11 +906,6 @@ async def test_a_firmware_reload_waits_until_the_connection_has_settled(
         assert not reload.called, "the replay has not finished"
 
         fake_charger.properties_initialized = True
-        fake_charger.installing_firmware = True
-        await _settle_firmware_wait(hass)
-        assert not reload.called, "the install is still waiting on this connection"
-
-        fake_charger.installing_firmware = False
         await _settle_firmware_wait(hass)
         assert reload.call_count == 1
 
