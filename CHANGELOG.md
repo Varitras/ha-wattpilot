@@ -77,6 +77,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   with an error naming the field. It ran into a timeout without a cause.
   A command answer that does not say whether it succeeded counts as refused
   at once instead of after the timeout.
+- Text the charger sends with a refusal is shortened to one line and has
+  long numbers masked before it reaches the log or a repair notice.
 
 ## [0.3.0] - 2026-10-21
 

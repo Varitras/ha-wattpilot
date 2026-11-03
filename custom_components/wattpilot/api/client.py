@@ -26,6 +26,7 @@ from .exceptions import (
     PropertyError,
     WattpilotConnectionError,
     WattpilotError,
+    device_text,
 )
 from .models import AuthHashType, CloudInfo, DeviceInfo, missing_field
 
@@ -496,8 +497,7 @@ class Wattpilot:
                 break
             await asyncio.sleep(min(_REBOOT_RETRY_PAUSE, remaining))
 
-        # Giving up without a reader left the updated charger unreached;
-        # a failed attempt may have stopped the one there was.
+        # A failed attempt may have stopped the reader that would reconnect.
         self._connection.resume_reconnecting()
         msg = "Timeout reconnecting after firmware update"
         raise WattpilotConnectionError(msg)
@@ -657,7 +657,7 @@ class Wattpilot:
         if hasattr(msg, "hash"):
             if msg.hash not in AuthHashType:
                 # Unanswered, this was a timeout with no cause.
-                msg_text = f"Unsupported password hash: {msg.hash}"
+                msg_text = f"Unsupported password hash: {device_text(msg.hash)}"
                 await self._connection.reject(WattpilotConnectionError(msg_text))
                 return
             self._auth_hash_type = AuthHashType(msg.hash)
@@ -678,7 +678,7 @@ class Wattpilot:
         _LOGGER.debug("Authentication successful")
 
     async def _on_auth_error(self, msg: SimpleNamespace) -> None:
-        error_msg = getattr(msg, "message", "Unknown auth error")
+        error_msg = device_text(getattr(msg, "message", "Unknown auth error"))
         _LOGGER.debug("Authentication failed: %s", error_msg)
         # Rejected, not failed: after authSuccess the socket stayed open.
         await self._connection.reject(AuthenticationError(error_msg))
@@ -720,7 +720,7 @@ class Wattpilot:
             if future is not None and not future.done():
                 future.set_result(None)
             return
-        reason = getattr(msg, "message", "unknown")
+        reason = device_text(getattr(msg, "message", "unknown"))
         if future is not None and not future.done():
             future.set_exception(
                 CommandError(f"Charger rejected command {request_id}: {reason}")
