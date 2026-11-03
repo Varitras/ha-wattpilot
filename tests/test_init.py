@@ -1701,3 +1701,22 @@ async def test_the_fake_client_refuses_another_charger_every_time(
             await charger.connect()
         assert raised.value.found == "999999"
         assert charger.serial == "123456"
+
+
+async def test_the_fake_client_learns_the_serial_at_hello(
+    device_properties: dict[str, Any],
+) -> None:
+    """Built without a serial, the client knows none until hello, and takes
+    the first one it hears as the charger's from then on. A fake that knew
+    it from the start let code pass that reads the serial too early."""
+    charger = FakeWattpilot(device_properties)
+    charger.built_with(serial=None)
+    assert charger.serial == ""
+    await charger.connect()
+    assert charger.serial == "123456"
+
+    charger.device_serial = "999999"
+    with pytest.raises(DeviceIdentityError):
+        await charger.connect()
+    assert charger.serial == "123456"
+    assert isinstance(charger.refusal, DeviceIdentityError)

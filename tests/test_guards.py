@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import re
 import subprocess
 import sys
@@ -798,6 +799,14 @@ def _repository_texts(root: Path) -> list[tuple[Path, str]]:
     return texts
 
 
+COMMIT_IDENTITY = {
+    "GIT_AUTHOR_NAME": "test",
+    "GIT_AUTHOR_EMAIL": "test@example.invalid",
+    "GIT_COMMITTER_NAME": "test",
+    "GIT_COMMITTER_EMAIL": "test@example.invalid",
+}
+
+
 def _internal_references(line: str) -> list[str]:
     return [
         match[0]
@@ -808,18 +817,26 @@ def _internal_references(line: str) -> list[str]:
 
 def test_no_internal_review_reference_in_the_repository() -> None:
     root = PACKAGE.parent.parent
+    texts = _repository_texts(root)
+    # An empty listing would pass the check below without reading a line.
+    assert {
+        "README.md",
+        "CHANGELOG.md",
+        "custom_components/wattpilot/manifest.json",
+        "tests/test_guards.py",
+    } <= {path.relative_to(root).as_posix() for path, _text in texts}
     found = [
         f"{path.relative_to(root)}:{number}: {reference}"
-        for path, text in _repository_texts(root)
+        for path, text in texts
         for number, line in enumerate(text.splitlines(), start=1)
         for reference in _internal_references(line)
     ]
     assert found == [], found
 
 
-# Each sample is joined from parts, so this file does not trip the guard.
-# The first group are the samples of the guard this one replaced: a rebuilt
-# guard that drops one has lost what it used to catch.
+# Each sample is joined from parts, so this file does not trip the guard. A
+# rebuilt guard keeps the samples of the one it replaces: one it drops is
+# something it no longer catches.
 @pytest.mark.parametrize(
     "line",
     [
@@ -829,7 +846,21 @@ def test_no_internal_review_reference_in_the_repository() -> None:
         "A11" + "-03 said so",
         "PC4" + "-02",
         "R1" + "-14",
-        "F12" + "-3",
+        "F31" + "-05",
+        "L" + "-040",
+        "R" + "-01",
+        "H" + "-2",
+        "RF-L" + "-03",
+        "PC5-R" + "-03",
+        "RECON" + "-01",
+        "VA" + "-11-Fehler",
+        "A18" + "-31-fallback",
+        "LED" + "GER",
+        "led" + "gers",
+        "EROSIONS" + "SCHUTZ",
+        "Finding" + " 6",
+        "Bef" + "und",
+        "run" + "books",
         "FC" + "-01",
         "an old led" + "ger entry",
         "erosions" + "schutz",
@@ -854,6 +885,8 @@ def test_the_review_reference_guard_knows_each_shape(line: str) -> None:
     [
         "mac fa-16-3e-12-34-56",
         "MAC FA-16-3E-12-34-56",
+        "MAC FA-B1-3E-12-34-56",
+        "MAC AA-BB-CC-DD-EE-F1",
         "aa:bb:cc:dd:ee:ff",
         "phase L1",
         "phases L1-3",
@@ -867,6 +900,14 @@ def test_the_review_reference_guard_knows_each_shape(line: str) -> None:
         "HTTP-2",
         "TLS-1",
         "IP-65",
+        "CRC-32",
+        "WPA-2",
+        "UTC-5",
+        "OCPP-1.6",
+        "PEP-8",
+        "TYPE-2",
+        "phases L1-2",
+        "AC-L1",
     ],
 )
 def test_the_review_reference_guard_lets_addresses_and_names_pass(line: str) -> None:
@@ -886,6 +927,40 @@ def test_the_review_reference_guard_skips_what_git_ignores(tmp_path: Path) -> No
     (tmp_path / "kept.py").write_text("x = 1\n", encoding="utf-8")
     names = {path.name for path, _text in _repository_texts(tmp_path)}
     assert names == {".gitignore", "kept.py"}
+
+
+def test_the_review_reference_guard_reads_past_what_is_no_file(tmp_path: Path) -> None:
+    """git lists an embedded repository as a directory, and a file name need
+    not be UTF-8; either one ended the listing instead of being passed by."""
+    subprocess.run(  # noqa: S603 -- git from PATH, fixed arguments
+        ["git", "init", "-q", str(tmp_path)],  # noqa: S607
+        check=True,
+    )
+    embedded = tmp_path / "embedded"
+    embedded.mkdir()
+    subprocess.run(  # noqa: S603 -- git from PATH, fixed arguments
+        ["git", "init", "-q", str(embedded)],  # noqa: S607
+        check=True,
+    )
+    (embedded / "inner.py").write_text("x = 1\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "commit", "-q", "--allow-empty", "-m", "x"],  # noqa: S607
+        cwd=embedded,
+        check=True,
+        env={**os.environ, **COMMIT_IDENTITY},
+    )
+    (tmp_path / os.fsdecode(b"caf\xe9.txt")).write_text("x\n", encoding="utf-8")
+    (tmp_path / "kept.py").write_text("x = 1\n", encoding="utf-8")
+    names = {path.name for path, _text in _repository_texts(tmp_path)}
+    assert "kept.py" in names
+    assert "embedded" not in names
+
+
+def test_the_review_reference_guard_says_it_needs_a_checkout(tmp_path: Path) -> None:
+    """Outside a checkout it has to fail, not pass unread; an exit status
+    alone left the reader guessing what was wrong with the code."""
+    with pytest.raises(pytest.fail.Exception, match="needs a git checkout"):
+        _repository_texts(tmp_path)
 
 
 def test_no_deprecated_home_assistant_call() -> None:
@@ -1389,12 +1464,20 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
         "test_no_internal_review_reference_in_the_repository": (
             "no review finding IDs or private note names in public files"
         ),
-        "test_the_review_reference_guard_knows_each_shape": "it sees every shape",
+        "test_the_review_reference_guard_knows_each_shape": (
+            "it sees the shapes used so far"
+        ),
         "test_the_review_reference_guard_lets_addresses_and_names_pass": (
             "counter-check: MAC octets, phases, standard names"
         ),
         "test_the_review_reference_guard_skips_what_git_ignores": (
             "a local ignored copy does not fail the suite"
+        ),
+        "test_the_review_reference_guard_reads_past_what_is_no_file": (
+            "directories and odd file names do not end the listing"
+        ),
+        "test_the_review_reference_guard_says_it_needs_a_checkout": (
+            "outside a checkout it fails and says why"
         ),
         "test_every_user_facing_error_is_translated": (
             "every error a user reads is translated, with matching placeholders"
