@@ -14,6 +14,7 @@ import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.helpers import issue_registry as ir
 
+from custom_components.wattpilot.api.exceptions import WattpilotConnectionError
 from custom_components.wattpilot.const import DOMAIN
 
 from .scripted_charger import (
@@ -33,6 +34,9 @@ UNUSABLE_HANDSHAKES = {
     "hello with an empty serial": ({**HELLO, "serial": ""}, AUTH_REQUIRED),
     "auth request with an empty token": (HELLO, {**AUTH_REQUIRED, "token1": ""}),
 }
+# Who takes the connection after a reboot: as shipped the install's own
+# attempt, with a backoff below the pause the reader.
+TIMINGS = {"install connects": {}, "reader connects": {"backoff": 0.01, "pause": 0.3}}
 
 
 @pytest.mark.parametrize("case", list(UNUSABLE_HANDSHAKES))
@@ -57,12 +61,52 @@ async def test_one_unusable_handshake_does_not_end_the_reconnecting(
         assert not [issue for issue in ir.async_get(hass).issues if issue[0] == DOMAIN]
 
 
-async def test_an_unusable_handshake_during_an_install_does_not_fail_it(
+async def test_a_frame_behind_an_unusable_handshake_is_not_answered(
     hass: HomeAssistant,
+) -> None:
+    """The connection is over: an answer would go out on a dead attempt."""
+    charger = ScriptedCharger()
+    async with ScriptedEntry(hass, charger):
+        charger.next_handshakes.append(UNUSABLE_HANDSHAKES["hello without a serial"])
+        connections = len(charger.sockets)
+        charger.sockets[-1].end()
+        assert await until(lambda: len(charger.sockets) >= connections + 2)
+        assert charger.sockets[connections].sent == []
+
+
+async def test_a_setup_against_an_unusable_handshake_is_retried_and_named(
+    hass: HomeAssistant,
+) -> None:
+    """Loaded without data, nobody would ever learn what the charger sent."""
+    charger = ScriptedCharger()
+    charger.next_handshakes.extend([UNUSABLE_HANDSHAKES["hello without a serial"]] * 5)
+    async with ScriptedEntry(hass, charger) as scripted:
+        assert scripted.entry.state is ConfigEntryState.SETUP_RETRY
+        assert "hello without a usable serial" in scripted.entry.reason
+
+
+async def test_a_failed_install_leaves_the_reconnecting_running(
+    hass: HomeAssistant,
+) -> None:
+    """Nothing else would bring the connection back to a charger that recovers."""
+    charger = ScriptedCharger()
+    async with ScriptedEntry(hass, charger) as scripted:
+        charger.next_handshakes.extend(
+            [UNUSABLE_HANDSHAKES["hello without a serial"]] * 500
+        )
+        with pytest.raises(WattpilotConnectionError, match="Timeout reconnecting"):
+            await scripted.hub.charger.install_firmware_update("43.9", timeout=0.4)
+        charger.next_handshakes.clear()
+        assert await until(lambda: scripted.hub and scripted.hub.charger.connected)
+
+
+@pytest.mark.parametrize("timing", TIMINGS.values(), ids=TIMINGS)
+async def test_an_unusable_handshake_during_an_install_does_not_fail_it(
+    hass: HomeAssistant, timing: dict[str, float]
 ) -> None:
     """The firmware is on the charger by then: only the connection hiccuped."""
     charger = ScriptedCharger()
-    async with ScriptedEntry(hass, charger) as scripted:
+    async with ScriptedEntry(hass, charger, **timing) as scripted:
         hub = scripted.hub
         charger.next_handshakes.append(UNUSABLE_HANDSHAKES["hello without a serial"])
         await hub.async_install_firmware("43.9")
@@ -74,12 +118,14 @@ async def test_an_unusable_handshake_during_an_install_does_not_fail_it(
 @pytest.mark.parametrize("interval", [0, 5])
 @pytest.mark.parametrize("pause", [0.0, 0.2])
 @pytest.mark.parametrize("last_chunk", [False, True], ids=["first", "last"])
-async def test_a_firmware_install_reloads_once_it_has_reconnected(
+@pytest.mark.parametrize("timing", TIMINGS.values(), ids=TIMINGS)
+async def test_a_firmware_install_reloads_once_it_has_reconnected(  # noqa: PLR0913
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
     interval: int,
     pause: float,
     last_chunk: bool,  # noqa: FBT001 -- a parameter of the case
+    timing: dict[str, float],
 ) -> None:
     """
     The new version arrives in the replay after the reboot, with a pause.
@@ -91,7 +137,7 @@ async def test_a_firmware_install_reloads_once_it_has_reconnected(
     charger = ScriptedCharger()
     charger.status_pause = pause
     charger.firmware_in_last_chunk = last_chunk
-    async with ScriptedEntry(hass, charger, interval) as scripted:
+    async with ScriptedEntry(hass, charger, interval, **timing) as scripted:
         hub = scripted.hub
         await hub.async_install_firmware("43.9")
         if interval:

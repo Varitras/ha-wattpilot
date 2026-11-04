@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import inspect
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
@@ -19,7 +20,7 @@ import websockets
 from homeassistant.config_entries import ConfigEntryState
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.wattpilot.api.client import Wattpilot
+from custom_components.wattpilot.api.client import _REBOOT_RETRY_PAUSE, Wattpilot
 from custom_components.wattpilot.const import (
     CONF_CONNECTION_TYPE,
     CONF_UPDATE_INTERVAL,
@@ -38,6 +39,11 @@ PROPERTIES = json.loads(
     (Path(__file__).parent / "fixtures" / "device_properties.json").read_text("utf-8")
 )
 SERIAL = "123456"
+# The shipped timings, all shortened by one factor: who takes the connection
+# after a reboot depends on their ratio, which a test setting them by hand
+# cannot see.
+SPEEDUP = 100
+SHIPPED_DELAYS = inspect.signature(Wattpilot).parameters
 HELLO = {"type": "hello", "serial": SERIAL, "hostname": "Wattpilot", "secured": True}
 AUTH_REQUIRED = {
     "type": "authRequired",
@@ -47,12 +53,17 @@ AUTH_REQUIRED = {
 }
 
 
+def _shipped(delay: str) -> float:
+    return SHIPPED_DELAYS[delay].default / SPEEDUP
+
+
 class ScriptedSocket:
     """The client's end of one connection."""
 
     def __init__(self, charger: ScriptedCharger) -> None:
         self.charger = charger
         self.closed = False
+        self.sent: list[dict[str, Any]] = []
         self._frames: asyncio.Queue[str | None] = asyncio.Queue()
 
     def put(self, frame: dict[str, Any]) -> None:
@@ -63,6 +74,7 @@ class ScriptedSocket:
         self._frames.put_nowait(None)
 
     async def send(self, raw: str) -> None:
+        self.sent.append(json.loads(raw))
         if self.closed:
             raise websockets.exceptions.ConnectionClosedOK(None, None)
         self.charger.answer(self, json.loads(raw))
@@ -151,7 +163,12 @@ class ScriptedEntry:
     """A loaded config entry whose real client talks to the scripted charger."""
 
     def __init__(
-        self, hass: HomeAssistant, charger: ScriptedCharger, interval: int = 0
+        self,
+        hass: HomeAssistant,
+        charger: ScriptedCharger,
+        interval: int = 0,
+        backoff: float | None = None,
+        pause: float = _REBOOT_RETRY_PAUSE / SPEEDUP,
     ) -> None:
         self.hass = hass
         self.charger = charger
@@ -168,15 +185,17 @@ class ScriptedEntry:
         )
         fast_client = functools.partial(
             Wattpilot,
-            reconnect_delay_min=0.02,
-            reconnect_delay_max=0.05,
+            reconnect_delay_min=backoff or _shipped("reconnect_delay_min"),
+            reconnect_delay_max=_shipped("reconnect_delay_max"),
             connect_timeout=1.0,
             init_timeout=1.0,
         )
         self._patches = [
             patch("websockets.asyncio.client.connect", new=charger.connect),
             patch("custom_components.wattpilot.hub.Wattpilot", new=fast_client),
-            patch("custom_components.wattpilot.api.client._REBOOT_RETRY_PAUSE", 0.02),
+            patch(
+                "custom_components.wattpilot.api.client._REBOOT_RETRY_PAUSE", pause
+            ),
             patch("custom_components.wattpilot._SETTLED_POLL", 0.01),
         ]
 
@@ -195,7 +214,7 @@ class ScriptedEntry:
 
     async def __aexit__(self, *_exception: object) -> None:
         await self.hass.async_block_till_done()
-        if self.entry.state is ConfigEntryState.LOADED:
+        if self.entry.state in (ConfigEntryState.LOADED, ConfigEntryState.SETUP_RETRY):
             await self.hass.config_entries.async_unload(self.entry.entry_id)
             await self.hass.async_block_till_done()
         self.charger.stop()
