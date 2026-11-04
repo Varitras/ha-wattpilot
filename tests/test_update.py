@@ -169,7 +169,6 @@ async def test_an_odd_available_version_falls_back_to_the_installed_one(
 async def test_an_odd_installed_version_is_unknown(
     hass: HomeAssistant, fake_charger: FakeWattpilot, kind: str
 ) -> None:
-    fake_charger.firmware = None
     fake_charger._properties["fwv"] = ODD_VERSIONS[kind]
     fake_charger._properties["onv"] = "43.0"
     entity = await make_update(hass, fake_charger)

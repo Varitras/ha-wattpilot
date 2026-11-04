@@ -192,7 +192,7 @@ class FakeWattpilot:
         self._learned_serial = ""
         self.name = "Wattpilot"
         self.manufacturer = "fronius"
-        self._firmware: str | None = "42.5"
+        self._firmware: str | None = None
         self.model = "Wattpilot Home 11 J 2.0"
         # Deliberately an int: the real device reports "var" as a number.
         self.variant = 11
@@ -292,10 +292,6 @@ class FakeWattpilot:
         if is_text(reported):
             self._firmware = reported
         return self._firmware
-
-    @firmware.setter
-    def firmware(self, value: str | None) -> None:
-        self._firmware = value
 
     def push(self, key: str, value: Any) -> None:
         """Test helper: simulate a device push."""
