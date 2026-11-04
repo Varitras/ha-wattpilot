@@ -301,4 +301,9 @@ async def test_an_unusable_version_on_a_running_connection_changes_nothing(
         assert scripted.hub.firmware == charger.firmware
         update = hass.states.get("update.wattpilot_firmware")
         assert update.attributes["installed_version"] == charger.firmware
+
+        charger.sockets[-1].put({"type": "deltaStatus", "status": {"onv": "43.9"}})
+        await asyncio.sleep(0.05)
+        update = hass.states.get("update.wattpilot_firmware")
+        assert update.attributes["installed_version"] == charger.firmware
     assert not [message for message in caplog.messages if "reloading" in message]
