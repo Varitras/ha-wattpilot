@@ -143,6 +143,7 @@ async def test_an_unusable_handshake_during_an_install_does_not_fail_it(
         hub = scripted.hub
         charger.next_handshakes.append(UNUSABLE_HANDSHAKES["hello without a serial"])
         await hub.async_install_firmware("43.9")
+        assert charger.opened_by[1] == opener, "the first after the reboot"
         assert await until(lambda: scripted.hub not in (None, hub))
         await hass.async_block_till_done()
         assert scripted.entry.state is ConfigEntryState.LOADED
@@ -174,7 +175,7 @@ async def test_a_firmware_install_reloads_once_it_has_reconnected(  # noqa: PLR0
         hub = scripted.hub
         await hub.async_install_firmware("43.9")
         assert hub.charger.connected, "closed before the install had ended"
-        assert charger.opened_by[-1] == opener
+        assert charger.opened_by[1] == opener, "the first after the reboot"
         if interval:
             hub._flush_pending()  # the timer this test does not wait for
         assert await until(lambda: scripted.hub not in (None, hub))
@@ -281,4 +282,6 @@ async def test_an_unusable_version_on_a_running_connection_changes_nothing(
         await asyncio.sleep(0.05)
         await hass.async_block_till_done()
         assert scripted.hub.firmware == charger.firmware
+        update = hass.states.get("update.wattpilot_firmware")
+        assert update.attributes["installed_version"] == charger.firmware
     assert not [message for message in caplog.messages if "reloading" in message]
