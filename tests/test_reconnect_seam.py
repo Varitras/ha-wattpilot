@@ -35,13 +35,14 @@ UNUSABLE_HANDSHAKES = {
     "hello with an empty serial": ({**HELLO, "serial": ""}, AUTH_REQUIRED),
     "auth request with an empty token": (HELLO, {**AUTH_REQUIRED, "token1": ""}),
     "auth request with a null hash": (HELLO, {**AUTH_REQUIRED, "hash": None}),
+    "auth request with a blank hash": (HELLO, {**AUTH_REQUIRED, "hash": " "}),
     "auth request with an empty hash": (HELLO, {**AUTH_REQUIRED, "hash": ""}),
     "auth request with a number as hash": (HELLO, {**AUTH_REQUIRED, "hash": 5}),
     "auth request with a list as hash": (HELLO, {**AUTH_REQUIRED, "hash": []}),
 }
 # Who takes the connection after a reboot: as shipped the install's own
 # attempt, with a backoff below the pause the reader.
-TIMINGS = {"install connects": {}, "reader connects": {"backoff": 0.01, "pause": 0.3}}
+TIMINGS = {"install": {}, "reader": {"backoff": 0.01, "pause": 0.3}}
 
 
 @pytest.mark.parametrize("case", list(UNUSABLE_HANDSHAKES))
@@ -132,13 +133,13 @@ async def test_a_failed_install_leaves_the_reconnecting_running(
         assert await until(lambda: scripted.hub and scripted.hub.charger.connected)
 
 
-@pytest.mark.parametrize("timing", TIMINGS.values(), ids=TIMINGS)
+@pytest.mark.parametrize("opener", TIMINGS)
 async def test_an_unusable_handshake_during_an_install_does_not_fail_it(
-    hass: HomeAssistant, timing: dict[str, float]
+    hass: HomeAssistant, opener: str
 ) -> None:
     """The firmware is on the charger by then: only the connection hiccuped."""
     charger = ScriptedCharger()
-    async with ScriptedEntry(hass, charger, **timing) as scripted:
+    async with ScriptedEntry(hass, charger, **TIMINGS[opener]) as scripted:
         hub = scripted.hub
         charger.next_handshakes.append(UNUSABLE_HANDSHAKES["hello without a serial"])
         await hub.async_install_firmware("43.9")
@@ -150,14 +151,14 @@ async def test_an_unusable_handshake_during_an_install_does_not_fail_it(
 @pytest.mark.parametrize("interval", [0, 5])
 @pytest.mark.parametrize("pause", [0.0, 0.2])
 @pytest.mark.parametrize("last_chunk", [False, True], ids=["first", "last"])
-@pytest.mark.parametrize("timing", TIMINGS.values(), ids=TIMINGS)
+@pytest.mark.parametrize("opener", TIMINGS)
 async def test_a_firmware_install_reloads_once_it_has_reconnected(  # noqa: PLR0913, PLR0917
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
     interval: int,
     pause: float,
     last_chunk: bool,  # noqa: FBT001 -- a parameter of the case
-    timing: dict[str, float],
+    opener: str,
 ) -> None:
     """
     The new version arrives in the replay after the reboot, with a pause.
@@ -169,10 +170,11 @@ async def test_a_firmware_install_reloads_once_it_has_reconnected(  # noqa: PLR0
     charger = ScriptedCharger()
     charger.status_pause = pause
     charger.firmware_in_last_chunk = last_chunk
-    async with ScriptedEntry(hass, charger, interval, **timing) as scripted:
+    async with ScriptedEntry(hass, charger, interval, **TIMINGS[opener]) as scripted:
         hub = scripted.hub
         await hub.async_install_firmware("43.9")
         assert hub.charger.connected, "closed before the install had ended"
+        assert charger.opened_by[-1] == opener
         if interval:
             hub._flush_pending()  # the timer this test does not wait for
         assert await until(lambda: scripted.hub not in (None, hub))
@@ -225,4 +227,58 @@ async def test_a_status_ended_early_by_a_delta_does_not_reload_in_a_loop(
         )
         await asyncio.sleep(0.05)
         await hass.async_block_till_done()
+    assert not [message for message in caplog.messages if "reloading" in message]
+
+
+async def test_a_new_version_just_before_an_outage_reloads_after_it(
+    hass: HomeAssistant,
+) -> None:
+    """Reloading into the outage would swap the reconnect for a failing setup."""
+    charger = ScriptedCharger()
+    async with ScriptedEntry(hass, charger) as scripted:
+        hub = scripted.hub
+        charger.offline = True
+        charger.firmware = "43.9"
+        charger.sockets[-1].put({"type": "deltaStatus", "status": {"fwv": "43.9"}})
+        charger.sockets[-1].end()
+        await asyncio.sleep(0.1)
+        assert scripted.hub is hub, "the charger is away"
+
+        charger.offline = False
+        assert await until(lambda: scripted.hub not in (None, hub))
+        await hass.async_block_till_done()
+        assert scripted.entry.state is ConfigEntryState.LOADED
+        assert scripted.hub.firmware == "43.9"
+
+
+@pytest.mark.parametrize("unusable", ["", " ", 43, None])
+async def test_a_version_that_is_no_text_is_no_version(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture, unusable: object
+) -> None:
+    """Taken for one, each connection compared it with the real one and reloaded."""
+    caplog.set_level(logging.INFO)
+    charger = ScriptedCharger()
+    version = charger.firmware
+    charger.firmware = unusable
+    async with ScriptedEntry(hass, charger) as scripted:
+        assert scripted.hub.firmware is None
+        charger.sockets[-1].put({"type": "deltaStatus", "status": {"fwv": version}})
+        assert await until(lambda: scripted.hub.firmware == version)
+        await asyncio.sleep(0.05)
+        await hass.async_block_till_done()
+    assert not [message for message in caplog.messages if "reloading" in message]
+
+
+@pytest.mark.parametrize("unusable", ["", " ", 43])
+async def test_an_unusable_version_on_a_running_connection_changes_nothing(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture, unusable: object
+) -> None:
+    """The log said "changed to , reloading" and took every entity away for it."""
+    caplog.set_level(logging.INFO)
+    charger = ScriptedCharger()
+    async with ScriptedEntry(hass, charger) as scripted:
+        charger.sockets[-1].put({"type": "deltaStatus", "status": {"fwv": unusable}})
+        await asyncio.sleep(0.05)
+        await hass.async_block_till_done()
+        assert scripted.hub.firmware == charger.firmware
     assert not [message for message in caplog.messages if "reloading" in message]

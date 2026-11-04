@@ -990,6 +990,51 @@ async def test_a_firmware_reload_waits_for_a_lost_connection_to_return(
         assert reload.call_count == 1
 
 
+async def test_two_firmware_installs_run_one_after_the_other(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """
+    The hub's flag is one bool, and only this order keeps it true.
+
+    Side by side, the first install's end cleared it under the second one,
+    and the reload closed the connection that one was waiting on.
+    """
+    fake_charger._properties["fwv"] = "42.5"
+    fake_charger._properties["onv"] = "43.0"
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        options={CONF_UPDATE_INTERVAL: 0},
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    running: list[str | None] = []
+    overlaps = []
+
+    async def _install(version: str | None) -> None:
+        overlaps.append(bool(running))
+        running.append(version)
+        await asyncio.sleep(0.01)
+        running.pop()
+
+    install = hass.services.async_call(
+        "update",
+        "install",
+        {"entity_id": "update.wattpilot_firmware"},
+        blocking=True,
+    )
+    again = hass.services.async_call(
+        "update",
+        "install",
+        {"entity_id": "update.wattpilot_firmware"},
+        blocking=True,
+    )
+    with patch.object(fake_charger, "install_firmware_update", _install):
+        await asyncio.gather(install, again)
+    assert overlaps == [False, False]
+
+
 async def test_an_unload_ends_the_wait_for_a_firmware_reload(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:

@@ -39,9 +39,9 @@ PROPERTIES = json.loads(
     (Path(__file__).parent / "fixtures" / "device_properties.json").read_text("utf-8")
 )
 SERIAL = "123456"
-# The shipped timings, all shortened by one factor: who takes the connection
-# after a reboot depends on their ratio, which a test setting them by hand
-# cannot see.
+# Backoff and reboot pause as shipped, shortened by one factor: who takes the
+# connection after a reboot depends on their ratio, which a test setting them
+# by hand cannot see.
 SPEEDUP = 100
 SHIPPED_DELAYS = inspect.signature(Wattpilot).parameters
 HELLO = {"type": "hello", "serial": SERIAL, "hostname": "Wattpilot", "secured": True}
@@ -51,6 +51,12 @@ AUTH_REQUIRED = {
     "token2": "b" * 32,
     "hash": "pbkdf2",
 }
+
+
+def _opener() -> str:
+    task = asyncio.current_task()
+    is_reader = task and "_message_loop" in task.get_coro().__qualname__
+    return "reader" if is_reader else "install"
 
 
 def _shipped(delay: str) -> float:
@@ -87,6 +93,8 @@ class ScriptedSocket:
         return self
 
     async def __anext__(self) -> str:
+        if self.closed and self._frames.empty():
+            raise StopAsyncIteration
         frame = await self._frames.get()
         if frame is None:
             raise StopAsyncIteration
@@ -100,6 +108,7 @@ class ScriptedCharger:
         self.firmware = PROPERTIES["fwv"]
         self.offline = False
         self.sockets: list[ScriptedSocket] = []
+        self.opened_by: list[str] = []
         # The pause in the status stream after a reboot, between its chunks.
         self.status_pause = 0.0
         # The version in the last chunk completes the status in the same frame.
@@ -117,6 +126,7 @@ class ScriptedCharger:
             raise OSError(113, "No route to host")
         socket = ScriptedSocket(self)
         self.sockets.append(socket)
+        self.opened_by.append(_opener())
         planned = self.next_handshakes.pop(0) if self.next_handshakes else None
         hello, auth_required = planned or (HELLO, AUTH_REQUIRED)
         socket.put(hello)
