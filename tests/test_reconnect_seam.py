@@ -7,6 +7,7 @@ Each case disturbs one stage, and the charger is healthy afterwards.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
@@ -33,6 +34,10 @@ UNUSABLE_HANDSHAKES = {
     "hello without a serial": (NO_SERIAL, AUTH_REQUIRED),
     "hello with an empty serial": ({**HELLO, "serial": ""}, AUTH_REQUIRED),
     "auth request with an empty token": (HELLO, {**AUTH_REQUIRED, "token1": ""}),
+    "auth request with a null hash": (HELLO, {**AUTH_REQUIRED, "hash": None}),
+    "auth request with an empty hash": (HELLO, {**AUTH_REQUIRED, "hash": ""}),
+    "auth request with a number as hash": (HELLO, {**AUTH_REQUIRED, "hash": 5}),
+    "auth request with a list as hash": (HELLO, {**AUTH_REQUIRED, "hash": []}),
 }
 # Who takes the connection after a reboot: as shipped the install's own
 # attempt, with a backoff below the pause the reader.
@@ -59,6 +64,33 @@ async def test_one_unusable_handshake_does_not_end_the_reconnecting(
         assert await until(lambda: scripted.hub.charger.properties_initialized)
         assert scripted.hub.charger.refusal is None
         assert not [issue for issue in ir.async_get(hass).issues if issue[0] == DOMAIN]
+
+
+async def test_an_unknown_sign_in_scheme_stays_a_refusal(hass: HomeAssistant) -> None:
+    """A name is a statement of the charger: retrying would only repeat it."""
+    charger = ScriptedCharger()
+    async with ScriptedEntry(hass, charger) as scripted:
+        client = scripted.hub.charger
+        charger.next_handshakes.append((HELLO, {**AUTH_REQUIRED, "hash": "scrypt"}))
+        charger.sockets[-1].end()
+        assert await until(lambda: client.refusal is not None)
+        assert "scrypt" in str(client.refusal)
+
+
+async def test_a_lasting_unusable_handshake_says_why_in_the_log(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """No notice and no refusal: the log is the only place left to find it."""
+    caplog.set_level(logging.DEBUG)
+    charger = ScriptedCharger()
+    async with ScriptedEntry(hass, charger):
+        charger.next_handshakes.extend(
+            [UNUSABLE_HANDSHAKES["hello without a serial"]] * 2
+        )
+        connections = len(charger.sockets)
+        charger.sockets[-1].end()
+        assert await until(lambda: len(charger.sockets) >= connections + 3)
+    assert "Charger sent hello without a usable serial" in caplog.text
 
 
 async def test_a_frame_behind_an_unusable_handshake_is_not_answered(
@@ -172,3 +204,25 @@ async def test_a_version_reported_before_the_reboot_does_not_fail_the_install(
         assert await until(lambda: scripted.hub not in (None, hub))
         await hass.async_block_till_done()
         assert scripted.entry.state is ConfigEntryState.LOADED
+
+
+async def test_a_status_ended_early_by_a_delta_does_not_reload_in_a_loop(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """
+    A setup that found no version has none to compare the first report with.
+
+    Taken for a change, it reloaded into the same early end, again and again.
+    """
+    caplog.set_level(logging.INFO)
+    charger = ScriptedCharger()
+    charger.leading_delta = True
+    charger.firmware_in_last_chunk = True
+    charger.status_pause = 0.05
+    async with ScriptedEntry(hass, charger) as scripted:
+        assert await until(
+            lambda: scripted.hub and scripted.hub.firmware == charger.firmware
+        )
+        await asyncio.sleep(0.05)
+        await hass.async_block_till_done()
+    assert not [message for message in caplog.messages if "reloading" in message]

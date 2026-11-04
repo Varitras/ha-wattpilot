@@ -104,6 +104,8 @@ class ScriptedCharger:
         self.status_pause = 0.0
         # The version in the last chunk completes the status in the same frame.
         self.firmware_in_last_chunk = False
+        # A delta ahead of the first chunk, on every connection.
+        self.leading_delta = False
         # The new version reported on the old connection, before it ends.
         self.firmware_before_reboot = False
         # The handshake of the next connections, one frame pair each.
@@ -144,6 +146,8 @@ class ScriptedCharger:
         first = {key: status[key] for key in keys[: len(keys) // 2]}
         rest = {key: status[key] for key in keys[len(keys) // 2 :]}
         (rest if self.firmware_in_last_chunk else first)["fwv"] = self.firmware
+        if self.leading_delta:
+            socket.put({"type": "deltaStatus", "status": {"amp": status["amp"]}})
         socket.put({"type": "fullStatus", "partial": True, "status": first})
         await asyncio.sleep(self.status_pause)
         socket.put({"type": "fullStatus", "partial": False, "status": rest})
