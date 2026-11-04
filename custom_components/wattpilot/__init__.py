@@ -205,8 +205,11 @@ def _reload_when_firmware_changes(
         nonlocal known, waiting
         if not isinstance(value, str) or value == known:
             return
+        # No version to compare with: a delta ended the status early, and a
+        # reload would end the same way, again and again.
+        rebuild = known is not None and not waiting
         known = value
-        if not waiting:
+        if rebuild:
             waiting = True
             entry.async_create_background_task(
                 hass, _reload_once_settled(), f"{DOMAIN} firmware reload"
