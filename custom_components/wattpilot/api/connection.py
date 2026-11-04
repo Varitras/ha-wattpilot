@@ -423,7 +423,7 @@ class Connection:
                     break
 
                 delay = self._reconnect_delay
-                _LOGGER.debug("Reconnecting in %.0fs (%s)", delay, self.fatal_error)
+                _LOGGER.debug("Reconnecting in %.0fs...", delay)
                 await asyncio.sleep(delay)
                 self._reconnect_delay = min(delay * 2, self._reconnect_delay_max)
                 try:

@@ -612,6 +612,7 @@ class Wattpilot:
         field = missing_field(msg_type, vars(ns), self._device.serial)
         if field is not None:
             text = f"Charger sent {msg_type} without a usable {field}"
+            _LOGGER.debug(text)
             await self._connection.reject(HandshakeError(text))
         elif msg_type == "hello":
             await self._on_hello(ns)
