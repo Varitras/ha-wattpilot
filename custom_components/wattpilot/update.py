@@ -69,11 +69,11 @@ def _newest_version(raw_versions: list[str]) -> str | None:
     return raw_versions[0] if raw_versions else None
 
 
-def _version(value: Any) -> str | None:  # noqa: ANN401 -- charger payload
-    """Return a version string, or None for anything else."""
+def _is_version(value: Any) -> bool:  # noqa: ANN401 -- charger payload
+    """Return whether a value can be offered: it would go back to the charger."""
     # Home Assistant compares versions through a cache, and anything
     # unhashable raised there.
-    return value if isinstance(value, str) and value else None
+    return isinstance(value, str) and bool(value.strip())
 
 
 class WattpilotUpdate(WattpilotEntity, UpdateEntity):
@@ -112,7 +112,7 @@ class WattpilotUpdate(WattpilotEntity, UpdateEntity):
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
         self._attr_installed_version = self._hub.firmware
         entries = value if isinstance(value, list) else [value]
-        raw_versions = [entry for entry in entries if _version(entry)]
+        raw_versions = [entry for entry in entries if _is_version(entry)]
         self._offered = tuple(raw_versions)
         self._attr_latest_version = (
             _newest_version(raw_versions) or self._attr_installed_version

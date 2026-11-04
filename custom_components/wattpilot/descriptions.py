@@ -1482,7 +1482,7 @@ TIME_DESCRIPTIONS: tuple[WattpilotTimeEntityDescription, ...] = (
 class WattpilotUpdateEntityDescription(
     WattpilotDescriptionMixin, UpdateEntityDescription
 ):
-    """Update description; installed version comes from installed_key."""
+    """Update description; installed_key is the push that moves the version."""
 
     installed_key: str = "fwv"
 
