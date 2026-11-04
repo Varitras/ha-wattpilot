@@ -36,14 +36,17 @@ class CloudInfo:
 
 # What a handshake cannot go on without, per message type.
 _REQUIRED_TEXT = {"hello": ("serial",), "authRequired": ("token1", "token2")}
+# Absent it means the default; sent, it has to be a name.
+_OPTIONAL_TEXT = {"authRequired": ("hash",)}
 
 
 def missing_field(msg_type: str, message: dict[str, Any], serial: str) -> str | None:
     """Name the field a handshake message lacks, given the serial known so far."""
     if msg_type == "authRequired" and not serial:
         return "serial"  # the secret is derived from it, and hello brings it
-    required = _REQUIRED_TEXT.get(msg_type, ())
-    unusable = (name for name in required if not _is_text(message.get(name)))
+    sent = (name for name in _OPTIONAL_TEXT.get(msg_type, ()) if name in message)
+    fields = (*_REQUIRED_TEXT.get(msg_type, ()), *sent)
+    unusable = (name for name in fields if not _is_text(message.get(name)))
     return next(unusable, None)
 
 

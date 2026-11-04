@@ -72,10 +72,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A firmware update installed through Home Assistant could be reported as
   failed although it worked, as the reload for the new firmware started
   while the update was still reconnecting. The reload now waits for the
-  connection, and no longer logs the charger as unavailable.
+  update to end and for the connection, and no longer logs the charger as
+  unavailable.
 - A handshake that lacks a field the integration needs ends the attempt at
-  once, and the integration tries again; setup names the field. It ran into
-  a timeout without a cause, or answered with an empty secret. A command
+  once, and the integration tries again; setup names the field, and the
+  debug log does when it lasts. It ran into a timeout without a cause, or
+  answered with an empty secret. A command
   answer that does not say whether it succeeded counts as refused at once
   instead of after the timeout.
 - Text the charger sends with a refusal is shortened to one line and has
