@@ -207,7 +207,7 @@ class WattpilotHub:
             self._cancel_flush()
             self._cancel_flush = None
         # Drop whatever was buffered: flushing stale values on the way out
-        # would only contradict the unavailable state the next line sets.
+        # would only contradict the unavailable state set below.
         self._pending.clear()
         try:
             await self.charger.disconnect()
@@ -259,11 +259,10 @@ class WattpilotHub:
     @property
     def available(self) -> bool:
         """Return whether the charger is currently reachable."""
-        # Not the client's flag alone: a close that raised leaves `connected`
-        # True with the loop behind it gone, and once this hub has torn itself
-        # down no update reaches an entity again. Nor before the full status
-        # -- unless no outage was seen: a reconnect between two checks replays
-        # it into entities still shown, and they flapped.
+        # Not the client's flag alone: once this hub has torn itself down no
+        # update reaches an entity again. Nor before the full status -- unless
+        # no outage was seen: a reconnect between two checks replays it into
+        # entities still shown, and they flapped.
         return (
             not self._torn_down
             and bool(self.charger.connected)
