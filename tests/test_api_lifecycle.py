@@ -1712,3 +1712,11 @@ async def test_the_backoff_starts_over_once_the_charger_was_back(
 
     assert grown, f"never got ready: {len(sockets)} attempt(s)"
     assert delay == 0.01, f"the grown delay outlived the recovery: {delay}"
+
+
+async def test_an_unusable_handshake_closes_the_socket(client: Wattpilot) -> None:
+    """The connection cannot go on, and the reader only retries once it ends."""
+    socket = FakeSocket([])
+    client._connection.socket = socket  # type: ignore[assignment]
+    await client._handle_message(json.dumps({"type": "hello"}))
+    assert socket.closed

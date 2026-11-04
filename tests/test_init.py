@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import errno
 import logging
 from dataclasses import replace
@@ -867,6 +868,251 @@ async def test_a_firmware_change_reloads_the_entry(
         fake_charger.push("fwv", "43.1")
         await hass.async_block_till_done()
         assert reload.called, "a firmware jump must rebuild the entity set"
+
+
+async def _settle_firmware_wait(hass: HomeAssistant) -> None:
+    for _ in range(5):
+        await asyncio.sleep(0)
+    await hass.async_block_till_done()
+
+
+async def test_a_firmware_reload_waits_until_the_connection_has_settled(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """
+    The reload used to start inside the push that reported the new version.
+
+    That push is part of the replay after the reboot: the unload closed the
+    connection the firmware install was still waiting on, and the install
+    was reported as failed although it had worked.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        options={CONF_UPDATE_INTERVAL: 0},
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+
+    with (
+        patch("custom_components.wattpilot._SETTLED_POLL", 0),
+        patch.object(hass.config_entries, "async_schedule_reload") as reload,
+    ):
+        fake_charger.properties_initialized = False
+        fake_charger.push("fwv", "43.1")
+        assert not reload.called, "not from inside the push"
+        await _settle_firmware_wait(hass)
+        assert not reload.called, "the replay has not finished"
+
+        fake_charger.properties_initialized = True
+        await _settle_firmware_wait(hass)
+        assert reload.call_count == 1
+
+
+@pytest.mark.parametrize("error", [None, WattpilotConnectionError("Timeout")])
+async def test_a_firmware_reload_waits_for_the_install_to_end(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, error: Exception | None
+) -> None:
+    """
+    The new version can arrive with the status complete and the install waiting.
+
+    Its end is another event than the status: the reload closed the connection
+    the install still needed, and a working update was reported as failed. A
+    failed install ends the wait as well, or the reload would never come.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        options={CONF_UPDATE_INTERVAL: 0},
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    hub = entry.runtime_data
+    assert hub.installing_firmware is False
+    release = asyncio.Event()
+
+    async def _install(_version: str | None) -> None:
+        await release.wait()
+        if error is not None:
+            raise error
+
+    with (
+        patch("custom_components.wattpilot._SETTLED_POLL", 0),
+        patch.object(hass.config_entries, "async_schedule_reload") as reload,
+        patch.object(fake_charger, "install_firmware_update", _install),
+    ):
+        install = asyncio.create_task(hub.async_install_firmware("43.1"))
+        await asyncio.sleep(0)
+        fake_charger.push("fwv", "43.1")
+        await _settle_firmware_wait(hass)
+        assert hub.installing_firmware is True
+        assert not reload.called, "the install is still waiting on this connection"
+
+        release.set()
+        await asyncio.wait([install])
+        await _settle_firmware_wait(hass)
+        assert hub.installing_firmware is False
+        assert reload.call_count == 1
+    assert (install.exception() is None) == (error is None)
+
+
+async def test_a_firmware_reload_waits_for_a_lost_connection_to_return(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """
+    A complete status outlives its connection until the next attempt begins.
+
+    Reloading into the outage swapped a reconnect that was going to work for
+    a setup that had to fail first.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        options={CONF_UPDATE_INTERVAL: 0},
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+
+    with (
+        patch("custom_components.wattpilot._SETTLED_POLL", 0),
+        patch.object(hass.config_entries, "async_schedule_reload") as reload,
+    ):
+        fake_charger.connected = False
+        fake_charger.push("fwv", "43.1")
+        await _settle_firmware_wait(hass)
+        assert not reload.called, "the charger is away"
+
+        fake_charger.connected = True
+        await _settle_firmware_wait(hass)
+        assert reload.call_count == 1
+
+
+async def test_two_firmware_installs_run_one_after_the_other(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """
+    The hub's flag is one bool, and only this order keeps it true.
+
+    Side by side, the first install's end cleared it under the second one,
+    and the reload closed the connection that one was waiting on.
+    """
+    fake_charger._properties["fwv"] = "42.5"
+    fake_charger._properties["onv"] = "43.0"
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        options={CONF_UPDATE_INTERVAL: 0},
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    running: list[str | None] = []
+    overlaps = []
+
+    async def _install(version: str | None) -> None:
+        overlaps.append(bool(running))
+        running.append(version)
+        await asyncio.sleep(0.01)
+        running.pop()
+
+    install = hass.services.async_call(
+        "update",
+        "install",
+        {"entity_id": "update.wattpilot_firmware"},
+        blocking=True,
+    )
+    again = hass.services.async_call(
+        "update",
+        "install",
+        {"entity_id": "update.wattpilot_firmware"},
+        blocking=True,
+    )
+    with patch.object(fake_charger, "install_firmware_update", _install):
+        await asyncio.gather(install, again)
+    assert overlaps == [False, False]
+
+
+async def test_an_unload_ends_the_wait_for_a_firmware_reload(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """Left running, the wait outlived the entry and reloaded it afterwards."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        options={CONF_UPDATE_INTERVAL: 0},
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    with (
+        patch("custom_components.wattpilot._SETTLED_POLL", 0),
+        patch.object(hass.config_entries, "async_schedule_reload") as reload,
+    ):
+        fake_charger.properties_initialized = False
+        fake_charger.push("fwv", "43.1")
+        await _settle_firmware_wait(hass)
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        fake_charger.properties_initialized = True
+        await _settle_firmware_wait(hass)
+    assert not reload.called
+
+
+async def test_two_firmware_pushes_reload_once_and_name_the_last(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A reload already waiting covers a newer version as well."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        options={CONF_UPDATE_INTERVAL: 0},
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    with (
+        caplog.at_level(logging.INFO),
+        patch("custom_components.wattpilot._SETTLED_POLL", 0),
+        patch.object(hass.config_entries, "async_schedule_reload") as reload,
+    ):
+        fake_charger.properties_initialized = False
+        fake_charger.push("fwv", "43.1")
+        fake_charger.push("fwv", "43.2")
+        fake_charger.properties_initialized = True
+        await _settle_firmware_wait(hass)
+    assert reload.call_count == 1
+    assert "Charger firmware changed to 43.2, reloading" in caplog.messages
+
+
+async def test_a_firmware_reload_does_not_report_the_charger_unavailable(
+    hass: HomeAssistant,
+    fake_charger: FakeWattpilot,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A reload from inside the push tore the hub down under the running
+    dispatch, which then found it gone and logged an outage nobody had."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        options={CONF_UPDATE_INTERVAL: 0},
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    with (
+        caplog.at_level(logging.INFO),
+        patch_charger(fake_charger),
+        patch("custom_components.wattpilot._SETTLED_POLL", 0),
+    ):
+        fake_charger.push("fwv", "43.1")
+        await _settle_firmware_wait(hass)
+        await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert "is unavailable" not in caplog.text
 
 
 @pytest.mark.parametrize(

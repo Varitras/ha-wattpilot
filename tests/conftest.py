@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -14,6 +15,7 @@ import pytest
 
 from custom_components.wattpilot import _SerialMask
 from custom_components.wattpilot.api import DeviceIdentityError
+from custom_components.wattpilot.api.models import is_text
 
 from .deprecations import REPORTS, assert_listening, import_every_module
 
@@ -190,7 +192,7 @@ class FakeWattpilot:
         self._learned_serial = ""
         self.name = "Wattpilot"
         self.manufacturer = "fronius"
-        self.firmware = "42.5"
+        self._firmware: str | None = None
         self.model = "Wattpilot Home 11 J 2.0"
         # Deliberately an int: the real device reports "var" as a number.
         self.variant = 11
@@ -266,6 +268,8 @@ class FakeWattpilot:
                 callback(key, value)
 
     async def disconnect(self) -> None:
+        # A real close suspends, and whatever called it runs on meanwhile.
+        await asyncio.sleep(0)
         self.disconnect_attempts += 1
         if self.disconnect_error is not None:
             raise self.disconnect_error
@@ -280,6 +284,14 @@ class FakeWattpilot:
     ) -> Callable[[], None]:
         self._callbacks.append(callback)
         return lambda: self._callbacks.remove(callback)
+
+    @property
+    def firmware(self) -> str | None:
+        """The last usable fwv, as the real client keeps it."""
+        reported = self._properties.get("fwv")
+        if is_text(reported):
+            self._firmware = reported
+        return self._firmware
 
     def push(self, key: str, value: Any) -> None:
         """Test helper: simulate a device push."""

@@ -1,0 +1,249 @@
+"""
+A scripted charger on the far end of the real client.
+
+FakeWattpilot stands in for the client, so it cannot show what the client
+does across a reconnect, a reboot or a pause in the status stream. This
+replaces only the socket: client, hub and config entry are the real ones.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import functools
+import inspect
+import json
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Self
+from unittest.mock import patch
+
+import websockets
+from homeassistant.config_entries import ConfigEntryState
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.wattpilot.api.client import _REBOOT_RETRY_PAUSE, Wattpilot
+from custom_components.wattpilot.const import (
+    CONF_CONNECTION_TYPE,
+    CONF_UPDATE_INTERVAL,
+    CONNECTION_LOCAL,
+    DOMAIN,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from homeassistant.core import HomeAssistant
+
+    from custom_components.wattpilot.hub import WattpilotHub
+
+PROPERTIES = json.loads(
+    (Path(__file__).parent / "fixtures" / "device_properties.json").read_text("utf-8")
+)
+SERIAL = "123456"
+# Backoff and reboot pause as shipped, shortened by one factor: who takes the
+# connection after a reboot depends on their ratio, which a test setting them
+# by hand cannot see.
+SPEEDUP = 100
+SHIPPED_DELAYS = inspect.signature(Wattpilot).parameters
+HELLO = {"type": "hello", "serial": SERIAL, "hostname": "Wattpilot", "secured": True}
+AUTH_REQUIRED = {
+    "type": "authRequired",
+    "token1": "a" * 32,
+    "token2": "b" * 32,
+    "hash": "pbkdf2",
+}
+
+
+def _opener() -> str:
+    task = asyncio.current_task()
+    is_reader = task and "_message_loop" in task.get_coro().__qualname__
+    return "reader" if is_reader else "install"
+
+
+def _shipped(delay: str) -> float:
+    return SHIPPED_DELAYS[delay].default / SPEEDUP
+
+
+class ScriptedSocket:
+    """The client's end of one connection."""
+
+    def __init__(self, charger: ScriptedCharger) -> None:
+        self.charger = charger
+        self.closed = False
+        self.sent: list[dict[str, Any]] = []
+        self._frames: asyncio.Queue[str | None] = asyncio.Queue()
+
+    def put(self, frame: dict[str, Any]) -> None:
+        self._frames.put_nowait(json.dumps(frame))
+
+    def end(self) -> None:
+        self.closed = True
+        self._frames.put_nowait(None)
+
+    async def send(self, raw: str) -> None:
+        self.sent.append(json.loads(raw))
+        if self.closed:
+            raise websockets.exceptions.ConnectionClosedOK(None, None)
+        self.charger.answer(self, json.loads(raw))
+
+    async def close(self) -> None:
+        await asyncio.sleep(0)
+        self.end()
+
+    def __aiter__(self) -> Self:
+        return self
+
+    async def __anext__(self) -> str:
+        if self.closed and self._frames.empty():
+            raise StopAsyncIteration
+        frame = await self._frames.get()
+        if frame is None:
+            raise StopAsyncIteration
+        return frame
+
+
+class ScriptedCharger:
+    """Answers the handshake, streams its status, reboots on a firmware write."""
+
+    def __init__(self) -> None:
+        self.firmware = PROPERTIES["fwv"]
+        self.offline = False
+        self.sockets: list[ScriptedSocket] = []
+        self.opened_by: list[str] = []
+        # The pause in the status stream after a reboot, between its chunks.
+        self.status_pause = 0.0
+        # The version in the last chunk completes the status in the same frame.
+        self.firmware_in_last_chunk = False
+        # A delta ahead of the first chunk, on every connection.
+        self.leading_delta = False
+        # The new version reported on the old connection, before it ends.
+        self.firmware_before_reboot = False
+        # The handshake of the next connections, one frame pair each.
+        self.next_handshakes: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        self._tasks: list[asyncio.Task[None]] = []
+
+    async def connect(self, _url: str, **_options: Any) -> ScriptedSocket:
+        if self.offline:
+            raise OSError(113, "No route to host")
+        socket = ScriptedSocket(self)
+        self.sockets.append(socket)
+        self.opened_by.append(_opener())
+        planned = self.next_handshakes.pop(0) if self.next_handshakes else None
+        hello, auth_required = planned or (HELLO, AUTH_REQUIRED)
+        socket.put(hello)
+        socket.put(auth_required)
+        return socket
+
+    def answer(self, socket: ScriptedSocket, message: dict[str, Any]) -> None:
+        if message["type"] == "auth":
+            socket.put({"type": "authSuccess", "token3": "", "hash": ""})
+            self._tasks.append(asyncio.create_task(self._stream(socket)))
+            return
+        data = json.loads(message["data"]) if "data" in message else message
+        socket.put(
+            {
+                "type": "response",
+                "requestId": data["requestId"],
+                "success": True,
+                "status": {data["key"]: data["value"]},
+            }
+        )
+        if data["key"] == "oct":
+            self._tasks.append(asyncio.create_task(self._reboot(socket, data["value"])))
+
+    async def _stream(self, socket: ScriptedSocket) -> None:
+        status = {**PROPERTIES, "fwv": self.firmware}
+        keys = [key for key in status if key != "fwv"]
+        first = {key: status[key] for key in keys[: len(keys) // 2]}
+        rest = {key: status[key] for key in keys[len(keys) // 2 :]}
+        (rest if self.firmware_in_last_chunk else first)["fwv"] = self.firmware
+        if self.leading_delta:
+            socket.put({"type": "deltaStatus", "status": {"amp": status["amp"]}})
+        socket.put({"type": "fullStatus", "partial": True, "status": first})
+        await asyncio.sleep(self.status_pause)
+        socket.put({"type": "fullStatus", "partial": False, "status": rest})
+
+    async def _reboot(self, socket: ScriptedSocket, firmware: str) -> None:
+        if self.firmware_before_reboot:
+            socket.put({"type": "deltaStatus", "status": {"fwv": firmware}})
+        await asyncio.sleep(0.02)
+        socket.end()
+        self.offline = True
+        await asyncio.sleep(0.1)
+        self.firmware = firmware
+        self.offline = False
+
+    def stop(self) -> None:
+        for task in self._tasks:
+            task.cancel()
+
+
+class ScriptedEntry:
+    """A loaded config entry whose real client talks to the scripted charger."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        charger: ScriptedCharger,
+        interval: int = 0,
+        backoff: float | None = None,
+        pause: float = _REBOOT_RETRY_PAUSE / SPEEDUP,
+    ) -> None:
+        self.hass = hass
+        self.charger = charger
+        self.entry = MockConfigEntry(
+            domain=DOMAIN,
+            data={
+                CONF_CONNECTION_TYPE: CONNECTION_LOCAL,
+                "host": "192.168.1.50",
+                "password": "secret",
+            },
+            version=2,
+            unique_id=SERIAL,
+            options={CONF_UPDATE_INTERVAL: interval},
+        )
+        fast_client = functools.partial(
+            Wattpilot,
+            reconnect_delay_min=backoff or _shipped("reconnect_delay_min"),
+            reconnect_delay_max=_shipped("reconnect_delay_max"),
+            connect_timeout=1.0,
+            init_timeout=1.0,
+        )
+        self._patches = [
+            patch("websockets.asyncio.client.connect", new=charger.connect),
+            patch("custom_components.wattpilot.hub.Wattpilot", new=fast_client),
+            patch("custom_components.wattpilot.api.client._REBOOT_RETRY_PAUSE", pause),
+            patch("custom_components.wattpilot._SETTLED_POLL", 0.01),
+        ]
+
+    @property
+    def hub(self) -> WattpilotHub | None:
+        """Return the entry's hub; a reload has none for a moment."""
+        return getattr(self.entry, "runtime_data", None)
+
+    async def __aenter__(self) -> Self:
+        for active in self._patches:
+            active.start()
+        self.entry.add_to_hass(self.hass)
+        await self.hass.config_entries.async_setup(self.entry.entry_id)
+        await self.hass.async_block_till_done()
+        return self
+
+    async def __aexit__(self, *_exception: object) -> None:
+        await self.hass.async_block_till_done()
+        if self.entry.state in (ConfigEntryState.LOADED, ConfigEntryState.SETUP_RETRY):
+            await self.hass.config_entries.async_unload(self.entry.entry_id)
+            await self.hass.async_block_till_done()
+        self.charger.stop()
+        for active in self._patches:
+            active.stop()
+
+
+async def until(condition: Callable[[], bool], seconds: float = 5.0) -> bool:
+    """Wait for something a real connection takes real time to reach."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + seconds
+    while loop.time() < deadline:
+        if condition():
+            return True
+        await asyncio.sleep(0.005)
+    return False

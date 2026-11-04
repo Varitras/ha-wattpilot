@@ -19,8 +19,13 @@ import pytest
 from custom_components.wattpilot.api.client import Wattpilot
 from custom_components.wattpilot.api.exceptions import (
     AuthenticationError,
+    CommandError,
     DeviceIdentityError,
+    HandshakeError,
 )
+
+HELLO = {"type": "hello", "serial": "123456"}
+AUTH_REQUIRED = {"type": "authRequired", "token1": "a" * 32, "token2": "b" * 32}
 
 
 @pytest.fixture
@@ -198,9 +203,8 @@ async def test_an_acceptance_with_a_null_status_answers_the_command(
 async def test_an_unknown_password_hash_is_a_named_refusal(client: Wattpilot) -> None:
     """An algorithm this client does not know made the frame unreadable: no
     answer was sent and setup timed out without naming the cause."""
-    await send(
-        client, {"type": "authRequired", "token1": "a", "token2": "b", "hash": "argon2"}
-    )
+    await send(client, HELLO)
+    await send(client, {**AUTH_REQUIRED, "hash": "argon2"})
     assert client._connection.fatal_error is not None
     assert "argon2" in str(client._connection.fatal_error)
 
@@ -216,9 +220,8 @@ async def test_an_unknown_password_hash_drops_the_socket(client: Wattpilot) -> N
             self.closed = True
 
     socket = client._connection.socket = Socket()  # type: ignore[assignment]
-    await send(
-        client, {"type": "authRequired", "token1": "a", "token2": "b", "hash": "argon2"}
-    )
+    await send(client, HELLO)
+    await send(client, {**AUTH_REQUIRED, "hash": "argon2"})
     assert socket.closed
 
 
@@ -259,3 +262,114 @@ def test_a_value_nested_too_deep_costs_only_itself() -> None:
     client._apply_status(SimpleNamespace(amp=nested, lmo=3))
 
     assert client.all_properties.get("lmo") == 3
+
+
+@pytest.mark.parametrize("unusable", [None, "", 123, ["x"]], ids=repr)
+@pytest.mark.parametrize(
+    ("frame", "field"),
+    [(HELLO, "serial"), (AUTH_REQUIRED, "token1"), (AUTH_REQUIRED, "token2")],
+)
+async def test_a_handshake_without_a_usable_field_is_refused_by_name(
+    client: Wattpilot,
+    monkeypatch: pytest.MonkeyPatch,
+    frame: dict[str, Any],
+    field: str,
+    unusable: object,
+) -> None:
+    """A field another firmware leaves out or types differently ended in a
+    timeout with no cause, or in an answer built from an empty secret."""
+    sent: list[Any] = []
+
+    async def record(message: Any) -> None:
+        sent.append(message)
+
+    monkeypatch.setattr(client, "_send", record)
+    if frame is AUTH_REQUIRED:
+        await send(client, HELLO)
+    await send(client, {**frame, field: unusable})
+    assert isinstance(client._connection.fatal_error, HandshakeError)
+    assert field in str(client._connection.fatal_error)
+    assert client.refusal is None, "not final: the next frame may be fine"
+    assert sent == [], "nothing may be answered"
+
+
+@pytest.mark.parametrize("field", ["serial", "token1"])
+async def test_a_missing_handshake_field_is_refused_by_name(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    monkeypatch.setattr(client, "_send", None)
+    frame = HELLO if field == "serial" else AUTH_REQUIRED
+    if frame is AUTH_REQUIRED:
+        await send(client, HELLO)
+    await send(client, {key: value for key, value in frame.items() if key != field})
+    assert field in str(client._connection.fatal_error)
+
+
+async def test_an_auth_request_before_hello_is_refused(
+    client: Wattpilot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without a serial there is nothing to derive the secret from, and the
+    answer went out built from an empty one."""
+    monkeypatch.setattr(client, "_send", None)
+    await send(client, AUTH_REQUIRED)
+    assert isinstance(client._connection.fatal_error, HandshakeError)
+
+
+async def test_a_response_without_success_fails_its_command_at_once(
+    client: Wattpilot,
+) -> None:
+    """It waited for the command timeout instead, as the frame was dropped."""
+    future = asyncio.get_running_loop().create_future()
+    client._pending_commands["7"] = future
+    await send(client, {"type": "response", "requestId": 7})
+    assert isinstance(future.exception(), CommandError)
+
+
+UNSAFE_TEXTS = {
+    "a serial": "refused for charger 91234567",
+    "a line break": "line one\nERROR faked line two",
+    "no end": "x" * 5000,
+    "no text": {"code": 91234567},
+}
+
+
+def _assert_fit_for_a_public_log(text: str) -> None:
+    assert "91234567" not in text
+    assert "\n" not in text
+    assert len(text) < 200
+
+
+@pytest.mark.parametrize("unsafe", list(UNSAFE_TEXTS))
+async def test_the_chargers_auth_error_text_is_made_fit_for_a_log(
+    client: Wattpilot, caplog: pytest.LogCaptureFixture, unsafe: str
+) -> None:
+    """Text from the charger is the one thing in an error this integration
+    did not write, and logs and repair notices end up in public issues."""
+    caplog.set_level(logging.DEBUG)
+    await send(client, {"type": "authError", "message": UNSAFE_TEXTS[unsafe]})
+    _assert_fit_for_a_public_log(str(client.refusal))
+    _assert_fit_for_a_public_log(
+        "".join(r.getMessage() for r in caplog.records if "Authentication" in r.msg)
+    )
+
+
+@pytest.mark.parametrize("unsafe", list(UNSAFE_TEXTS))
+async def test_the_chargers_hash_name_is_made_fit_for_a_log(
+    client: Wattpilot, unsafe: str
+) -> None:
+    await send(client, HELLO)
+    await send(client, {**AUTH_REQUIRED, "hash": str(UNSAFE_TEXTS[unsafe])})
+    _assert_fit_for_a_public_log(str(client.refusal))
+
+
+@pytest.mark.parametrize("unsafe", list(UNSAFE_TEXTS))
+async def test_the_chargers_refusal_of_a_command_is_made_fit_for_a_log(
+    client: Wattpilot, caplog: pytest.LogCaptureFixture, unsafe: str
+) -> None:
+    future = asyncio.get_running_loop().create_future()
+    client._pending_commands["7"] = future
+    frame = {"type": "response", "requestId": 7, "success": False}
+    await send(client, {**frame, "message": UNSAFE_TEXTS[unsafe]})
+    _assert_fit_for_a_public_log(str(future.exception()))
+    await send(client, {**frame, "requestId": 8, "message": UNSAFE_TEXTS[unsafe]})
+    _assert_fit_for_a_public_log(caplog.records[-1].getMessage())

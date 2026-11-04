@@ -63,9 +63,8 @@ class Connection:
         self.socket: websockets.asyncio.client.ClientConnection | None = None
         self.message_loop_task: asyncio.Task[None] | None = None
         self._readiness_guard: asyncio.Task[None] | None = None
-        # One field for every reason this connection cannot be
-        # used -- rejected credentials or the wrong charger answering. A
-        # second flag beside it would be a second place to forget.
+        # One field for every reason this connection cannot be used, final
+        # or not. A second flag beside it would be a second place to forget.
         self.fatal_error: WattpilotError | None = None
 
         self._authenticated = False
@@ -222,7 +221,8 @@ class Connection:
     def resume_reconnecting(self) -> None:
         """Restart the reconnect loop after a failed attempt -- not after a refusal."""
         # Nor after a close: an unload in a firmware wait was overridden.
-        if self._stopped or self.fatal_error is not None or self._reader_owned():
+        final = getattr(self.fatal_error, "final", False)
+        if self._stopped or final or self._reader_owned():
             return
         if self._auto_reconnect:
             self.message_loop_task = asyncio.create_task(self._message_loop())
@@ -417,9 +417,8 @@ class Connection:
                 if not self._auto_reconnect:
                     break
 
-                # Retrying cannot help against rejected credentials or a
-                # charger that is not ours; both would loop forever.
-                if self.fatal_error is not None:
+                # Retrying a final refusal would loop forever.
+                if getattr(self.fatal_error, "final", False):
                     _LOGGER.debug("Not reconnecting: %s", self.fatal_error)
                     break
 

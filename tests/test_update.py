@@ -142,7 +142,13 @@ async def test_installed_version_reacts_to_its_own_push(
 # What a charger could send instead of a version string. Home Assistant
 # compares versions through a cache, and an unhashable one raised there, so
 # the entity was never added.
-ODD_VERSIONS = {"object": {"v": "43.0"}, "list_of_lists": [["43.0"]], "number": 43}
+ODD_VERSIONS = {
+    "object": {"v": "43.0"},
+    "list_of_lists": [["43.0"]],
+    "number": 43,
+    "blank": " ",
+    "blank_in_a_list": ["  "],
+}
 
 
 @pytest.mark.parametrize("kind", ODD_VERSIONS)
@@ -154,6 +160,9 @@ async def test_an_odd_available_version_falls_back_to_the_installed_one(
     entity = await make_update(hass, fake_charger)
     assert entity.latest_version == "42.5"
     assert entity.state is not None
+    with pytest.raises(ServiceValidationError):
+        await entity.async_install(version=None, backup=False)
+    assert fake_charger.install_calls == [], "it would have been written to the charger"
 
 
 @pytest.mark.parametrize("kind", ODD_VERSIONS)
