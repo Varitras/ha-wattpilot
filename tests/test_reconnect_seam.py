@@ -40,8 +40,9 @@ UNUSABLE_HANDSHAKES = {
     "auth request with a number as hash": (HELLO, {**AUTH_REQUIRED, "hash": 5}),
     "auth request with a list as hash": (HELLO, {**AUTH_REQUIRED, "hash": []}),
 }
-# Who takes the connection after a reboot: as shipped the install's own
-# attempt, with a backoff below the pause the reader.
+# Who mostly takes the connection after a reboot: as shipped the install's own
+# attempt, with a backoff below the pause the reader. Both race, so a single
+# install proves nothing about the path it took.
 TIMINGS = {"install": {}, "reader": {"backoff": 0.01, "pause": 0.3}}
 
 
@@ -134,6 +135,24 @@ async def test_a_failed_install_leaves_the_reconnecting_running(
 
 
 @pytest.mark.parametrize("opener", TIMINGS)
+async def test_each_timing_reaches_the_path_it_stands_for(
+    hass: HomeAssistant, opener: str
+) -> None:
+    """With both cases on one path, the other would go untested unnoticed."""
+    charger = ScriptedCharger()
+    first_after_reboot = []
+    async with ScriptedEntry(hass, charger, **TIMINGS[opener]) as scripted:
+        for version in ("43.7", "43.8", "43.9"):
+            hub = scripted.hub
+            connections = len(charger.opened_by)
+            await hub.async_install_firmware(version)
+            first_after_reboot.append(charger.opened_by[connections])
+            assert await until(lambda: scripted.hub not in (None, hub))  # noqa: B023
+            await hass.async_block_till_done()
+    assert opener in first_after_reboot
+
+
+@pytest.mark.parametrize("opener", TIMINGS)
 async def test_an_unusable_handshake_during_an_install_does_not_fail_it(
     hass: HomeAssistant, opener: str
 ) -> None:
@@ -143,7 +162,6 @@ async def test_an_unusable_handshake_during_an_install_does_not_fail_it(
         hub = scripted.hub
         charger.next_handshakes.append(UNUSABLE_HANDSHAKES["hello without a serial"])
         await hub.async_install_firmware("43.9")
-        assert charger.opened_by[1] == opener, "the first after the reboot"
         assert await until(lambda: scripted.hub not in (None, hub))
         await hass.async_block_till_done()
         assert scripted.entry.state is ConfigEntryState.LOADED
@@ -175,7 +193,6 @@ async def test_a_firmware_install_reloads_once_it_has_reconnected(  # noqa: PLR0
         hub = scripted.hub
         await hub.async_install_firmware("43.9")
         assert hub.charger.connected, "closed before the install had ended"
-        assert charger.opened_by[1] == opener, "the first after the reboot"
         if interval:
             hub._flush_pending()  # the timer this test does not wait for
         assert await until(lambda: scripted.hub not in (None, hub))
