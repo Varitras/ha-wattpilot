@@ -74,6 +74,7 @@ class WattpilotHub:
         self._torn_down = False
         # Set once by async_shutdown: an unloaded hub never comes back.
         self._retired = False
+        self.installing_firmware = False
 
     @classmethod
     def create_local(  # noqa: PLR0913 -- one per piece of the entry it is built from
@@ -137,9 +138,8 @@ class WattpilotHub:
         self._unsubscribe_properties = self.charger.on_property_change(
             self._handle_property_change
         )
-        # cancel_on_shutdown: this is a self-check, not device state -- it
-        # must not outlive Home Assistant itself if async_shutdown is ever
-        # skipped on the way down.
+        # cancel_on_shutdown: a self-check, not device state -- it must not
+        # outlive Home Assistant if async_shutdown is ever skipped on the way.
         self._cancel_timer = async_track_time_interval(
             self._hass,
             self._check_availability,
@@ -206,9 +206,8 @@ class WattpilotHub:
         if self._cancel_flush is not None:
             self._cancel_flush()
             self._cancel_flush = None
-        # Drop whatever was buffered: the next line marks the charger
-        # unavailable, so flushing stale values into entities on the way out
-        # would only contradict that.
+        # Drop whatever was buffered: flushing stale values on the way out
+        # would only contradict the unavailable state the next line sets.
         self._pending.clear()
         try:
             await self.charger.disconnect()
@@ -262,10 +261,9 @@ class WattpilotHub:
         """Return whether the charger is currently reachable."""
         # Not the client's flag alone: a close that raised leaves `connected`
         # True with the loop behind it gone, and once this hub has torn itself
-        # down no update reaches an entity again. Nor before the
-        # full status -- unless no outage was seen: a reconnect
-        # between two checks replays it into entities still shown, and they
-        # flapped.
+        # down no update reaches an entity again. Nor before the full status
+        # -- unless no outage was seen: a reconnect between two checks replays
+        # it into entities still shown, and they flapped.
         return (
             not self._torn_down
             and bool(self.charger.connected)
@@ -367,8 +365,7 @@ class WattpilotHub:
         elif available:
             _LOGGER.info("Charger %s is back online", mask_serial(self.serial))
         elif expected:
-            # A deliberate teardown (unload, HA stop, config-flow probe): the
-            # charger going away is the expected outcome, not a fault.
+            # A deliberate teardown (unload, HA stop, config-flow probe).
             _LOGGER.debug("Charger %s disconnected", mask_serial(self.serial))
         else:
             # INFO, not WARNING: the quality-scale rule `log-when-unavailable`
@@ -436,6 +433,7 @@ class WattpilotHub:
 
     async def async_install_firmware(self, version: str | None) -> None:
         """Trigger a firmware update, or install the latest if version is None."""
+        self.installing_firmware = True
         try:
             await self.charger.install_firmware_update(version)
         except _WRITE_ERRORS as err:
@@ -444,3 +442,5 @@ class WattpilotHub:
                 translation_key="firmware_update_failed",
                 translation_placeholders={"error": describe_error(err)},
             ) from None
+        finally:
+            self.installing_firmware = False
