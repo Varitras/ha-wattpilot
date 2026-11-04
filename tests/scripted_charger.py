@@ -104,6 +104,8 @@ class ScriptedCharger:
         self.status_pause = 0.0
         # The version in the last chunk completes the status in the same frame.
         self.firmware_in_last_chunk = False
+        # The new version reported on the old connection, before it ends.
+        self.firmware_before_reboot = False
         # The handshake of the next connections, one frame pair each.
         self.next_handshakes: list[tuple[dict[str, Any], dict[str, Any]]] = []
         self._tasks: list[asyncio.Task[None]] = []
@@ -147,6 +149,8 @@ class ScriptedCharger:
         socket.put({"type": "fullStatus", "partial": False, "status": rest})
 
     async def _reboot(self, socket: ScriptedSocket, firmware: str) -> None:
+        if self.firmware_before_reboot:
+            socket.put({"type": "deltaStatus", "status": {"fwv": firmware}})
         await asyncio.sleep(0.02)
         socket.end()
         self.offline = True

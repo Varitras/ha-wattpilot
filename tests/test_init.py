@@ -910,6 +910,86 @@ async def test_a_firmware_reload_waits_until_the_connection_has_settled(
         assert reload.call_count == 1
 
 
+@pytest.mark.parametrize("error", [None, WattpilotConnectionError("Timeout")])
+async def test_a_firmware_reload_waits_for_the_install_to_end(
+    hass: HomeAssistant, fake_charger: FakeWattpilot, error: Exception | None
+) -> None:
+    """
+    The new version can arrive with the status complete and the install waiting.
+
+    Its end is another event than the status: the reload closed the connection
+    the install still needed, and a working update was reported as failed. A
+    failed install ends the wait as well, or the reload would never come.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        options={CONF_UPDATE_INTERVAL: 0},
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+    hub = entry.runtime_data
+    assert hub.installing_firmware is False
+    release = asyncio.Event()
+
+    async def _install(_version: str | None) -> None:
+        await release.wait()
+        if error is not None:
+            raise error
+
+    with (
+        patch("custom_components.wattpilot._SETTLED_POLL", 0),
+        patch.object(hass.config_entries, "async_schedule_reload") as reload,
+        patch.object(fake_charger, "install_firmware_update", _install),
+    ):
+        install = asyncio.create_task(hub.async_install_firmware("43.1"))
+        await asyncio.sleep(0)
+        fake_charger.push("fwv", "43.1")
+        await _settle_firmware_wait(hass)
+        assert hub.installing_firmware is True
+        assert not reload.called, "the install is still waiting on this connection"
+
+        release.set()
+        await asyncio.wait([install])
+        await _settle_firmware_wait(hass)
+        assert hub.installing_firmware is False
+        assert reload.call_count == 1
+    assert (install.exception() is None) == (error is None)
+
+
+async def test_a_firmware_reload_waits_for_a_lost_connection_to_return(
+    hass: HomeAssistant, fake_charger: FakeWattpilot
+) -> None:
+    """
+    A complete status outlives its connection until the next attempt begins.
+
+    Reloading into the outage swapped a reconnect that was going to work for
+    a setup that had to fail first.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=V2_LOCAL_DATA,
+        version=2,
+        unique_id="123456",
+        options={CONF_UPDATE_INTERVAL: 0},
+    )
+    assert await setup_entry(hass, entry, fake_charger)
+
+    with (
+        patch("custom_components.wattpilot._SETTLED_POLL", 0),
+        patch.object(hass.config_entries, "async_schedule_reload") as reload,
+    ):
+        fake_charger.connected = False
+        fake_charger.push("fwv", "43.1")
+        await _settle_firmware_wait(hass)
+        assert not reload.called, "the charger is away"
+
+        fake_charger.connected = True
+        await _settle_firmware_wait(hass)
+        assert reload.call_count == 1
+
+
 async def test_an_unload_ends_the_wait_for_a_firmware_reload(
     hass: HomeAssistant, fake_charger: FakeWattpilot
 ) -> None:

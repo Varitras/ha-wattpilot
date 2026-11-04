@@ -140,6 +140,7 @@ async def test_a_firmware_install_reloads_once_it_has_reconnected(  # noqa: PLR0
     async with ScriptedEntry(hass, charger, interval, **timing) as scripted:
         hub = scripted.hub
         await hub.async_install_firmware("43.9")
+        assert hub.charger.connected, "closed before the install had ended"
         if interval:
             hub._flush_pending()  # the timer this test does not wait for
         assert await until(lambda: scripted.hub not in (None, hub))
@@ -152,3 +153,22 @@ async def test_a_firmware_install_reloads_once_it_has_reconnected(  # noqa: PLR0
         if message == "Charger firmware changed to 43.9, reloading"
     ]
     assert len(reloads) == 1, reloads
+
+
+async def test_a_version_reported_before_the_reboot_does_not_fail_the_install(
+    hass: HomeAssistant,
+) -> None:
+    """
+    The status is complete then, so only the install's end can hold the reload.
+
+    Started at once, it closed the connection and the install was reported
+    as failed.
+    """
+    charger = ScriptedCharger()
+    charger.firmware_before_reboot = True
+    async with ScriptedEntry(hass, charger) as scripted:
+        hub = scripted.hub
+        await hub.async_install_firmware("43.9")
+        assert await until(lambda: scripted.hub not in (None, hub))
+        await hass.async_block_till_done()
+        assert scripted.entry.state is ConfigEntryState.LOADED
