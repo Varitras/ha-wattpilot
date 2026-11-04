@@ -286,6 +286,8 @@ class FakeWattpilot:
 
     def push(self, key: str, value: Any) -> None:
         """Test helper: simulate a device push."""
+        if key == "fwv" and isinstance(value, str) and value.strip():
+            self.firmware = value
         self._properties[key] = value
         for callback in list(self._callbacks):
             callback(key, value)

@@ -29,7 +29,7 @@ from .exceptions import (
     WattpilotError,
     device_text,
 )
-from .models import AuthHashType, CloudInfo, DeviceInfo, missing_field
+from .models import AuthHashType, CloudInfo, DeviceInfo, is_text, missing_field
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -737,7 +737,7 @@ class Wattpilot:
         match name:
             case "cak":
                 self._cak = value
-            case "fwv":
+            case "fwv" if is_text(value):
                 self._firmware = value
 
         for cb in self._property_callbacks:

@@ -45,7 +45,7 @@ def missing_field(msg_type: str, message: dict[str, Any], serial: str) -> str | 
     if msg_type == "authRequired" and not serial:
         return "serial"  # the secret is derived from it, and hello brings it
     fields = _fields_to_check(msg_type, message)
-    unusable = (name for name in fields if not _is_text(message.get(name)))
+    unusable = (name for name in fields if not is_text(message.get(name)))
     return next(unusable, None)
 
 
@@ -54,5 +54,6 @@ def _fields_to_check(msg_type: str, message: dict[str, Any]) -> tuple[str, ...]:
     return (*_REQUIRED_TEXT.get(msg_type, ()), *sent)
 
 
-def _is_text(value: object) -> bool:
-    return isinstance(value, str) and bool(value)
+def is_text(value: object) -> bool:
+    """Return whether a charger value is text with something in it."""
+    return isinstance(value, str) and bool(value.strip())

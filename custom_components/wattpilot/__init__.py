@@ -201,9 +201,10 @@ def _reload_when_firmware_changes(
         hass.config_entries.async_schedule_reload(entry.entry_id)
 
     @callback
-    def _on_firmware(value: object) -> None:
+    def _on_firmware(_value: object) -> None:
         nonlocal known, waiting
-        if not isinstance(value, str) or value == known:
+        value = hub.firmware
+        if value is None or value == known:
             return
         # No version to compare with: a delta ended the status early, and a
         # reload would end the same way, again and again.
