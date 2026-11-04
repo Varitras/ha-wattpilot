@@ -105,14 +105,12 @@ class WattpilotUpdate(WattpilotEntity, UpdateEntity):
         )
 
     @callback
-    def _handle_installed_push(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
-        self._attr_installed_version = _version(value)
+    def _handle_installed_push(self, _value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
+        self._attr_installed_version = self._hub.firmware
         self.async_write_ha_state()
 
     def _apply_value(self, value: Any) -> None:  # noqa: ANN401 -- dynamically shaped charger payload
-        self._attr_installed_version = _version(
-            self._hub.get_property(self.entity_description.installed_key)
-        )
+        self._attr_installed_version = self._hub.firmware
         entries = value if isinstance(value, list) else [value]
         raw_versions = [entry for entry in entries if _version(entry)]
         self._offered = tuple(raw_versions)

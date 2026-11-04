@@ -15,6 +15,7 @@ import pytest
 
 from custom_components.wattpilot import _SerialMask
 from custom_components.wattpilot.api import DeviceIdentityError
+from custom_components.wattpilot.api.models import is_text
 
 from .deprecations import REPORTS, assert_listening, import_every_module
 
@@ -191,7 +192,7 @@ class FakeWattpilot:
         self._learned_serial = ""
         self.name = "Wattpilot"
         self.manufacturer = "fronius"
-        self.firmware = "42.5"
+        self._firmware: str | None = "42.5"
         self.model = "Wattpilot Home 11 J 2.0"
         # Deliberately an int: the real device reports "var" as a number.
         self.variant = 11
@@ -284,10 +285,20 @@ class FakeWattpilot:
         self._callbacks.append(callback)
         return lambda: self._callbacks.remove(callback)
 
+    @property
+    def firmware(self) -> str | None:
+        """The last usable fwv, as the real client keeps it."""
+        reported = self._properties.get("fwv")
+        if is_text(reported):
+            self._firmware = reported
+        return self._firmware
+
+    @firmware.setter
+    def firmware(self, value: str | None) -> None:
+        self._firmware = value
+
     def push(self, key: str, value: Any) -> None:
         """Test helper: simulate a device push."""
-        if key == "fwv" and isinstance(value, str) and value.strip():
-            self.firmware = value
         self._properties[key] = value
         for callback in list(self._callbacks):
             callback(key, value)

@@ -206,8 +206,8 @@ def _reload_when_firmware_changes(
         value = hub.firmware
         if value is None or value == known:
             return
-        # No version to compare with: a delta ended the status early, and a
-        # reload would end the same way, again and again.
+        # No version to compare with: the status ended early or carried none,
+        # and a reload would end the same way, again and again.
         rebuild = known is not None and not waiting
         known = value
         if rebuild:
