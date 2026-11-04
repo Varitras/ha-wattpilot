@@ -201,9 +201,7 @@ class ScriptedEntry:
         self._patches = [
             patch("websockets.asyncio.client.connect", new=charger.connect),
             patch("custom_components.wattpilot.hub.Wattpilot", new=fast_client),
-            patch(
-                "custom_components.wattpilot.api.client._REBOOT_RETRY_PAUSE", pause
-            ),
+            patch("custom_components.wattpilot.api.client._REBOOT_RETRY_PAUSE", pause),
             patch("custom_components.wattpilot._SETTLED_POLL", 0.01),
         ]
 

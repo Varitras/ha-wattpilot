@@ -151,7 +151,7 @@ async def test_an_unusable_handshake_during_an_install_does_not_fail_it(
 @pytest.mark.parametrize("pause", [0.0, 0.2])
 @pytest.mark.parametrize("last_chunk", [False, True], ids=["first", "last"])
 @pytest.mark.parametrize("timing", TIMINGS.values(), ids=TIMINGS)
-async def test_a_firmware_install_reloads_once_it_has_reconnected(  # noqa: PLR0913
+async def test_a_firmware_install_reloads_once_it_has_reconnected(  # noqa: PLR0913, PLR0917
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
     interval: int,
