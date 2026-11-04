@@ -44,10 +44,14 @@ def missing_field(msg_type: str, message: dict[str, Any], serial: str) -> str | 
     """Name the field a handshake message lacks, given the serial known so far."""
     if msg_type == "authRequired" and not serial:
         return "serial"  # the secret is derived from it, and hello brings it
-    sent = (name for name in _OPTIONAL_TEXT.get(msg_type, ()) if name in message)
-    fields = (*_REQUIRED_TEXT.get(msg_type, ()), *sent)
+    fields = _fields_to_check(msg_type, message)
     unusable = (name for name in fields if not _is_text(message.get(name)))
     return next(unusable, None)
+
+
+def _fields_to_check(msg_type: str, message: dict[str, Any]) -> tuple[str, ...]:
+    sent = (name for name in _OPTIONAL_TEXT.get(msg_type, ()) if name in message)
+    return (*_REQUIRED_TEXT.get(msg_type, ()), *sent)
 
 
 def _is_text(value: object) -> bool:
