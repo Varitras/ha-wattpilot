@@ -307,7 +307,8 @@ def test_the_suite_fails_on_reports_where_they_happen(
     result = subprocess.run(  # noqa: S603 -- the interpreter running this suite
         [
             sys.executable,
-            *("-m", "pytest", "-p", "tests.conftest", "-p", "no:cacheprovider"),
+            *("-m", "pytest", "-p", "no:respx", "-p", "tests.conftest"),
+            *("-p", "no:cacheprovider"),
             *("-o", "asyncio_mode=auto"),
             *("-o", "asyncio_default_fixture_loop_scope=function"),
             "test_inner.py",

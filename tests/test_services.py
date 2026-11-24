@@ -10,10 +10,10 @@ import pytest
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.wattpilot.const import CONF_UPDATE_INTERVAL, DOMAIN
 
+from .ha_helpers import MockConfigEntry
 from .test_init import V2_LOCAL_DATA, setup_entry
 
 if TYPE_CHECKING:

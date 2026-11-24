@@ -1,11 +1,9 @@
 """
 Import every module of the integration; fail if Home Assistant reports one.
 
-The test suite checks the same, but it needs
-pytest-homeassistant-custom-component, which pins one Home Assistant release
-and follows a beta days later, if at all. This needs Home Assistant alone, so
-the look at the next release runs it on the beta itself
-(.github/workflows/ha-next.yml).
+The test suite checks the same, but it needs a test plugin released for that
+Home Assistant. This needs Home Assistant alone, so the look at the next
+release can always run it (.github/workflows/ha-next.yml).
 
     python -m scripts.import_check
 """

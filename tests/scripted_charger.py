@@ -18,7 +18,6 @@ from unittest.mock import patch
 
 import websockets
 from homeassistant.config_entries import ConfigEntryState
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.wattpilot.api.client import _REBOOT_RETRY_PAUSE, Wattpilot
 from custom_components.wattpilot.const import (
@@ -27,6 +26,8 @@ from custom_components.wattpilot.const import (
     CONNECTION_LOCAL,
     DOMAIN,
 )
+
+from .ha_helpers import MockConfigEntry
 
 if TYPE_CHECKING:
     from collections.abc import Callable
