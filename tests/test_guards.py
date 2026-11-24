@@ -487,12 +487,12 @@ def test_the_test_environment_installs_what_the_manifest_declares() -> None:
     Every declared requirement has to be present where the tests run.
 
     Home Assistant installs them from the manifest; a test environment does
-    not, unless the dev group asks. They used to arrive by accident, through
+    not, unless the tools group asks. They used to arrive by accident, through
     the library the client was adopted from, and removing that package left
     a fresh environment without websockets -- which showed up as twenty-eight
     collection errors in CI rather than as one sentence.
 
-    Fix: add the distribution to the dev group in pyproject.toml.
+    Fix: add the distribution to the tools group in pyproject.toml.
     """
     missing = []
     for name in sorted(_declared_distributions()):
@@ -502,7 +502,7 @@ def test_the_test_environment_installs_what_the_manifest_declares() -> None:
             missing.append(name)
     assert not missing, (
         f"manifest.json declares {missing}, which the test environment does "
-        "not install -- add them to the dev dependency group"
+        "not install -- add them to the tools dependency group"
     )
 
 
@@ -1323,8 +1323,8 @@ def _jobs_pinning_and_testing(jobs: dict[str, Any], pin: str) -> list[str]:
     # Structural, not a substring scan of the file: the pin and the test run
     # have to sit in the SAME job's run steps. A commented-out pin cannot
     # satisfy this -- the YAML parser drops comments before we look. And
-    # "pytest" alone was found in pytest-homeassistant-custom-component on
-    # the install line, so a job without its test step passed.
+    # "pytest" alone was found in the test plugin's name on the install line,
+    # so a job without its test step passed.
     return [
         name
         for name, job in jobs.items()
@@ -1336,7 +1336,7 @@ def _jobs_pinning_and_testing(jobs: dict[str, Any], pin: str) -> list[str]:
 
 def test_the_minimum_ha_guard_needs_a_test_run_not_an_install() -> None:
     install = (
-        'pip install --group dev "homeassistant==2026.9.0" '
+        'pip install --group tools "homeassistant==2026.9.0" '
         '"pytest-homeassistant-custom-component==0.13.363"'
     )
     only_install = {"minimum": {"steps": [{"run": install}]}}
@@ -1359,8 +1359,8 @@ def test_ci_actually_runs_the_declared_minimum_home_assistant() -> None:
     `config_entry_id` only in 2026.8.0. All four actions raised
     AttributeError on the version we told HACS to allow, with a green
     suite. Fix: pin `homeassistant==<the hacs.json version>` in a CI job
-    (pytest-homeassistant-custom-component pins one HA release each, so
-    its version must match or pip fails the job loudly).
+    (each release of the test plugin pins one HA release, so the two must
+    match or pip fails the job loudly).
     """
     declared = json.loads(HACS_MANIFEST.read_text(encoding="utf-8"))["homeassistant"]
     pin = f"homeassistant=={declared}"
@@ -1588,6 +1588,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
     "test_deprecations.py": {
         "test_the_deprecation_check_recognises_home_assistants_reports": (
             "the check still reads every wording Home Assistant reports in"
+        ),
+        "test_the_deprecation_check_recognises_a_deprecated_entity_member": (
+            "the wording that names our class; not a dev copy's or another's"
         ),
         "test_the_deprecation_check_lets_other_reports_pass": (
             "counter-check: other integrations, own lines, tracebacks"

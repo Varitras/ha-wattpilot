@@ -15,7 +15,6 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_NAME
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.wattpilot.api import AuthenticationError
 from custom_components.wattpilot.const import (
@@ -28,6 +27,7 @@ from custom_components.wattpilot.const import (
 )
 
 from .conftest import FakeWattpilot, patch_charger
+from .ha_helpers import MockConfigEntry
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant

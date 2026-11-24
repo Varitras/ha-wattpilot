@@ -8,10 +8,16 @@ version = "0.3.0"
 description = "Home Assistant integration for Fronius Wattpilot EV chargers"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.14"
+requires-python = ">=3.14.2"
 
 [dependency-groups]
-dev = [
+# Home Assistant's own test plugin pins the Home Assistant of its version. It
+# must not share an environment with the one it replaced, which the declared
+# minimum still needs: CI installs that one beside `tools`.
+# The floor keeps pip from falling back to an unrelated package of that name
+# from 2020.
+dev = [{ include-group = "tools" }, "pytest-homeassistant>=2026.11"]
+tools = [
     # What manifest.json declares. Home Assistant installs these from the
     # manifest in a real installation; the test environment has to ask for
     # them itself. They used to arrive transitively through wattpilot-api,
@@ -20,7 +26,6 @@ dev = [
     # tests/test_guards.py keeps this list and the manifest in step.
     "websockets>=14.0",
     "pytest>=9.0.0",
-    "pytest-homeassistant-custom-component",
     # Exact as well: a new ruff brings new rules, and a floor let 0.17 fail
     # lint in a fresh environment with no change to the code.
     "ruff==0.17.3",
@@ -41,7 +46,9 @@ dev = [
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = ["-q"]
+# respx's plugin imports httpx before Home Assistant could alias it, and
+# pytest stops before it collects anything (Home Assistant 2026.11).
+addopts = ["-q", "-p", "no:respx"]
 # A hung test fails on its own instead of holding the run until CI gives up.
 timeout = 120
 # Ours only: a deprecation inside Home Assistant or a library is theirs to

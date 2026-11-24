@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from homeassistant.const import CONF_NAME
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.wattpilot import async_migrate_entry
 from custom_components.wattpilot.const import (
@@ -28,6 +27,7 @@ from custom_components.wattpilot.redaction import (
 )
 from scripts.anonymize_probe import fixture_from
 
+from .ha_helpers import MockConfigEntry
 from .test_init import (
     V1_CLOUD_DATA,
     V1_LOCAL_DATA,

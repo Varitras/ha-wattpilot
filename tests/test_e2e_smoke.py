@@ -18,11 +18,11 @@ from unittest.mock import patch
 
 import pytest
 from homeassistant.helpers import entity_registry as er
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.wattpilot.const import DOMAIN
 from custom_components.wattpilot.descriptions import SENSOR_DESCRIPTIONS
 
+from .ha_helpers import MockConfigEntry
 from .test_init import V2_LOCAL_DATA, setup_entry
 
 if TYPE_CHECKING:

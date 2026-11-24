@@ -7,12 +7,12 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.wattpilot import registry_migration
 from custom_components.wattpilot.const import DOMAIN
 
 from .conftest import FakeWattpilot
+from .ha_helpers import MockConfigEntry
 from .test_init import V2_LOCAL_DATA, setup_entry
 
 if TYPE_CHECKING:

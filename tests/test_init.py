@@ -21,11 +21,6 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-    async_fire_time_changed,
-    mock_restore_cache_with_extra_data,
-)
 
 from custom_components.wattpilot import (
     _SerialMask,
@@ -56,6 +51,11 @@ from custom_components.wattpilot.descriptions import (
 )
 
 from .conftest import FakeWattpilot, patch_charger
+from .ha_helpers import (
+    MockConfigEntry,
+    async_fire_time_changed,
+    mock_restore_cache_with_extra_data,
+)
 from .test_config_flow import DISCOVERY, start_discovery_flow
 from .test_sensor import nrg_reading
 

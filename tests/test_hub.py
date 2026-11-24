@@ -18,7 +18,6 @@ from homeassistant.exceptions import (
 )
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.util import dt as dt_util
-from pytest_homeassistant_custom_component.common import async_fire_time_changed
 from websockets.exceptions import WebSocketException
 
 from custom_components.wattpilot.api import AuthenticationError, WattpilotError
@@ -29,6 +28,8 @@ from custom_components.wattpilot.const import (
     signal_property,
 )
 from custom_components.wattpilot.hub import WattpilotHub
+
+from .ha_helpers import async_fire_time_changed
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable

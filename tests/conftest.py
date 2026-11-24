@@ -22,8 +22,6 @@ from .deprecations import REPORTS, assert_listening, import_every_module
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterator
 
-pytest_plugins = "pytest_homeassistant_custom_component"
-
 
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(

@@ -34,10 +34,11 @@ jobs:
   # not academic: DeviceEntry only gained `config_entry_id` in 2026.8.0, so
   # every action raised AttributeError on the version hacs.json used to
   # declare -- with a fully green suite. Keep this pin equal to hacs.json's
-  # "homeassistant" (tests/test_guards.py enforces that). The
-  # pytest-homeassistant-custom-component release pins one HA version each,
-  # so a mismatched pair fails here in pip rather than silently in a user's
-  # install.
+  # "homeassistant" (tests/test_guards.py enforces that). Each release of the
+  # test plugin pins one HA version, so a mismatched pair fails here in pip
+  # rather than silently in a user's install. It is the older plugin: Home
+  # Assistant's own starts with 2026.11, and both in one environment stop
+  # pytest at startup.
   minimum-home-assistant:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -48,7 +49,7 @@ jobs:
           python-version: "3.14"
       - name: Install the declared minimum Home Assistant
         run: |
-          pip install --group dev \
+          pip install --group tools \
             "homeassistant==2026.9.0" \
             "pytest-homeassistant-custom-component==0.13.363"
       - name: Run the test suite against it

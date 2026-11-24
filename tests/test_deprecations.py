@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import pytest
+from homeassistant.helpers import deprecation
 from homeassistant.helpers.deprecation import (
     deprecated_function,
     deprecated_hass_argument,
@@ -57,7 +58,7 @@ Entity().new_name()
 
 def _call_from(file_name: str, source: str, **names: object) -> None:
     """Run source as if it were a line of that file."""
-    code = compile(source, file_name, "exec")
+    code = compile(source, file_name, "exec", dont_inherit=True)
     exec(code, names)  # noqa: S102 -- the frame Home Assistant attributes reports by
 
 
@@ -130,6 +131,48 @@ async def test_the_deprecation_check_recognises_home_assistants_reports(
     reported = [record.getMessage() for record in REPORTS.take()]
     assert len(reported) == 1, reported
     assert reported[0].startswith(opening), reported
+
+
+INHERITS_A_DEPRECATED_MEMBER = """
+from typing import Final
+
+class Base:
+    old: Final = DeprecatedEntityProperty("native_old", "2099.1")
+    native_old = None
+
+    def __init_subclass__(cls):
+        migrate_deprecated_entity_members(cls, Base)
+
+
+class Sensor(Base):
+    @property
+    def old(self):
+        return 1
+"""
+
+
+@pytest.mark.skipif(
+    not hasattr(deprecation, "migrate_deprecated_entity_members"),
+    reason="Home Assistant reports it from 2026.11 on",
+)
+@pytest.mark.parametrize(
+    ("module", "ours"),
+    [
+        (SENSOR_MODULE, True),
+        (f"custom_components.{INTEGRATION}_dev.sensor", False),
+        ("custom_components.other.sensor", False),
+    ],
+)
+def test_the_deprecation_check_recognises_a_deprecated_entity_member(
+    caplog: pytest.LogCaptureFixture,
+    module: str,
+    ours: bool,  # noqa: FBT001 -- a parameter of the case
+) -> None:
+    """Home Assistant names the class that provides it, not the integration."""
+    names = {**vars(deprecation), "__name__": module}
+    _call_from(CALLER_FILE, INHERITS_A_DEPRECATED_MEMBER, **names)
+    assert f"{module}::Sensor provides the deprecated old" in caplog.text
+    assert len(REPORTS.take()) == ours
 
 
 def _logs_with_a_traceback() -> None:

@@ -1,10 +1,9 @@
 name: Next Home Assistant
 
-# CI tests the Home Assistant that the newest
-# pytest-homeassistant-custom-component pins: today's release. This takes the
-# newest release on PyPI, beta included -- while a beta is out, one release
-# ahead -- so whatever it removes or newly reports as deprecated turns up
-# while there is time to change it. Weekly and by hand, and on a pull request
+# CI tests the newest final Home Assistant. This takes the newest release on
+# PyPI, beta included -- while a beta is out, one release ahead -- so
+# whatever it removes or newly reports as deprecated turns up while there is
+# time to change it. Weekly and by hand, and on a pull request
 # that changes the check or what it installs. Red here means that release,
 # not this branch: it is a warning, not a merge gate. In a public repository
 # GitHub disables a schedule after 60 days without activity; re-enable it in
@@ -20,6 +19,7 @@ on:
       - tests/__init__.py
       - tests/conftest.py
       - tests/deprecations.py
+      - tests/ha_helpers.py
       - pyproject.toml
       - custom_components/wattpilot/manifest.json
 
@@ -35,9 +35,9 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
-      # The newest release of either, betas included, and whether the test
-      # harness pins exactly that Home Assistant. It follows a beta days late,
-      # if at all; without it only the import check can run.
+      # The newest release, betas included, and whether the test plugin is
+      # out for it: it carries the version of the Home Assistant it pins.
+      # Without it only the import check can run.
       - name: Find the newest Home Assistant and its test harness
         id: versions
         shell: python
@@ -57,29 +57,28 @@ jobs:
               final = beta is None
               return int(year), int(month), int(patch), final, int(beta or 0)
 
-          releases = pypi("homeassistant")["releases"]
-          newest = max(
-              (
+          def available(name):
+              return {
                   version
-                  for version, files in releases.items()
+                  for version, files in pypi(name)["releases"].items()
                   if re.fullmatch(r"\d+\.\d+\.\d+(b\d+)?", version)
                   and files
                   and not all(file["yanked"] for file in files)
-              ),
-              key=order,
-          )
-          harness = pypi("pytest-homeassistant-custom-component")["info"]
-          pinned = f"homeassistant=={newest}" in (harness["requires_dist"] or [])
-          print(f"Home Assistant {newest}; test harness for it: {pinned}")
+              }
+
+          newest = max(available("homeassistant"), key=order)
+          harness = newest in available("pytest-homeassistant")
+          print(f"Home Assistant {newest}; test plugin for it: {harness}")
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-              output.write(f"homeassistant={newest}\nharness={str(pinned).lower()}\n")
+              output.write(f"homeassistant={newest}\nharness={str(harness).lower()}\n")
       - name: Install it
         env:
           HOMEASSISTANT: ${{ steps.versions.outputs.homeassistant }}
           HARNESS: ${{ steps.versions.outputs.harness }}
         run: |
           if [[ "$HARNESS" == true ]]; then
-            pip install --group dev "homeassistant==$HOMEASSISTANT"
+            # Named with its version: pip does not pick a beta by itself.
+            pip install --group dev "pytest-homeassistant==$HOMEASSISTANT"
           else
             mapfile -t requirements < <(jq -r '.requirements[]' custom_components/wattpilot/manifest.json)
             pip install "homeassistant==$HOMEASSISTANT" "${requirements[@]}"
@@ -94,4 +93,4 @@ jobs:
         env:
           HOMEASSISTANT: ${{ steps.versions.outputs.homeassistant }}
         run: |
-          echo "::notice::No test harness for Home Assistant $HOMEASSISTANT yet: only the import check ran"
+          echo "::notice::No test plugin for Home Assistant $HOMEASSISTANT yet: only the import check ran"
