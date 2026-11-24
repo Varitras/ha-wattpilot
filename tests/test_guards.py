@@ -1359,8 +1359,8 @@ def test_ci_actually_runs_the_declared_minimum_home_assistant() -> None:
     `config_entry_id` only in 2026.8.0. All four actions raised
     AttributeError on the version we told HACS to allow, with a green
     suite. Fix: pin `homeassistant==<the hacs.json version>` in a CI job
-    (the test plugin pins one HA release each, so its version must match
-    or pip fails the job loudly).
+    (each release of the test plugin pins one HA release, so the two must
+    match or pip fails the job loudly).
     """
     declared = json.loads(HACS_MANIFEST.read_text(encoding="utf-8"))["homeassistant"]
     pin = f"homeassistant=={declared}"
@@ -1588,6 +1588,9 @@ GUARD_INDEX: dict[str, dict[str, str]] = {
     "test_deprecations.py": {
         "test_the_deprecation_check_recognises_home_assistants_reports": (
             "the check still reads every wording Home Assistant reports in"
+        ),
+        "test_the_deprecation_check_recognises_a_deprecated_entity_member": (
+            "the wording that names our class; not a dev copy's or another's"
         ),
         "test_the_deprecation_check_lets_other_reports_pass": (
             "counter-check: other integrations, own lines, tracebacks"
