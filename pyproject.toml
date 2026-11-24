@@ -8,7 +8,7 @@ version = "0.3.0"
 description = "Home Assistant integration for Fronius Wattpilot EV chargers"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.14"
+requires-python = ">=3.14.2"
 
 [dependency-groups]
 # Home Assistant's own test plugin pins the Home Assistant of its version. It

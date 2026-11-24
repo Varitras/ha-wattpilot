@@ -34,9 +34,9 @@ jobs:
   # not academic: DeviceEntry only gained `config_entry_id` in 2026.8.0, so
   # every action raised AttributeError on the version hacs.json used to
   # declare -- with a fully green suite. Keep this pin equal to hacs.json's
-  # "homeassistant" (tests/test_guards.py enforces that). The test plugin
-  # pins one HA version each, so a mismatched pair fails here in pip rather
-  # than silently in a user's install. It is the older plugin: Home
+  # "homeassistant" (tests/test_guards.py enforces that). Each release of the
+  # test plugin pins one HA version, so a mismatched pair fails here in pip
+  # rather than silently in a user's install. It is the older plugin: Home
   # Assistant's own starts with 2026.11, and both in one environment stop
   # pytest at startup.
   minimum-home-assistant:

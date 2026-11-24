@@ -320,7 +320,8 @@ runs every gate: `ruff format --check`, `ruff check`, `mypy --strict`,
 tool is missing fails the run; `pip install --group dev` installs them all.
 `bash scripts/check.sh --release` adds the mutation-testing gate on top.
 
-The test suite needs Linux, as Home Assistant itself does; on Windows use WSL2.
+The test suite does not run on Windows, because Home Assistant does not; use
+WSL2 there.
 Python 3.14.2 or newer is required. An environment that still has
 `pytest-homeassistant-custom-component` has to be rebuilt first: it does not
 work beside `pytest-homeassistant`.
