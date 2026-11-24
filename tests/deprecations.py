@@ -38,7 +38,7 @@ _DOMAIN = re.escape(INTEGRATION)
 _HOME_ASSISTANT_LOGGER = "homeassistant"
 
 # The wordings of helpers.frame and helpers.deprecation (Home Assistant
-# 2026.10). A call from no integration is, in this suite, the tests or what
+# 2026.11). A call from no integration is, in this suite, the tests or what
 # they drive, so it counts as well. A call from another integration does not.
 # Matched at the start of the message and never across a line: a traceback
 # or an argument below may quote a path or a word, and is not the report.
@@ -49,6 +49,7 @@ _REPORT = re.compile(
             r"Detected code that ",
             rf"The deprecated .+? was [^.\n]+? from {_DOMAIN}\.",
             r"The deprecated .+? was (?:(?! from )[^.\n])+\.",
+            rf"custom_components\.{_DOMAIN}(?:\.[\w.]+)?::\S+ provides the deprecated ",
         )
     )
 )
